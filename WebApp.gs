@@ -39,7 +39,9 @@ function doPost(e) {
 
 /**
  * Handle /balance slash command.
- * Returns the response directly as JSON to avoid Slack's 3-second timeout.
+ * Returns an immediate acknowledgment, then processes the balance
+ * lookup asynchronously and sends the real response via response_url.
+ * This avoids Slack's 3-second timeout on cold starts.
  */
 function handleSlashCommand_(e) {
   var params = {};
@@ -50,20 +52,63 @@ function handleSlashCommand_(e) {
   }
 
   var command = params.command;
-  var userId = params.user_id;
 
   if (command === '/balance' || command === '%2Fbalance') {
+    // Queue the request for async processing
+    var requestId = 'bal_' + params.user_id + '_' + Date.now();
+    PropertiesService.getScriptProperties().setProperty(requestId, JSON.stringify({
+      user_id: params.user_id,
+      response_url: params.response_url
+    }));
+
+    // Create a trigger to process it asynchronously (fires within a few seconds)
+    ScriptApp.newTrigger('processBalanceRequests')
+      .timeBased()
+      .after(1)
+      .create();
+
+    // Return immediate acknowledgment (under 3 seconds)
+    return slashResponse_(':hourglass_flowing_sand: Looking up your balance...');
+  }
+
+  return slashResponse_('Unknown command.');
+}
+
+/**
+ * Async handler: processes all pending /balance requests.
+ * Fired by a time-based trigger created in handleSlashCommand_.
+ */
+function processBalanceRequests() {
+  var props = PropertiesService.getScriptProperties();
+  var allProps = props.getProperties();
+
+  for (var key in allProps) {
+    if (key.indexOf('bal_') !== 0) continue;
+
+    var request;
+    try {
+      request = JSON.parse(allProps[key]);
+    } catch (e) {
+      props.deleteProperty(key);
+      continue;
+    }
+    props.deleteProperty(key);
+
     // Look up the user's email from Slack
-    var email = getSlackUserEmail_(userId);
+    var email = getSlackUserEmail_(request.user_id);
 
     if (!email) {
-      return slashResponse_(':x: Sorry, I couldn\'t look up your email address. Please contact the ops team.');
+      respondToSlashCommand_(request.response_url,
+        ':x: Sorry, I couldn\'t look up your email address. Please contact the ops team.');
+      continue;
     }
 
     var balance = getBalance_(email);
 
     if (!balance) {
-      return slashResponse_(':x: No Flex Fund balance found for ' + email + '. If you think this is an error, please contact the ops team.');
+      respondToSlashCommand_(request.response_url,
+        ':x: No Flex Fund balance found for ' + email + '. If you think this is an error, please contact the ops team.');
+      continue;
     }
 
     var message = [
@@ -84,15 +129,20 @@ function handleSlashCommand_(e) {
       '_Note: Work-life improvement balances include estimated tax gross-ups at 30%. Actual gross-up amounts may vary slightly._'
     ].join('\n');
 
-    return slashResponse_(message);
+    respondToSlashCommand_(request.response_url, message);
   }
 
-  return slashResponse_('Unknown command.');
+  // Clean up all processBalanceRequests triggers to avoid accumulation
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'processBalanceRequests') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
 }
 
 /**
  * Return an ephemeral JSON response directly to Slack.
- * This is faster than using response_url since it avoids an extra HTTP call.
  */
 function slashResponse_(text) {
   var response = {
