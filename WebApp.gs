@@ -39,6 +39,7 @@ function doPost(e) {
 
 /**
  * Handle /balance slash command.
+ * Returns the response directly as JSON to avoid Slack's 3-second timeout.
  */
 function handleSlashCommand_(e) {
   var params = {};
@@ -50,22 +51,19 @@ function handleSlashCommand_(e) {
 
   var command = params.command;
   var userId = params.user_id;
-  var responseUrl = params.response_url;
 
   if (command === '/balance' || command === '%2Fbalance') {
     // Look up the user's email from Slack
     var email = getSlackUserEmail_(userId);
 
     if (!email) {
-      respondToSlashCommand_(responseUrl, ':x: Sorry, I couldn\'t look up your email address. Please contact the ops team.');
-      return ContentService.createTextOutput('');
+      return slashResponse_(':x: Sorry, I couldn\'t look up your email address. Please contact the ops team.');
     }
 
     var balance = getBalance_(email);
 
     if (!balance) {
-      respondToSlashCommand_(responseUrl, ':x: No Flex Fund balance found for ' + email + '. If you think this is an error, please contact the ops team.');
-      return ContentService.createTextOutput('');
+      return slashResponse_(':x: No Flex Fund balance found for ' + email + '. If you think this is an error, please contact the ops team.');
     }
 
     var message = [
@@ -86,9 +84,21 @@ function handleSlashCommand_(e) {
       '_Note: Work-life improvement balances include estimated tax gross-ups at 30%. Actual gross-up amounts may vary slightly._'
     ].join('\n');
 
-    respondToSlashCommand_(responseUrl, message);
+    return slashResponse_(message);
   }
 
-  // Must return 200 quickly to avoid Slack timeout
-  return ContentService.createTextOutput('');
+  return slashResponse_('Unknown command.');
+}
+
+/**
+ * Return an ephemeral JSON response directly to Slack.
+ * This is faster than using response_url since it avoids an extra HTTP call.
+ */
+function slashResponse_(text) {
+  var response = {
+    response_type: 'ephemeral',
+    text: text
+  };
+  return ContentService.createTextOutput(JSON.stringify(response))
+    .setMimeType(ContentService.MimeType.JSON);
 }
