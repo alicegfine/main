@@ -3,7 +3,7 @@
 // ============================================================
 // When an approver reacts with :white_check_mark: on an
 // approval message, sends the payroll email and DMs Alice
-// about the gross-up.
+// about the gross-up. When reacted with :x:, marks as declined.
 // ============================================================
 
 /**
@@ -11,9 +11,6 @@
  * Called from doPost() in WebApp.gs.
  */
 function handleReactionAdded_(event) {
-  // Only process white_check_mark reactions
-  if (event.reaction !== 'white_check_mark') return;
-
   // Only process reactions from authorized approvers
   var reactorId = event.user;
   if (CONFIG.APPROVER_USER_IDS.indexOf(reactorId) === -1) return;
@@ -21,33 +18,40 @@ function handleReactionAdded_(event) {
   // Only process reactions on messages in the approval channel
   if (event.item.channel !== CONFIG.APPROVAL_CHANNEL_ID) return;
 
-  // Look up the submission data from the message timestamp
   var messageTs = event.item.ts;
   var submission = getMessageMapping_(messageTs);
-  if (!submission) {
-    Logger.log('No submission found for message ts: ' + messageTs);
-    return;
+  if (!submission) return;
+
+  // Already processed — don't send duplicate emails
+  if (submission.status !== 'pending') return;
+
+  if (event.reaction === 'white_check_mark') {
+    // Send payroll email
+    sendPayrollEmail_(submission);
+
+    // If needs gross-up, DM Alice to verify later
+    if (submission.needsGrossUp) {
+      sendGrossUpReminder_(submission);
+    }
+
+    // Mark as approved (keep the mapping for digest tracking)
+    submission.status = 'approved';
+    submission.resolvedAt = new Date().toISOString();
+    PropertiesService.getScriptProperties().setProperty('msg_' + messageTs, JSON.stringify(submission));
+
+  } else if (event.reaction === 'x') {
+    // Mark as declined
+    submission.status = 'declined';
+    submission.resolvedAt = new Date().toISOString();
+    PropertiesService.getScriptProperties().setProperty('msg_' + messageTs, JSON.stringify(submission));
   }
-
-  // Send payroll email
-  sendPayrollEmail_(submission);
-
-  // If needs gross-up, DM Alice to verify later
-  if (submission.needsGrossUp) {
-    sendGrossUpReminder_(submission);
-  }
-
-  // Clean up the stored mapping (optional, saves property storage space)
-  PropertiesService.getScriptProperties().deleteProperty('msg_' + messageTs);
 }
 
 /**
  * Send reimbursement email to payroll.
  */
 function sendPayrollEmail_(submission) {
-  var subject = 'Flex Fund Reimbursement — ' + submission.email.split('@')[0].split('.').map(function(part) {
-    return part.charAt(0).toUpperCase() + part.slice(1);
-  }).join(' ');
+  var subject = 'Flex Fund Reimbursement — ' + formatName_(submission.email);
 
   var body = [
     'Hi Leanna,',
@@ -79,9 +83,7 @@ function sendPayrollEmail_(submission) {
  * DM Alice in Slack to verify gross-up amount when payroll replies.
  */
 function sendGrossUpReminder_(submission) {
-  var name = submission.email.split('@')[0].split('.').map(function(part) {
-    return part.charAt(0).toUpperCase() + part.slice(1);
-  }).join(' ');
+  var name = formatName_(submission.email);
 
   var message = [
     ':memo: *Gross-up verification needed*',
@@ -93,4 +95,14 @@ function sendGrossUpReminder_(submission) {
   ].join('\n');
 
   sendSlackDM_(CONFIG.ALICE_SLACK_USER_ID, message);
+}
+
+/**
+ * Format an email address as a display name.
+ * e.g. "jacob.swett@blueprintbiosecurity.org" → "Jacob Swett"
+ */
+function formatName_(email) {
+  return email.split('@')[0].split('.').map(function(part) {
+    return part.charAt(0).toUpperCase() + part.slice(1);
+  }).join(' ');
 }

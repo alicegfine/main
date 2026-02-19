@@ -117,7 +117,7 @@ function buildApprovalMessage_(submission, needsGrossUp, grossUpEstimate, totalC
   }
 
   lines.push('');
-  lines.push('React with :white_check_mark: to approve and send to payroll.');
+  lines.push('React with :white_check_mark: to approve and send to payroll, or :x: to decline.');
 
   return lines.join('\n');
 }
@@ -138,7 +138,9 @@ function storeMessageMapping_(messageTs, submission, grossUpEstimate, totalCost)
     grossUpEstimate: grossUpEstimate,
     totalCost: totalCost,
     needsGrossUp: (submission.category === CONFIG.CATEGORY_WORK_LIFE),
-    row: submission.row
+    row: submission.row,
+    status: 'pending',
+    submittedAt: new Date().toISOString()
   };
   PropertiesService.getScriptProperties().setProperty('msg_' + messageTs, JSON.stringify(data));
 }

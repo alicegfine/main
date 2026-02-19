@@ -157,11 +157,26 @@ This adds the estimated gross-up amounts (column I) for that person to their wor
 - **Event type:** `On form submit`
 - Click **Save**
 
-### Trigger 2: Monthly summary
+### Trigger 2: Balance request processor
+- **Function:** `processBalanceRequests`
+- **Event source:** `Time-driven`
+- **Type of time-based trigger:** `Minutes timer`
+- **Interval:** `Every minute`
+- Click **Save**
+
+### Trigger 3: Monthly summary
 - **Function:** `postMonthlySummaryIfLastBusinessDay`
 - **Event source:** `Time-driven`
 - **Type of time-based trigger:** `Day timer`
 - **Time of day:** `9am to 10am` (or whenever you'd like)
+- Click **Save**
+
+### Trigger 4: Weekly digest of unapproved requests
+- **Function:** `postWeeklyDigest`
+- **Event source:** `Time-driven`
+- **Type of time-based trigger:** `Week timer`
+- **Day of week:** `Monday`
+- **Time of day:** `9am to 10am`
 - Click **Save**
 
 ## Step 11: Disable Your Zapier Automation
