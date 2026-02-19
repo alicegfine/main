@@ -39,9 +39,8 @@ function doPost(e) {
 
 /**
  * Handle /balance slash command.
- * Returns an immediate acknowledgment, then processes the balance
- * lookup asynchronously and sends the real response via response_url.
- * This avoids Slack's 3-second timeout on cold starts.
+ * Adds the request to a queue in Script Properties and returns immediately.
+ * processBalanceRequests() picks it up on its 1-minute trigger.
  */
 function handleSlashCommand_(e) {
   var params = {};
@@ -54,20 +53,26 @@ function handleSlashCommand_(e) {
   var command = params.command;
 
   if (command === '/balance' || command === '%2Fbalance') {
-    // Queue the request for async processing
-    var requestId = 'bal_' + params.user_id + '_' + Date.now();
-    PropertiesService.getScriptProperties().setProperty(requestId, JSON.stringify({
+    // Append to the balance request queue
+    var props = PropertiesService.getScriptProperties();
+    var lock = LockService.getScriptLock();
+    lock.tryLock(5000);
+
+    var queue = [];
+    var queueJson = props.getProperty('balance_queue');
+    if (queueJson) {
+      try { queue = JSON.parse(queueJson); } catch (err) { queue = []; }
+    }
+
+    queue.push({
       user_id: params.user_id,
-      response_url: params.response_url
-    }));
+      response_url: params.response_url,
+      timestamp: Date.now()
+    });
 
-    // Create a trigger to process it asynchronously (fires within a few seconds)
-    ScriptApp.newTrigger('processBalanceRequests')
-      .timeBased()
-      .after(1)
-      .create();
+    props.setProperty('balance_queue', JSON.stringify(queue));
+    lock.releaseLock();
 
-    // Return immediate acknowledgment (under 3 seconds)
     return slashResponse_(':hourglass_flowing_sand: Looking up your balance...');
   }
 
@@ -75,26 +80,42 @@ function handleSlashCommand_(e) {
 }
 
 /**
- * Async handler: processes all pending /balance requests.
- * Fired by a time-based trigger created in handleSlashCommand_.
+ * Processes all pending /balance requests.
+ * Set this up as a time-based trigger that runs every 1 minute.
  */
 function processBalanceRequests() {
   var props = PropertiesService.getScriptProperties();
-  var allProps = props.getProperties();
+  var lock = LockService.getScriptLock();
+  lock.tryLock(5000);
 
-  for (var key in allProps) {
-    if (key.indexOf('bal_') !== 0) continue;
+  var queueJson = props.getProperty('balance_queue');
+  if (!queueJson) {
+    lock.releaseLock();
+    return;
+  }
 
-    var request;
-    try {
-      request = JSON.parse(allProps[key]);
-    } catch (e) {
-      props.deleteProperty(key);
-      continue;
-    }
-    props.deleteProperty(key);
+  var queue;
+  try {
+    queue = JSON.parse(queueJson);
+  } catch (e) {
+    props.deleteProperty('balance_queue');
+    lock.releaseLock();
+    return;
+  }
 
-    // Look up the user's email from Slack
+  // Clear the queue so new requests don't get lost
+  props.deleteProperty('balance_queue');
+  lock.releaseLock();
+
+  if (!queue.length) return;
+
+  for (var i = 0; i < queue.length; i++) {
+    var request = queue[i];
+
+    // Skip requests older than 5 minutes (response_url expires after 30 min,
+    // but no point processing very stale ones)
+    if (Date.now() - request.timestamp > 300000) continue;
+
     var email = getSlackUserEmail_(request.user_id);
 
     if (!email) {
@@ -130,14 +151,6 @@ function processBalanceRequests() {
     ].join('\n');
 
     respondToSlashCommand_(request.response_url, message);
-  }
-
-  // Clean up all processBalanceRequests triggers to avoid accumulation
-  var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i++) {
-    if (triggers[i].getHandlerFunction() === 'processBalanceRequests') {
-      ScriptApp.deleteTrigger(triggers[i]);
-    }
   }
 }
 
