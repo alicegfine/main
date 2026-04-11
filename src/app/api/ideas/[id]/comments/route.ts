@@ -10,6 +10,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: "user_name and text are required" }, { status: 400 });
   }
 
-  const commentId = addComment("idea", Number(id), user_name, text);
+  const commentId = await addComment("idea", Number(id), user_name, text);
   return NextResponse.json({ id: commentId }, { status: 201 });
 }

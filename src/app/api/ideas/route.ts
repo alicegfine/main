@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAllIdeas, createIdea } from "@/lib/db";
 
 export async function GET() {
-  const ideas = getAllIdeas();
+  const ideas = await getAllIdeas();
   return NextResponse.json(ideas);
 }
 
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  const id = createIdea({
+  const id = await createIdea({
     title,
     description: description || "",
     proposed_by,

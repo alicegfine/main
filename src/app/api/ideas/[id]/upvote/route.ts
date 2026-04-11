@@ -10,6 +10,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: "user_name is required" }, { status: 400 });
   }
 
-  const upvoted = toggleUpvote("idea", Number(id), user_name);
+  const upvoted = await toggleUpvote("idea", Number(id), user_name);
   return NextResponse.json({ upvoted });
 }

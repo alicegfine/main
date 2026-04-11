@@ -10,6 +10,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: "user_name is required" }, { status: 400 });
   }
 
-  const attending = toggleAttendance(Number(id), user_name);
+  const attending = await toggleAttendance(Number(id), user_name);
   return NextResponse.json({ attending });
 }

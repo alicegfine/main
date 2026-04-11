@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAllSessions, createSession } from "@/lib/db";
 
 export async function GET() {
-  const sessions = getAllSessions();
+  const sessions = await getAllSessions();
   return NextResponse.json(sessions);
 }
 
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  const id = createSession({
+  const id = await createSession({
     title,
     description: description || "",
     speaker,

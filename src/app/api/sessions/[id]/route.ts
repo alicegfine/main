@@ -3,7 +3,7 @@ import { getSession, updateSession, deleteSession } from "@/lib/db";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const { id } = params;
-  const session = getSession(Number(id));
+  const session = await getSession(Number(id));
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(session);
 }
@@ -17,13 +17,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     return NextResponse.json({ error: "edited_by is required" }, { status: 400 });
   }
 
-  const session = updateSession(Number(id), data, edited_by);
+  const session = await updateSession(Number(id), data, edited_by);
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(session);
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const { id } = params;
-  deleteSession(Number(id));
+  await deleteSession(Number(id));
   return NextResponse.json({ ok: true });
 }

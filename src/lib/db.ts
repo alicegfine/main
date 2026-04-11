@@ -1,132 +1,143 @@
-import fs from "fs";
-import path from "path";
+import { Pool } from "pg";
 
-const DB_PATH = path.join(process.cwd(), "data.json");
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-interface Session {
-  id: number;
-  title: string;
-  description: string;
-  speaker: string;
-  room: string;
-  start_time: string;
-  duration_minutes: number;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
+let _initialized = false;
+
+async function ensureInit() {
+  if (_initialized) return;
+  _initialized = true;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      speaker TEXT NOT NULL,
+      room TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      duration_minutes INTEGER NOT NULL,
+      created_by TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS ideas (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      proposed_by TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS upvotes (
+      id SERIAL PRIMARY KEY,
+      target_type TEXT NOT NULL CHECK(target_type IN ('session', 'idea')),
+      target_id INTEGER NOT NULL,
+      user_name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(target_type, target_id, user_name)
+    );
+
+    CREATE TABLE IF NOT EXISTS attendees (
+      id SERIAL PRIMARY KEY,
+      session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      user_name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(session_id, user_name)
+    );
+
+    CREATE TABLE IF NOT EXISTS comments (
+      id SERIAL PRIMARY KEY,
+      target_type TEXT NOT NULL CHECK(target_type IN ('session', 'idea')),
+      target_id INTEGER NOT NULL,
+      user_name TEXT NOT NULL,
+      text TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS edit_logs (
+      id SERIAL PRIMARY KEY,
+      session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      edited_by TEXT NOT NULL,
+      changes TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
 }
 
-interface Idea {
-  id: number;
-  title: string;
-  description: string;
-  proposed_by: string;
-  created_at: string;
+function fmtTs(d: Date | string): string {
+  const date = typeof d === "string" ? new Date(d) : d;
+  return date.toISOString().replace("T", " ").slice(0, 19);
 }
 
-interface Upvote {
-  id: number;
-  target_type: "session" | "idea";
-  target_id: number;
-  user_name: string;
-  created_at: string;
-}
-
-interface Attendee {
-  id: number;
-  session_id: number;
-  user_name: string;
-  created_at: string;
-}
-
-interface Comment {
-  id: number;
-  target_type: "session" | "idea";
-  target_id: number;
-  user_name: string;
-  text: string;
-  created_at: string;
-}
-
-interface EditLog {
-  id: number;
-  session_id: number;
-  edited_by: string;
-  changes: string;
-  created_at: string;
-}
-
-interface Data {
-  sessions: Session[];
-  ideas: Idea[];
-  upvotes: Upvote[];
-  attendees: Attendee[];
-  comments: Comment[];
-  edit_logs: EditLog[];
-  _nextId: Record<string, number>;
-}
-
-function now(): string {
-  return new Date().toISOString().replace("T", " ").slice(0, 19);
-}
-
-function readData(): Data {
-  if (!fs.existsSync(DB_PATH)) {
-    return {
-      sessions: [],
-      ideas: [],
-      upvotes: [],
-      attendees: [],
-      comments: [],
-      edit_logs: [],
-      _nextId: { sessions: 1, ideas: 1, upvotes: 1, attendees: 1, comments: 1, edit_logs: 1 },
-    };
-  }
-  return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
-}
-
-function writeData(data: Data): void {
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
+function fmtRow(row: any) {
+  if (!row) return row;
+  const out = { ...row };
+  if (out.created_at) out.created_at = fmtTs(out.created_at);
+  if (out.updated_at) out.updated_at = fmtTs(out.updated_at);
+  return out;
 }
 
 // ── Sessions ──
 
-export function getAllSessions() {
-  const data = readData();
-  return data.sessions
-    .sort((a, b) => a.start_time.localeCompare(b.start_time) || a.room.localeCompare(b.room))
-    .map((s) => ({
-      ...s,
-      upvotes: data.upvotes.filter((u) => u.target_type === "session" && u.target_id === s.id).length,
-      attendee_count: data.attendees.filter((a) => a.session_id === s.id).length,
-    }));
+export async function getAllSessions() {
+  await ensureInit();
+  const { rows: sessions } = await pool.query(
+    "SELECT * FROM sessions ORDER BY start_time, room"
+  );
+  const { rows: upvotes } = await pool.query(
+    "SELECT target_id, COUNT(*)::int as count FROM upvotes WHERE target_type = 'session' GROUP BY target_id"
+  );
+  const { rows: attendeeCounts } = await pool.query(
+    "SELECT session_id, COUNT(*)::int as count FROM attendees GROUP BY session_id"
+  );
+
+  const upvoteMap = Object.fromEntries(upvotes.map((u) => [u.target_id, u.count]));
+  const attendeeMap = Object.fromEntries(attendeeCounts.map((a) => [a.session_id, a.count]));
+
+  return sessions.map((s) => ({
+    ...fmtRow(s),
+    upvotes: upvoteMap[s.id] || 0,
+    attendee_count: attendeeMap[s.id] || 0,
+  }));
 }
 
-export function getSession(id: number) {
-  const data = readData();
-  const session = data.sessions.find((s) => s.id === id);
-  if (!session) return null;
+export async function getSession(id: number) {
+  await ensureInit();
+  const { rows } = await pool.query("SELECT * FROM sessions WHERE id = $1", [id]);
+  if (rows.length === 0) return null;
+  const session = fmtRow(rows[0]);
+
+  const { rows: upvoteRows } = await pool.query(
+    "SELECT user_name FROM upvotes WHERE target_type = 'session' AND target_id = $1",
+    [id]
+  );
+  const { rows: attendeeRows } = await pool.query(
+    "SELECT user_name FROM attendees WHERE session_id = $1 ORDER BY created_at",
+    [id]
+  );
+  const { rows: commentRows } = await pool.query(
+    "SELECT * FROM comments WHERE target_type = 'session' AND target_id = $1 ORDER BY created_at",
+    [id]
+  );
+  const { rows: editLogRows } = await pool.query(
+    "SELECT * FROM edit_logs WHERE session_id = $1 ORDER BY created_at DESC",
+    [id]
+  );
 
   return {
     ...session,
-    upvotes: data.upvotes.filter((u) => u.target_type === "session" && u.target_id === id).length,
-    upvoters: data.upvotes
-      .filter((u) => u.target_type === "session" && u.target_id === id)
-      .map((u) => u.user_name),
-    attendees: data.attendees
-      .filter((a) => a.session_id === id)
-      .sort((a, b) => a.created_at.localeCompare(b.created_at))
-      .map((a) => a.user_name),
-    comments: data.comments
-      .filter((c) => c.target_type === "session" && c.target_id === id)
-      .sort((a, b) => a.created_at.localeCompare(b.created_at)),
-    edit_logs: data.edit_logs
-      .filter((e) => e.session_id === id)
-      .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    upvotes: upvoteRows.length,
+    upvoters: upvoteRows.map((u) => u.user_name),
+    attendees: attendeeRows.map((a) => a.user_name),
+    comments: commentRows.map(fmtRow),
+    edit_logs: editLogRows.map(fmtRow),
   };
 }
 
-export function createSession(input: {
+export async function createSession(data: {
   title: string;
   description: string;
   speaker: string;
@@ -135,17 +146,18 @@ export function createSession(input: {
   duration_minutes: number;
   created_by: string;
 }) {
-  const data = readData();
-  const id = data._nextId.sessions++;
-  const ts = now();
-  data.sessions.push({ id, ...input, created_at: ts, updated_at: ts });
-  writeData(data);
-  return id;
+  await ensureInit();
+  const { rows } = await pool.query(
+    `INSERT INTO sessions (title, description, speaker, room, start_time, duration_minutes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [data.title, data.description, data.speaker, data.room, data.start_time, data.duration_minutes, data.created_by]
+  );
+  return rows[0].id;
 }
 
-export function updateSession(
+export async function updateSession(
   id: number,
-  updates: {
+  data: {
     title?: string;
     description?: string;
     speaker?: string;
@@ -155,189 +167,192 @@ export function updateSession(
   },
   editedBy: string
 ) {
-  const data = readData();
-  const session = data.sessions.find((s) => s.id === id);
-  if (!session) return null;
+  await ensureInit();
+  const { rows } = await pool.query("SELECT * FROM sessions WHERE id = $1", [id]);
+  if (rows.length === 0) return null;
+  const current = rows[0];
 
   const changes: Record<string, { from: any; to: any }> = {};
-  for (const [key, value] of Object.entries(updates)) {
-    if (value !== undefined && value !== (session as any)[key]) {
-      changes[key] = { from: (session as any)[key], to: value };
-      (session as any)[key] = value;
+  const setClauses: string[] = [];
+  const values: any[] = [];
+  let paramIdx = 1;
+
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined && value !== current[key]) {
+      changes[key] = { from: current[key], to: value };
+      setClauses.push(`${key} = $${paramIdx}`);
+      values.push(value);
+      paramIdx++;
     }
   }
 
-  if (Object.keys(changes).length === 0) return session;
+  if (setClauses.length === 0) return fmtRow(current);
 
-  session.updated_at = now();
-  const logId = data._nextId.edit_logs++;
-  data.edit_logs.push({
-    id: logId,
-    session_id: id,
-    edited_by: editedBy,
-    changes: JSON.stringify(changes),
-    created_at: now(),
-  });
+  setClauses.push(`updated_at = NOW()`);
+  values.push(id);
+  await pool.query(
+    `UPDATE sessions SET ${setClauses.join(", ")} WHERE id = $${paramIdx}`,
+    values
+  );
 
-  writeData(data);
-  return session;
+  await pool.query(
+    "INSERT INTO edit_logs (session_id, edited_by, changes) VALUES ($1, $2, $3)",
+    [id, editedBy, JSON.stringify(changes)]
+  );
+
+  const { rows: updated } = await pool.query("SELECT * FROM sessions WHERE id = $1", [id]);
+  return fmtRow(updated[0]);
 }
 
-export function deleteSession(id: number) {
-  const data = readData();
-  data.sessions = data.sessions.filter((s) => s.id !== id);
-  data.attendees = data.attendees.filter((a) => a.session_id !== id);
-  data.upvotes = data.upvotes.filter((u) => !(u.target_type === "session" && u.target_id === id));
-  data.comments = data.comments.filter((c) => !(c.target_type === "session" && c.target_id === id));
-  data.edit_logs = data.edit_logs.filter((e) => e.session_id !== id);
-  writeData(data);
+export async function deleteSession(id: number) {
+  await ensureInit();
+  await pool.query("DELETE FROM sessions WHERE id = $1", [id]);
 }
 
 // ── Ideas ──
 
-export function getAllIdeas() {
-  const data = readData();
-  return data.ideas
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .map((i) => ({
-      ...i,
-      upvotes: data.upvotes.filter((u) => u.target_type === "idea" && u.target_id === i.id).length,
-    }));
+export async function getAllIdeas() {
+  await ensureInit();
+  const { rows: ideas } = await pool.query("SELECT * FROM ideas ORDER BY created_at DESC");
+  const { rows: upvotes } = await pool.query(
+    "SELECT target_id, COUNT(*)::int as count FROM upvotes WHERE target_type = 'idea' GROUP BY target_id"
+  );
+
+  const upvoteMap = Object.fromEntries(upvotes.map((u) => [u.target_id, u.count]));
+
+  return ideas.map((i) => ({
+    ...fmtRow(i),
+    upvotes: upvoteMap[i.id] || 0,
+  }));
 }
 
-export function getIdea(id: number) {
-  const data = readData();
-  const idea = data.ideas.find((i) => i.id === id);
-  if (!idea) return null;
+export async function getIdea(id: number) {
+  await ensureInit();
+  const { rows } = await pool.query("SELECT * FROM ideas WHERE id = $1", [id]);
+  if (rows.length === 0) return null;
+  const idea = fmtRow(rows[0]);
+
+  const { rows: upvoteRows } = await pool.query(
+    "SELECT user_name FROM upvotes WHERE target_type = 'idea' AND target_id = $1",
+    [id]
+  );
+  const { rows: commentRows } = await pool.query(
+    "SELECT * FROM comments WHERE target_type = 'idea' AND target_id = $1 ORDER BY created_at",
+    [id]
+  );
 
   return {
     ...idea,
-    upvotes: data.upvotes.filter((u) => u.target_type === "idea" && u.target_id === id).length,
-    upvoters: data.upvotes
-      .filter((u) => u.target_type === "idea" && u.target_id === id)
-      .map((u) => u.user_name),
-    comments: data.comments
-      .filter((c) => c.target_type === "idea" && c.target_id === id)
-      .sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    upvotes: upvoteRows.length,
+    upvoters: upvoteRows.map((u) => u.user_name),
+    comments: commentRows.map(fmtRow),
   };
 }
 
-export function createIdea(input: { title: string; description: string; proposed_by: string }) {
-  const data = readData();
-  const id = data._nextId.ideas++;
-  data.ideas.push({ id, ...input, created_at: now() });
-  writeData(data);
-  return id;
+export async function createIdea(data: { title: string; description: string; proposed_by: string }) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    "INSERT INTO ideas (title, description, proposed_by) VALUES ($1, $2, $3) RETURNING id",
+    [data.title, data.description, data.proposed_by]
+  );
+  return rows[0].id;
 }
 
-export function deleteIdea(id: number) {
-  const data = readData();
-  data.ideas = data.ideas.filter((i) => i.id !== id);
-  data.upvotes = data.upvotes.filter((u) => !(u.target_type === "idea" && u.target_id === id));
-  data.comments = data.comments.filter((c) => !(c.target_type === "idea" && c.target_id === id));
-  writeData(data);
+export async function deleteIdea(id: number) {
+  await ensureInit();
+  await pool.query("DELETE FROM upvotes WHERE target_type = 'idea' AND target_id = $1", [id]);
+  await pool.query("DELETE FROM comments WHERE target_type = 'idea' AND target_id = $1", [id]);
+  await pool.query("DELETE FROM ideas WHERE id = $1", [id]);
 }
 
 // ── Upvotes ──
 
-export function toggleUpvote(targetType: "session" | "idea", targetId: number, userName: string) {
-  const data = readData();
-  const idx = data.upvotes.findIndex(
-    (u) => u.target_type === targetType && u.target_id === targetId && u.user_name === userName
+export async function toggleUpvote(targetType: "session" | "idea", targetId: number, userName: string) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    "SELECT id FROM upvotes WHERE target_type = $1 AND target_id = $2 AND user_name = $3",
+    [targetType, targetId, userName]
   );
 
-  if (idx !== -1) {
-    data.upvotes.splice(idx, 1);
-    writeData(data);
+  if (rows.length > 0) {
+    await pool.query(
+      "DELETE FROM upvotes WHERE target_type = $1 AND target_id = $2 AND user_name = $3",
+      [targetType, targetId, userName]
+    );
     return false;
   } else {
-    const id = data._nextId.upvotes++;
-    data.upvotes.push({ id, target_type: targetType, target_id: targetId, user_name: userName, created_at: now() });
-    writeData(data);
+    await pool.query(
+      "INSERT INTO upvotes (target_type, target_id, user_name) VALUES ($1, $2, $3)",
+      [targetType, targetId, userName]
+    );
     return true;
   }
 }
 
 // ── Attendees ──
 
-export function toggleAttendance(sessionId: number, userName: string) {
-  const data = readData();
-  const idx = data.attendees.findIndex(
-    (a) => a.session_id === sessionId && a.user_name === userName
+export async function toggleAttendance(sessionId: number, userName: string) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    "SELECT id FROM attendees WHERE session_id = $1 AND user_name = $2",
+    [sessionId, userName]
   );
 
-  if (idx !== -1) {
-    data.attendees.splice(idx, 1);
-    writeData(data);
+  if (rows.length > 0) {
+    await pool.query("DELETE FROM attendees WHERE session_id = $1 AND user_name = $2", [sessionId, userName]);
     return false;
   } else {
-    const id = data._nextId.attendees++;
-    data.attendees.push({ id, session_id: sessionId, user_name: userName, created_at: now() });
-    writeData(data);
+    await pool.query("INSERT INTO attendees (session_id, user_name) VALUES ($1, $2)", [sessionId, userName]);
     return true;
   }
 }
 
 // ── Comments ──
 
-export function addComment(
+export async function addComment(
   targetType: "session" | "idea",
   targetId: number,
   userName: string,
   text: string
 ) {
-  const data = readData();
-  const id = data._nextId.comments++;
-  data.comments.push({ id, target_type: targetType, target_id: targetId, user_name: userName, text, created_at: now() });
-  writeData(data);
-  return id;
+  await ensureInit();
+  const { rows } = await pool.query(
+    "INSERT INTO comments (target_type, target_id, user_name, text) VALUES ($1, $2, $3, $4) RETURNING id",
+    [targetType, targetId, userName, text]
+  );
+  return rows[0].id;
 }
 
 // ── Schedule an idea ──
 
-export function scheduleIdea(
+export async function scheduleIdea(
   ideaId: number,
   room: string,
   startTime: string,
   durationMinutes: number,
   scheduledBy: string
 ) {
-  const data = readData();
-  const idea = data.ideas.find((i) => i.id === ideaId);
-  if (!idea) return null;
+  await ensureInit();
+  const { rows } = await pool.query("SELECT * FROM ideas WHERE id = $1", [ideaId]);
+  if (rows.length === 0) return null;
+  const idea = rows[0];
 
-  const sessionId = data._nextId.sessions++;
-  const ts = now();
-  data.sessions.push({
-    id: sessionId,
-    title: idea.title,
-    description: idea.description,
-    speaker: idea.proposed_by,
-    room,
-    start_time: startTime,
-    duration_minutes: durationMinutes,
-    created_by: scheduledBy,
-    created_at: ts,
-    updated_at: ts,
-  });
+  const { rows: sessionRows } = await pool.query(
+    `INSERT INTO sessions (title, description, speaker, room, start_time, duration_minutes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [idea.title, idea.description, idea.proposed_by, room, startTime, durationMinutes, scheduledBy]
+  );
+  const sessionId = sessionRows[0].id;
 
-  // Move upvotes and comments from idea to session
-  data.upvotes.forEach((u) => {
-    if (u.target_type === "idea" && u.target_id === ideaId) {
-      u.target_type = "session";
-      u.target_id = sessionId;
-    }
-  });
-  data.comments.forEach((c) => {
-    if (c.target_type === "idea" && c.target_id === ideaId) {
-      c.target_type = "session";
-      c.target_id = sessionId;
-    }
-  });
+  await pool.query(
+    "UPDATE upvotes SET target_type = 'session', target_id = $1 WHERE target_type = 'idea' AND target_id = $2",
+    [sessionId, ideaId]
+  );
+  await pool.query(
+    "UPDATE comments SET target_type = 'session', target_id = $1 WHERE target_type = 'idea' AND target_id = $2",
+    [sessionId, ideaId]
+  );
+  await pool.query("DELETE FROM ideas WHERE id = $1", [ideaId]);
 
-  // Remove the idea
-  data.ideas = data.ideas.filter((i) => i.id !== ideaId);
-
-  writeData(data);
   return sessionId;
 }
