@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addComment } from "@/lib/db";
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const { id } = params;
   const body = await req.json();
   const { user_name, text } = body;
 

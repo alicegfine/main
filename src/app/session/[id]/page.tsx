@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 
@@ -52,8 +52,8 @@ function formatDateTime(dt: string): string {
   return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-export default function SessionPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function SessionPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const [userName, setUserName] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);

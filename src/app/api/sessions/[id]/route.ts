@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, updateSession, deleteSession } from "@/lib/db";
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+  const { id } = params;
   const session = getSession(Number(id));
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(session);
 }
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  const { id } = params;
   const body = await req.json();
   const { edited_by, ...data } = body;
 
@@ -22,8 +22,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json(session);
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  const { id } = params;
   deleteSession(Number(id));
   return NextResponse.json({ ok: true });
 }
