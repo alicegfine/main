@@ -108,7 +108,7 @@ function AddSessionModal({
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [speaker, setSpeaker] = useState(userName);
+  const [host, setHost] = useState(userName);
   const [room, setRoom] = useState(ROOMS[0]);
   const [startTime, setStartTime] = useState(block === 1 ? "13:30" : "15:15");
   const [duration, setDuration] = useState("30");
@@ -123,7 +123,7 @@ function AddSessionModal({
       body: JSON.stringify({
         title,
         description,
-        speaker,
+        speaker: host,
         room,
         start_time: startTime,
         duration_minutes: Number(duration),
@@ -157,8 +157,8 @@ function AddSessionModal({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Speaker</label>
-            <input className="input" value={speaker} onChange={(e) => setSpeaker(e.target.value)} required />
+            <label className="block text-sm font-medium text-slate-700 mb-1">Host</label>
+            <input className="input" value={host} onChange={(e) => setHost(e.target.value)} required />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Room</label>
@@ -344,13 +344,35 @@ function ScheduleIdeaModal({
   );
 }
 
+// ── Conflict Detection ──
+
+function hasConflict(session: Session, allSessions: Session[]): boolean {
+  const start = timeToMinutes(session.start_time);
+  const end = start + session.duration_minutes;
+  return allSessions.some((other) => {
+    if (other.id === session.id || other.room !== session.room) return false;
+    const otherStart = timeToMinutes(other.start_time);
+    const otherEnd = otherStart + other.duration_minutes;
+    return start < otherEnd && end > otherStart;
+  });
+}
+
 // ── Session Card ──
 
-function SessionCard({ session }: { session: Session }) {
+function SessionCard({ session, allSessions }: { session: Session; allSessions: Session[] }) {
   const endTime = addMinutes(session.start_time, session.duration_minutes);
+  const conflict = hasConflict(session, allSessions);
   return (
     <Link href={`/session/${session.id}`}>
-      <div className="card p-4 hover:shadow-md transition-shadow cursor-pointer group">
+      <div className={`card p-4 hover:shadow-md transition-shadow cursor-pointer group ${conflict ? "border-amber-400 bg-amber-50/50" : ""}`}>
+        {conflict && (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700 mb-2">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Time conflict
+          </div>
+        )}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-slate-500 mb-1">
@@ -359,7 +381,7 @@ function SessionCard({ session }: { session: Session }) {
             <h3 className="font-semibold text-navy-800 group-hover:text-navy-600 truncate">
               {session.title}
             </h3>
-            <p className="text-sm text-slate-500 mt-0.5">{session.speaker}</p>
+            <p className="text-sm text-slate-500 mt-0.5">hosted by {session.speaker}</p>
           </div>
           <span className={`badge ${ROOM_COLORS[session.room] || "bg-slate-100 text-slate-800"} shrink-0`}>
             {session.room}
@@ -480,6 +502,8 @@ export default function HomePage() {
   const block1Sessions = (sessions || []).filter((s) => getBlock(s.start_time) === 1);
   const block2Sessions = (sessions || []).filter((s) => getBlock(s.start_time) === 2);
 
+  const allSessions = sessions || [];
+
   function renderRoomColumn(roomSessions: Session[], room: string) {
     const sorted = roomSessions
       .filter((s) => s.room === room)
@@ -494,7 +518,7 @@ export default function HomePage() {
     return (
       <div className="space-y-3">
         {sorted.map((s) => (
-          <SessionCard key={s.id} session={s} />
+          <SessionCard key={s.id} session={s} allSessions={allSessions} />
         ))}
       </div>
     );

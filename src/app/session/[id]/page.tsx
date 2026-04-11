@@ -173,7 +173,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
               <span className="text-sm text-slate-400">({session.duration_minutes} min)</span>
             </div>
             <h1 className="text-3xl font-bold text-navy-900 tracking-tight mb-2">{session.title}</h1>
-            <p className="text-lg text-slate-600">{session.speaker}</p>
+            <p className="text-lg text-slate-600">Hosted by {session.speaker}</p>
             {session.description && (
               <p className="text-slate-600 mt-4 leading-relaxed">{session.description}</p>
             )}
@@ -247,7 +247,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
             <textarea className="input min-h-[80px]" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Speaker</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Host</label>
             <input className="input" value={editForm.speaker} onChange={(e) => setEditForm({ ...editForm, speaker: e.target.value })} required />
           </div>
           <div>
