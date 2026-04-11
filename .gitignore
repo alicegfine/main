@@ -2,5 +2,6 @@ node_modules/
 .next/
 out/
 *.db
+data.json
 .env
 .env.local

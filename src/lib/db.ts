@@ -1,133 +1,132 @@
-import Database from "better-sqlite3";
+import fs from "fs";
 import path from "path";
 
-const DB_PATH = path.join(process.cwd(), "unconference.db");
+const DB_PATH = path.join(process.cwd(), "data.json");
 
-let _db: Database.Database | null = null;
-
-function getDb(): Database.Database {
-  if (!_db) {
-    _db = new Database(DB_PATH);
-    _db.pragma("journal_mode = WAL");
-    _db.pragma("foreign_keys = ON");
-    initDb(_db);
-  }
-  return _db;
+interface Session {
+  id: number;
+  title: string;
+  description: string;
+  speaker: string;
+  room: string;
+  start_time: string;
+  duration_minutes: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
 
-function initDb(db: Database.Database) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      speaker TEXT NOT NULL,
-      room TEXT NOT NULL,
-      start_time TEXT NOT NULL,
-      duration_minutes INTEGER NOT NULL,
-      created_by TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+interface Idea {
+  id: number;
+  title: string;
+  description: string;
+  proposed_by: string;
+  created_at: string;
+}
 
-    CREATE TABLE IF NOT EXISTS ideas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      proposed_by TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+interface Upvote {
+  id: number;
+  target_type: "session" | "idea";
+  target_id: number;
+  user_name: string;
+  created_at: string;
+}
 
-    CREATE TABLE IF NOT EXISTS upvotes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      target_type TEXT NOT NULL CHECK(target_type IN ('session', 'idea')),
-      target_id INTEGER NOT NULL,
-      user_name TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(target_type, target_id, user_name)
-    );
+interface Attendee {
+  id: number;
+  session_id: number;
+  user_name: string;
+  created_at: string;
+}
 
-    CREATE TABLE IF NOT EXISTS attendees (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-      user_name TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(session_id, user_name)
-    );
+interface Comment {
+  id: number;
+  target_type: "session" | "idea";
+  target_id: number;
+  user_name: string;
+  text: string;
+  created_at: string;
+}
 
-    CREATE TABLE IF NOT EXISTS comments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      target_type TEXT NOT NULL CHECK(target_type IN ('session', 'idea')),
-      target_id INTEGER NOT NULL,
-      user_name TEXT NOT NULL,
-      text TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+interface EditLog {
+  id: number;
+  session_id: number;
+  edited_by: string;
+  changes: string;
+  created_at: string;
+}
 
-    CREATE TABLE IF NOT EXISTS edit_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-      edited_by TEXT NOT NULL,
-      changes TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
+interface Data {
+  sessions: Session[];
+  ideas: Idea[];
+  upvotes: Upvote[];
+  attendees: Attendee[];
+  comments: Comment[];
+  edit_logs: EditLog[];
+  _nextId: Record<string, number>;
+}
+
+function now(): string {
+  return new Date().toISOString().replace("T", " ").slice(0, 19);
+}
+
+function readData(): Data {
+  if (!fs.existsSync(DB_PATH)) {
+    return {
+      sessions: [],
+      ideas: [],
+      upvotes: [],
+      attendees: [],
+      comments: [],
+      edit_logs: [],
+      _nextId: { sessions: 1, ideas: 1, upvotes: 1, attendees: 1, comments: 1, edit_logs: 1 },
+    };
+  }
+  return JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+}
+
+function writeData(data: Data): void {
+  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
 }
 
 // ── Sessions ──
 
 export function getAllSessions() {
-  const db = getDb();
-  const sessions = db.prepare("SELECT * FROM sessions ORDER BY start_time, room").all();
-  const upvotes = db.prepare(
-    "SELECT target_id, COUNT(*) as count FROM upvotes WHERE target_type = 'session' GROUP BY target_id"
-  ).all() as { target_id: number; count: number }[];
-  const attendeeCounts = db.prepare(
-    "SELECT session_id, COUNT(*) as count FROM attendees GROUP BY session_id"
-  ).all() as { session_id: number; count: number }[];
-
-  const upvoteMap = Object.fromEntries(upvotes.map((u) => [u.target_id, u.count]));
-  const attendeeMap = Object.fromEntries(attendeeCounts.map((a) => [a.session_id, a.count]));
-
-  return (sessions as any[]).map((s) => ({
-    ...s,
-    upvotes: upvoteMap[s.id] || 0,
-    attendee_count: attendeeMap[s.id] || 0,
-  }));
+  const data = readData();
+  return data.sessions
+    .sort((a, b) => a.start_time.localeCompare(b.start_time) || a.room.localeCompare(b.room))
+    .map((s) => ({
+      ...s,
+      upvotes: data.upvotes.filter((u) => u.target_type === "session" && u.target_id === s.id).length,
+      attendee_count: data.attendees.filter((a) => a.session_id === s.id).length,
+    }));
 }
 
 export function getSession(id: number) {
-  const db = getDb();
-  const session = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id) as any;
+  const data = readData();
+  const session = data.sessions.find((s) => s.id === id);
   if (!session) return null;
-
-  const upvotes = db.prepare(
-    "SELECT COUNT(*) as count FROM upvotes WHERE target_type = 'session' AND target_id = ?"
-  ).get(id) as { count: number };
-  const upvoters = db.prepare(
-    "SELECT user_name FROM upvotes WHERE target_type = 'session' AND target_id = ?"
-  ).all(id) as { user_name: string }[];
-  const attendees = db.prepare(
-    "SELECT user_name FROM attendees WHERE session_id = ? ORDER BY created_at"
-  ).all(id) as { user_name: string }[];
-  const comments = db.prepare(
-    "SELECT * FROM comments WHERE target_type = 'session' AND target_id = ? ORDER BY created_at"
-  ).all(id);
-  const editLogs = db.prepare(
-    "SELECT * FROM edit_logs WHERE session_id = ? ORDER BY created_at DESC"
-  ).all(id);
 
   return {
     ...session,
-    upvotes: upvotes.count,
-    upvoters: upvoters.map((u) => u.user_name),
-    attendees: attendees.map((a) => a.user_name),
-    comments,
-    edit_logs: editLogs,
+    upvotes: data.upvotes.filter((u) => u.target_type === "session" && u.target_id === id).length,
+    upvoters: data.upvotes
+      .filter((u) => u.target_type === "session" && u.target_id === id)
+      .map((u) => u.user_name),
+    attendees: data.attendees
+      .filter((a) => a.session_id === id)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((a) => a.user_name),
+    comments: data.comments
+      .filter((c) => c.target_type === "session" && c.target_id === id)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    edit_logs: data.edit_logs
+      .filter((e) => e.session_id === id)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at)),
   };
 }
 
-export function createSession(data: {
+export function createSession(input: {
   title: string;
   description: string;
   speaker: string;
@@ -136,17 +135,17 @@ export function createSession(data: {
   duration_minutes: number;
   created_by: string;
 }) {
-  const db = getDb();
-  const result = db.prepare(
-    `INSERT INTO sessions (title, description, speaker, room, start_time, duration_minutes, created_by)
-     VALUES (@title, @description, @speaker, @room, @start_time, @duration_minutes, @created_by)`
-  ).run(data);
-  return result.lastInsertRowid;
+  const data = readData();
+  const id = data._nextId.sessions++;
+  const ts = now();
+  data.sessions.push({ id, ...input, created_at: ts, updated_at: ts });
+  writeData(data);
+  return id;
 }
 
 export function updateSession(
   id: number,
-  data: {
+  updates: {
     title?: string;
     description?: string;
     speaker?: string;
@@ -156,135 +155,126 @@ export function updateSession(
   },
   editedBy: string
 ) {
-  const db = getDb();
-  const current = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id) as any;
-  if (!current) return null;
+  const data = readData();
+  const session = data.sessions.find((s) => s.id === id);
+  if (!session) return null;
 
   const changes: Record<string, { from: any; to: any }> = {};
-  const updates: string[] = [];
-  const values: any = { id };
-
-  for (const [key, value] of Object.entries(data)) {
-    if (value !== undefined && value !== current[key]) {
-      changes[key] = { from: current[key], to: value };
-      updates.push(`${key} = @${key}`);
-      values[key] = value;
+  for (const [key, value] of Object.entries(updates)) {
+    if (value !== undefined && value !== (session as any)[key]) {
+      changes[key] = { from: (session as any)[key], to: value };
+      (session as any)[key] = value;
     }
   }
 
-  if (updates.length === 0) return current;
+  if (Object.keys(changes).length === 0) return session;
 
-  updates.push("updated_at = datetime('now')");
-  db.prepare(`UPDATE sessions SET ${updates.join(", ")} WHERE id = @id`).run(values);
+  session.updated_at = now();
+  const logId = data._nextId.edit_logs++;
+  data.edit_logs.push({
+    id: logId,
+    session_id: id,
+    edited_by: editedBy,
+    changes: JSON.stringify(changes),
+    created_at: now(),
+  });
 
-  db.prepare(
-    "INSERT INTO edit_logs (session_id, edited_by, changes) VALUES (?, ?, ?)"
-  ).run(id, editedBy, JSON.stringify(changes));
-
-  return db.prepare("SELECT * FROM sessions WHERE id = ?").get(id);
+  writeData(data);
+  return session;
 }
 
 export function deleteSession(id: number) {
-  const db = getDb();
-  db.prepare("DELETE FROM sessions WHERE id = ?").run(id);
+  const data = readData();
+  data.sessions = data.sessions.filter((s) => s.id !== id);
+  data.attendees = data.attendees.filter((a) => a.session_id !== id);
+  data.upvotes = data.upvotes.filter((u) => !(u.target_type === "session" && u.target_id === id));
+  data.comments = data.comments.filter((c) => !(c.target_type === "session" && c.target_id === id));
+  data.edit_logs = data.edit_logs.filter((e) => e.session_id !== id);
+  writeData(data);
 }
 
 // ── Ideas ──
 
 export function getAllIdeas() {
-  const db = getDb();
-  const ideas = db.prepare("SELECT * FROM ideas ORDER BY created_at DESC").all();
-  const upvotes = db.prepare(
-    "SELECT target_id, COUNT(*) as count FROM upvotes WHERE target_type = 'idea' GROUP BY target_id"
-  ).all() as { target_id: number; count: number }[];
-
-  const upvoteMap = Object.fromEntries(upvotes.map((u) => [u.target_id, u.count]));
-
-  return (ideas as any[]).map((i) => ({
-    ...i,
-    upvotes: upvoteMap[i.id] || 0,
-  }));
+  const data = readData();
+  return data.ideas
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((i) => ({
+      ...i,
+      upvotes: data.upvotes.filter((u) => u.target_type === "idea" && u.target_id === i.id).length,
+    }));
 }
 
 export function getIdea(id: number) {
-  const db = getDb();
-  const idea = db.prepare("SELECT * FROM ideas WHERE id = ?").get(id) as any;
+  const data = readData();
+  const idea = data.ideas.find((i) => i.id === id);
   if (!idea) return null;
-
-  const upvotes = db.prepare(
-    "SELECT COUNT(*) as count FROM upvotes WHERE target_type = 'idea' AND target_id = ?"
-  ).get(id) as { count: number };
-  const upvoters = db.prepare(
-    "SELECT user_name FROM upvotes WHERE target_type = 'idea' AND target_id = ?"
-  ).all(id) as { user_name: string }[];
-  const comments = db.prepare(
-    "SELECT * FROM comments WHERE target_type = 'idea' AND target_id = ? ORDER BY created_at"
-  ).all(id);
 
   return {
     ...idea,
-    upvotes: upvotes.count,
-    upvoters: upvoters.map((u) => u.user_name),
-    comments,
+    upvotes: data.upvotes.filter((u) => u.target_type === "idea" && u.target_id === id).length,
+    upvoters: data.upvotes
+      .filter((u) => u.target_type === "idea" && u.target_id === id)
+      .map((u) => u.user_name),
+    comments: data.comments
+      .filter((c) => c.target_type === "idea" && c.target_id === id)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at)),
   };
 }
 
-export function createIdea(data: { title: string; description: string; proposed_by: string }) {
-  const db = getDb();
-  const result = db.prepare(
-    "INSERT INTO ideas (title, description, proposed_by) VALUES (@title, @description, @proposed_by)"
-  ).run(data);
-  return result.lastInsertRowid;
+export function createIdea(input: { title: string; description: string; proposed_by: string }) {
+  const data = readData();
+  const id = data._nextId.ideas++;
+  data.ideas.push({ id, ...input, created_at: now() });
+  writeData(data);
+  return id;
 }
 
 export function deleteIdea(id: number) {
-  const db = getDb();
-  db.prepare("DELETE FROM upvotes WHERE target_type = 'idea' AND target_id = ?").run(id);
-  db.prepare("DELETE FROM comments WHERE target_type = 'idea' AND target_id = ?").run(id);
-  db.prepare("DELETE FROM ideas WHERE id = ?").run(id);
+  const data = readData();
+  data.ideas = data.ideas.filter((i) => i.id !== id);
+  data.upvotes = data.upvotes.filter((u) => !(u.target_type === "idea" && u.target_id === id));
+  data.comments = data.comments.filter((c) => !(c.target_type === "idea" && c.target_id === id));
+  writeData(data);
 }
 
 // ── Upvotes ──
 
 export function toggleUpvote(targetType: "session" | "idea", targetId: number, userName: string) {
-  const db = getDb();
-  const existing = db.prepare(
-    "SELECT id FROM upvotes WHERE target_type = ? AND target_id = ? AND user_name = ?"
-  ).get(targetType, targetId, userName);
+  const data = readData();
+  const idx = data.upvotes.findIndex(
+    (u) => u.target_type === targetType && u.target_id === targetId && u.user_name === userName
+  );
 
-  if (existing) {
-    db.prepare(
-      "DELETE FROM upvotes WHERE target_type = ? AND target_id = ? AND user_name = ?"
-    ).run(targetType, targetId, userName);
-    return false; // removed
+  if (idx !== -1) {
+    data.upvotes.splice(idx, 1);
+    writeData(data);
+    return false;
   } else {
-    db.prepare(
-      "INSERT INTO upvotes (target_type, target_id, user_name) VALUES (?, ?, ?)"
-    ).run(targetType, targetId, userName);
-    return true; // added
+    const id = data._nextId.upvotes++;
+    data.upvotes.push({ id, target_type: targetType, target_id: targetId, user_name: userName, created_at: now() });
+    writeData(data);
+    return true;
   }
 }
 
 // ── Attendees ──
 
 export function toggleAttendance(sessionId: number, userName: string) {
-  const db = getDb();
-  const existing = db.prepare(
-    "SELECT id FROM attendees WHERE session_id = ? AND user_name = ?"
-  ).get(sessionId, userName);
+  const data = readData();
+  const idx = data.attendees.findIndex(
+    (a) => a.session_id === sessionId && a.user_name === userName
+  );
 
-  if (existing) {
-    db.prepare("DELETE FROM attendees WHERE session_id = ? AND user_name = ?").run(
-      sessionId,
-      userName
-    );
-    return false; // removed
+  if (idx !== -1) {
+    data.attendees.splice(idx, 1);
+    writeData(data);
+    return false;
   } else {
-    db.prepare("INSERT INTO attendees (session_id, user_name) VALUES (?, ?)").run(
-      sessionId,
-      userName
-    );
-    return true; // added
+    const id = data._nextId.attendees++;
+    data.attendees.push({ id, session_id: sessionId, user_name: userName, created_at: now() });
+    writeData(data);
+    return true;
   }
 }
 
@@ -296,11 +286,11 @@ export function addComment(
   userName: string,
   text: string
 ) {
-  const db = getDb();
-  const result = db.prepare(
-    "INSERT INTO comments (target_type, target_id, user_name, text) VALUES (?, ?, ?, ?)"
-  ).run(targetType, targetId, userName, text);
-  return result.lastInsertRowid;
+  const data = readData();
+  const id = data._nextId.comments++;
+  data.comments.push({ id, target_type: targetType, target_id: targetId, user_name: userName, text, created_at: now() });
+  writeData(data);
+  return id;
 }
 
 // ── Schedule an idea ──
@@ -312,28 +302,42 @@ export function scheduleIdea(
   durationMinutes: number,
   scheduledBy: string
 ) {
-  const db = getDb();
-  const idea = db.prepare("SELECT * FROM ideas WHERE id = ?").get(ideaId) as any;
+  const data = readData();
+  const idea = data.ideas.find((i) => i.id === ideaId);
   if (!idea) return null;
 
-  const sessionId = db.prepare(
-    `INSERT INTO sessions (title, description, speaker, room, start_time, duration_minutes, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(idea.title, idea.description, idea.proposed_by, room, startTime, durationMinutes, scheduledBy)
-    .lastInsertRowid;
+  const sessionId = data._nextId.sessions++;
+  const ts = now();
+  data.sessions.push({
+    id: sessionId,
+    title: idea.title,
+    description: idea.description,
+    speaker: idea.proposed_by,
+    room,
+    start_time: startTime,
+    duration_minutes: durationMinutes,
+    created_by: scheduledBy,
+    created_at: ts,
+    updated_at: ts,
+  });
 
-  // Move upvotes from idea to session
-  db.prepare(
-    "UPDATE upvotes SET target_type = 'session', target_id = ? WHERE target_type = 'idea' AND target_id = ?"
-  ).run(sessionId, ideaId);
+  // Move upvotes and comments from idea to session
+  data.upvotes.forEach((u) => {
+    if (u.target_type === "idea" && u.target_id === ideaId) {
+      u.target_type = "session";
+      u.target_id = sessionId;
+    }
+  });
+  data.comments.forEach((c) => {
+    if (c.target_type === "idea" && c.target_id === ideaId) {
+      c.target_type = "session";
+      c.target_id = sessionId;
+    }
+  });
 
-  // Move comments from idea to session
-  db.prepare(
-    "UPDATE comments SET target_type = 'session', target_id = ? WHERE target_type = 'idea' AND target_id = ?"
-  ).run(sessionId, ideaId);
+  // Remove the idea
+  data.ideas = data.ideas.filter((i) => i.id !== ideaId);
 
-  // Delete the idea
-  db.prepare("DELETE FROM ideas WHERE id = ?").run(ideaId);
-
+  writeData(data);
   return sessionId;
 }
