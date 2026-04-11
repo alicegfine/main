@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import useSWR from "swr";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const ROOMS = ["Anderson A", "Anderson B", "Bleury", "Walking/Lobby"];
 const ROOM_COLORS: Record<string, string> = {
@@ -54,12 +55,15 @@ function formatDateTime(dt: string): string {
 
 export default function SessionPage({ params }: { params: { id: string } }) {
   const { id } = params;
+  const router = useRouter();
   const [userName, setUserName] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", description: "", speaker: "", room: "", start_time: "", duration_minutes: 30 });
   const [showEditLog, setShowEditLog] = useState(false);
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: session, mutate } = useSWR<SessionDetail>(`/api/sessions/${id}`, fetcher, {
     refreshInterval: 3000,
@@ -150,6 +154,11 @@ export default function SessionPage({ params }: { params: { id: string } }) {
     mutate();
   }
 
+  async function handleDelete() {
+    await fetch(`/api/sessions/${id}`, { method: "DELETE" });
+    router.push("/");
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       <Link href="/" className="text-navy-600 hover:text-navy-800 text-sm font-medium inline-flex items-center gap-1 mb-6">
@@ -214,9 +223,29 @@ export default function SessionPage({ params }: { params: { id: string } }) {
             </button>
 
             {userName && (
-              <button onClick={() => setEditing(true)} className="btn-ghost text-sm">
-                Edit
-              </button>
+              <>
+                <button onClick={() => setEditing(true)} className="btn-ghost text-sm">
+                  Edit
+                </button>
+                {!confirmDelete ? (
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="text-sm text-slate-400 hover:text-red-600 transition-colors px-3 py-1.5"
+                  >
+                    Delete
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2 text-sm">
+                    <span className="text-red-600">Delete this session?</span>
+                    <button onClick={handleDelete} className="font-medium text-red-600 hover:text-red-800">
+                      Yes
+                    </button>
+                    <button onClick={() => setConfirmDelete(false)} className="text-slate-500 hover:text-slate-700">
+                      No
+                    </button>
+                  </span>
+                )}
+              </>
             )}
           </div>
 
