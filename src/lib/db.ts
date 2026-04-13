@@ -258,6 +258,36 @@ export async function createIdea(data: { title: string; description: string; pro
   return rows[0].id;
 }
 
+export async function updateIdea(
+  id: number,
+  data: { title?: string; description?: string; proposed_by?: string }
+) {
+  await ensureInit();
+  const { rows } = await pool.query("SELECT * FROM ideas WHERE id = $1", [id]);
+  if (rows.length === 0) return null;
+  const current = rows[0];
+
+  const setClauses: string[] = [];
+  const values: any[] = [];
+  let paramIdx = 1;
+
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined && value !== current[key]) {
+      setClauses.push(`${key} = $${paramIdx}`);
+      values.push(value);
+      paramIdx++;
+    }
+  }
+
+  if (setClauses.length === 0) return fmtRow(current);
+
+  values.push(id);
+  await pool.query(`UPDATE ideas SET ${setClauses.join(", ")} WHERE id = $${paramIdx}`, values);
+
+  const { rows: updated } = await pool.query("SELECT * FROM ideas WHERE id = $1", [id]);
+  return fmtRow(updated[0]);
+}
+
 export async function deleteIdea(id: number) {
   await ensureInit();
   await pool.query("DELETE FROM upvotes WHERE target_type = 'idea' AND target_id = $1", [id]);

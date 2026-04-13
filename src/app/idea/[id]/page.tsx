@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import useSWR from "swr";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface IdeaDetail {
   id: number;
@@ -24,9 +25,13 @@ function formatDateTime(dt: string): string {
 
 export default function IdeaPage({ params }: { params: { id: string } }) {
   const { id } = params;
+  const router = useRouter();
   const [userName, setUserName] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ title: "", description: "", proposed_by: "" });
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: idea, mutate } = useSWR<IdeaDetail>(`/api/ideas/${id}`, fetcher, {
     refreshInterval: 3000,
@@ -36,6 +41,16 @@ export default function IdeaPage({ params }: { params: { id: string } }) {
     const stored = localStorage.getItem("unconference_name");
     if (stored) setUserName(stored);
   }, []);
+
+  useEffect(() => {
+    if (idea && !editing && !("error" in idea)) {
+      setEditForm({
+        title: idea.title,
+        description: idea.description,
+        proposed_by: idea.proposed_by,
+      });
+    }
+  }, [idea, editing]);
 
   if (!idea) {
     return (
@@ -80,6 +95,22 @@ export default function IdeaPage({ params }: { params: { id: string } }) {
     mutate();
   }
 
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    await fetch(`/api/ideas/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    setEditing(false);
+    mutate();
+  }
+
+  async function handleDelete() {
+    await fetch(`/api/ideas/${id}`, { method: "DELETE" });
+    router.push("/");
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
       <Link href="/" className="text-navy-600 hover:text-navy-800 text-sm font-medium inline-flex items-center gap-1 mb-6">
@@ -89,35 +120,88 @@ export default function IdeaPage({ params }: { params: { id: string } }) {
         Back to ideas
       </Link>
 
-      {/* Idea Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="badge bg-amber-100 text-amber-800">Idea</span>
-          <span className="text-xs text-slate-400">{formatDateTime(idea.created_at)}</span>
-        </div>
-        <h1 className="text-3xl font-bold text-navy-900 tracking-tight mb-2">{idea.title}</h1>
-        <p className="text-lg text-slate-600">Proposed by {idea.proposed_by}</p>
-        {idea.description && (
-          <p className="text-slate-600 mt-4 leading-relaxed">{idea.description}</p>
-        )}
-      </div>
+      {!editing ? (
+        <>
+          {/* Idea Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="badge bg-amber-100 text-amber-800">Idea</span>
+              <span className="text-xs text-slate-400">{formatDateTime(idea.created_at)}</span>
+            </div>
+            <h1 className="text-3xl font-bold text-navy-900 tracking-tight mb-2">{idea.title}</h1>
+            <p className="text-lg text-slate-600">Proposed by {idea.proposed_by}</p>
+            {idea.description && (
+              <p className="text-slate-600 mt-4 leading-relaxed">{idea.description}</p>
+            )}
+          </div>
 
-      {/* Actions */}
-      <div className="flex flex-wrap items-center gap-3 mb-8">
-        <button
-          onClick={handleUpvote}
-          className={`flex items-center gap-2 px-4 py-2 rounded-md border font-medium text-sm transition-colors ${
-            hasUpvoted
-              ? "bg-navy-50 border-navy-300 text-navy-700"
-              : "border-slate-300 text-slate-600 hover:bg-slate-50"
-          }`}
-        >
-          <svg className="w-4 h-4" fill={hasUpvoted ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
-          </svg>
-          {idea.upvotes} {idea.upvotes === 1 ? "upvote" : "upvotes"}
-        </button>
-      </div>
+          {/* Actions */}
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            <button
+              onClick={handleUpvote}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md border font-medium text-sm transition-colors ${
+                hasUpvoted
+                  ? "bg-navy-50 border-navy-300 text-navy-700"
+                  : "border-slate-300 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <svg className="w-4 h-4" fill={hasUpvoted ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+              </svg>
+              {idea.upvotes} {idea.upvotes === 1 ? "upvote" : "upvotes"}
+            </button>
+
+            {userName && (
+              <>
+                <button onClick={() => setEditing(true)} className="btn-ghost text-sm">
+                  Edit
+                </button>
+                {!confirmDelete ? (
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="text-sm text-slate-400 hover:text-red-600 transition-colors px-3 py-1.5"
+                  >
+                    Delete
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2 text-sm">
+                    <span className="text-red-600">Delete this idea?</span>
+                    <button onClick={handleDelete} className="font-medium text-red-600 hover:text-red-800">
+                      Yes
+                    </button>
+                    <button onClick={() => setConfirmDelete(false)} className="text-slate-500 hover:text-slate-700">
+                      No
+                    </button>
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      ) : (
+        /* Edit Form */
+        <form onSubmit={handleSaveEdit} className="card p-6 mb-8 space-y-4">
+          <h2 className="text-lg font-bold text-navy-800 mb-2">Edit Idea</h2>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+            <input className="input" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Description <span className="text-slate-400">(optional)</span>
+            </label>
+            <textarea className="input min-h-[80px]" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Proposed by</label>
+            <input className="input" value={editForm.proposed_by} onChange={(e) => setEditForm({ ...editForm, proposed_by: e.target.value })} required />
+          </div>
+          <div className="flex gap-3">
+            <button type="submit" className="btn-primary">Save Changes</button>
+            <button type="button" onClick={() => setEditing(false)} className="btn-secondary">Cancel</button>
+          </div>
+        </form>
+      )}
 
       {/* Divider */}
       <div className="border-t border-slate-200 my-8" />
