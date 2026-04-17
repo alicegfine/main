@@ -76,9 +76,6 @@ export default function HomePage() {
 
         <div className="grid md:grid-cols-2 gap-6">
           <Link href="/agenda" className="card p-8 hover:shadow-md transition-shadow group block">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="badge bg-emerald-100 text-emerald-800">Schedule</span>
-            </div>
             <h2 className="text-2xl font-bold text-navy-800 group-hover:text-navy-600 transition-colors mb-2">
               Agenda
             </h2>
@@ -88,9 +85,6 @@ export default function HomePage() {
           </Link>
 
           <Link href="/logistics" className="card p-8 hover:shadow-md transition-shadow group block">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="badge bg-slate-100 text-slate-700">Info</span>
-            </div>
             <h2 className="text-2xl font-bold text-navy-800 group-hover:text-navy-600 transition-colors mb-2">
               Logistics
             </h2>

@@ -7,6 +7,8 @@ import Link from "next/link";
 interface AgendaItem {
   time: string;
   activity: string;
+  description: string;
+  location: string;
 }
 
 interface AgendaDay {
@@ -117,7 +119,7 @@ export default function AgendaPage() {
     const next = [...draft];
     next[dayIdx] = {
       ...next[dayIdx],
-      items: [...next[dayIdx].items, { time: "", activity: "" }],
+      items: [...next[dayIdx].items, { time: "", activity: "", description: "", location: "" }],
     };
     setDraft(next);
   }
@@ -195,11 +197,14 @@ export default function AgendaPage() {
                 <table className="w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 w-36">
+                      <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 w-28">
                         Time
                       </th>
                       <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">
                         Activity
+                      </th>
+                      <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 w-36">
+                        Location
                       </th>
                       {editing && (
                         <th className="w-10" />
@@ -218,19 +223,44 @@ export default function AgendaPage() {
                               placeholder="e.g. 9:00 AM"
                             />
                           ) : (
-                            <span className="text-sm font-medium text-navy-700">{item.time}</span>
+                            <span className="text-sm font-medium text-navy-700 whitespace-nowrap">{item.time}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          {editing ? (
+                            <div className="space-y-2">
+                              <input
+                                className="input text-sm"
+                                value={item.activity}
+                                onChange={(e) => updateItem(dayIdx, itemIdx, "activity", e.target.value)}
+                                placeholder="Title"
+                              />
+                              <input
+                                className="input text-sm"
+                                value={item.description || ""}
+                                onChange={(e) => updateItem(dayIdx, itemIdx, "description", e.target.value)}
+                                placeholder="Description (optional)"
+                              />
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="text-sm font-medium text-slate-800">{item.activity}</span>
+                              {item.description && (
+                                <p className="text-sm text-slate-500 mt-0.5">{item.description}</p>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-3 align-top">
                           {editing ? (
                             <input
                               className="input text-sm"
-                              value={item.activity}
-                              onChange={(e) => updateItem(dayIdx, itemIdx, "activity", e.target.value)}
-                              placeholder="Activity description"
+                              value={item.location || ""}
+                              onChange={(e) => updateItem(dayIdx, itemIdx, "location", e.target.value)}
+                              placeholder="Location"
                             />
                           ) : (
-                            <span className="text-sm text-slate-700">{item.activity}</span>
+                            item.location && <span className="text-sm text-slate-500">{item.location}</span>
                           )}
                         </td>
                         {editing && (
@@ -250,7 +280,7 @@ export default function AgendaPage() {
                     ))}
                     {editing && (
                       <tr>
-                        <td colSpan={3} className="px-4 py-3">
+                        <td colSpan={4} className="px-4 py-3">
                           <button
                             onClick={() => addItem(dayIdx)}
                             className="text-sm text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
