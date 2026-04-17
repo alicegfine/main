@@ -81,7 +81,16 @@ async function ensureInit() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(question_id, user_name)
     );
+
+    CREATE TABLE IF NOT EXISTS logistics (
+      id INTEGER PRIMARY KEY,
+      content TEXT NOT NULL DEFAULT '',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
+  await pool.query(
+    "INSERT INTO logistics (id, content) VALUES (1, '') ON CONFLICT (id) DO NOTHING"
+  );
 }
 
 function fmtTs(d: Date | string): string {
@@ -475,6 +484,23 @@ export async function toggleQuestionUpvote(questionId: number, userName: string)
     [questionId, userName]
   );
   return true;
+}
+
+// ── Logistics ──
+
+export async function getLogistics() {
+  await ensureInit();
+  const { rows } = await pool.query("SELECT * FROM logistics WHERE id = 1");
+  return rows[0] ? fmtRow(rows[0]) : { id: 1, content: "", updated_at: null };
+}
+
+export async function updateLogistics(content: string) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    "UPDATE logistics SET content = $1, updated_at = NOW() WHERE id = 1 RETURNING *",
+    [content]
+  );
+  return fmtRow(rows[0]);
 }
 
 // ── Schedule an idea ──

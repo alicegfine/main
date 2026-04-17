@@ -40,4 +40,41 @@
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
+
+  .prose-custom h1 {
+    @apply text-2xl font-bold text-navy-900 mt-6 mb-3;
+  }
+  .prose-custom h2 {
+    @apply text-xl font-bold text-navy-800 mt-6 mb-2;
+  }
+  .prose-custom h3 {
+    @apply text-lg font-semibold text-navy-800 mt-4 mb-2;
+  }
+  .prose-custom p {
+    @apply text-slate-700 leading-relaxed mb-3;
+  }
+  .prose-custom ul {
+    @apply list-disc pl-6 mb-3 space-y-1 text-slate-700;
+  }
+  .prose-custom ol {
+    @apply list-decimal pl-6 mb-3 space-y-1 text-slate-700;
+  }
+  .prose-custom a {
+    @apply text-navy-600 hover:text-navy-800 underline;
+  }
+  .prose-custom strong {
+    @apply font-semibold text-navy-900;
+  }
+  .prose-custom em {
+    @apply italic;
+  }
+  .prose-custom code {
+    @apply bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono;
+  }
+  .prose-custom blockquote {
+    @apply border-l-4 border-slate-300 pl-4 italic text-slate-600 my-3;
+  }
+  .prose-custom hr {
+    @apply border-slate-200 my-6;
+  }
 }

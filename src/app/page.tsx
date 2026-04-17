@@ -74,7 +74,7 @@ export default function HomePage() {
           )}
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-3 gap-6">
           <Link href="/ama" className="card p-8 hover:shadow-md transition-shadow group block">
             <div className="flex items-center gap-2 mb-3">
               <span className="badge bg-navy-100 text-navy-700">Day 1</span>
@@ -96,6 +96,18 @@ export default function HomePage() {
             </h2>
             <p className="text-slate-500">
               Host sessions, propose ideas, and organize the schedule together.
+            </p>
+          </Link>
+
+          <Link href="/logistics" className="card p-8 hover:shadow-md transition-shadow group block">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="badge bg-slate-100 text-slate-700">Info</span>
+            </div>
+            <h2 className="text-2xl font-bold text-navy-800 group-hover:text-navy-600 transition-colors mb-2">
+              Logistics
+            </h2>
+            <p className="text-slate-500">
+              Address, schedule, what to bring &mdash; everything you need to know.
             </p>
           </Link>
         </div>
