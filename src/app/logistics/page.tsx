@@ -78,9 +78,13 @@ export default function LogisticsPage() {
       headers: { "x-admin-password": pwd },
     });
     setVerifying(false);
-    if (!res.ok) {
+    if (res.status === 401) {
       setPasswordError("Password incorrect.");
       setPasswordInput("");
+      return;
+    }
+    if (!res.ok) {
+      setPasswordError(`Server error (${res.status}). Try again in a moment.`);
       return;
     }
     localStorage.setItem("admin_password", pwd);

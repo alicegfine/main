@@ -9,11 +9,11 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const expected = process.env.ADMIN_PASSWORD;
+  const expected = (process.env.ADMIN_PASSWORD || "").trim();
   if (!expected) {
     return NextResponse.json({ error: "Admin password not configured" }, { status: 500 });
   }
-  const provided = req.headers.get("x-admin-password");
+  const provided = (req.headers.get("x-admin-password") || "").trim();
   if (provided !== expected) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
