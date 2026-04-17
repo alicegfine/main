@@ -64,6 +64,23 @@ async function ensureInit() {
       changes TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS questions (
+      id SERIAL PRIMARY KEY,
+      team TEXT NOT NULL,
+      text TEXT NOT NULL,
+      user_name TEXT,
+      is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS question_upvotes (
+      id SERIAL PRIMARY KEY,
+      question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+      user_name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(question_id, user_name)
+    );
   `);
 }
 
@@ -366,6 +383,98 @@ export async function updateComment(id: number, text: string) {
 export async function deleteComment(id: number) {
   await ensureInit();
   await pool.query("DELETE FROM comments WHERE id = $1", [id]);
+}
+
+// ── Questions ──
+
+export async function getAllQuestions(team?: string) {
+  await ensureInit();
+  const { rows: questions } = team
+    ? await pool.query("SELECT * FROM questions WHERE team = $1 ORDER BY created_at DESC", [team])
+    : await pool.query("SELECT * FROM questions ORDER BY created_at DESC");
+
+  const { rows: upvoteRows } = await pool.query(
+    "SELECT question_id, user_name FROM question_upvotes"
+  );
+
+  const upvoteMap: Record<number, string[]> = {};
+  for (const r of upvoteRows) {
+    (upvoteMap[r.question_id] ||= []).push(r.user_name);
+  }
+
+  return questions.map((q) => ({
+    ...fmtRow(q),
+    user_name: q.is_anonymous ? null : q.user_name,
+    upvotes: (upvoteMap[q.id] || []).length,
+    upvoters: upvoteMap[q.id] || [],
+  }));
+}
+
+export async function createQuestion(data: {
+  team: string;
+  text: string;
+  user_name: string | null;
+  is_anonymous: boolean;
+}) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    "INSERT INTO questions (team, text, user_name, is_anonymous) VALUES ($1, $2, $3, $4) RETURNING id",
+    [data.team, data.text, data.is_anonymous ? null : data.user_name, data.is_anonymous]
+  );
+  return rows[0].id;
+}
+
+export async function updateQuestion(
+  id: number,
+  data: { text?: string; is_anonymous?: boolean }
+) {
+  await ensureInit();
+  const setClauses: string[] = [];
+  const values: any[] = [];
+  let paramIdx = 1;
+
+  if (data.text !== undefined) {
+    setClauses.push(`text = $${paramIdx++}`);
+    values.push(data.text);
+  }
+  if (data.is_anonymous !== undefined) {
+    setClauses.push(`is_anonymous = $${paramIdx++}`);
+    values.push(data.is_anonymous);
+  }
+  if (setClauses.length === 0) return null;
+
+  values.push(id);
+  const { rows } = await pool.query(
+    `UPDATE questions SET ${setClauses.join(", ")} WHERE id = $${paramIdx} RETURNING *`,
+    values
+  );
+  if (rows.length === 0) return null;
+  return fmtRow(rows[0]);
+}
+
+export async function deleteQuestion(id: number) {
+  await ensureInit();
+  await pool.query("DELETE FROM questions WHERE id = $1", [id]);
+}
+
+export async function toggleQuestionUpvote(questionId: number, userName: string) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    "SELECT id FROM question_upvotes WHERE question_id = $1 AND user_name = $2",
+    [questionId, userName]
+  );
+  if (rows.length > 0) {
+    await pool.query(
+      "DELETE FROM question_upvotes WHERE question_id = $1 AND user_name = $2",
+      [questionId, userName]
+    );
+    return false;
+  }
+  await pool.query(
+    "INSERT INTO question_upvotes (question_id, user_name) VALUES ($1, $2)",
+    [questionId, userName]
+  );
+  return true;
 }
 
 // ── Schedule an idea ──
