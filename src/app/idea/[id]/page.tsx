@@ -32,13 +32,15 @@ export default function IdeaPage({ params }: { params: { id: string } }) {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", description: "", proposed_by: "" });
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
 
   const { data: idea, mutate } = useSWR<IdeaDetail>(`/api/ideas/${id}`, fetcher, {
     refreshInterval: 3000,
   });
 
   useEffect(() => {
-    const stored = localStorage.getItem("unconference_name");
+    const stored = localStorage.getItem("sut_name") || localStorage.getItem("unconference_name");
     if (stored) setUserName(stored);
   }, []);
 
@@ -109,6 +111,28 @@ export default function IdeaPage({ params }: { params: { id: string } }) {
   async function handleDelete() {
     await fetch(`/api/ideas/${id}`, { method: "DELETE" });
     router.push("/");
+  }
+
+  function startEditComment(commentId: number, currentText: string) {
+    setEditingCommentId(commentId);
+    setEditingCommentText(currentText);
+  }
+
+  async function handleSaveComment(commentId: number) {
+    if (!editingCommentText.trim()) return;
+    await fetch(`/api/comments/${commentId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: editingCommentText.trim() }),
+    });
+    setEditingCommentId(null);
+    setEditingCommentText("");
+    mutate();
+  }
+
+  async function handleDeleteComment(commentId: number) {
+    await fetch(`/api/comments/${commentId}`, { method: "DELETE" });
+    mutate();
   }
 
   return (
@@ -218,16 +242,58 @@ export default function IdeaPage({ params }: { params: { id: string } }) {
 
         <div className="space-y-4 mb-6">
           {idea.comments.map((c) => (
-            <div key={c.id} className="flex gap-3">
+            <div key={c.id} className="flex gap-3 group">
               <div className="w-8 h-8 rounded-full bg-navy-100 text-navy-700 flex items-center justify-center text-xs font-bold shrink-0">
                 {c.user_name.charAt(0).toUpperCase()}
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2">
                   <span className="text-sm font-medium text-navy-800">{c.user_name}</span>
                   <span className="text-xs text-slate-400">{formatDateTime(c.created_at)}</span>
                 </div>
-                <p className="text-sm text-slate-600 mt-0.5">{c.text}</p>
+                {editingCommentId === c.id ? (
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      className="input flex-1 text-sm"
+                      value={editingCommentText}
+                      onChange={(e) => setEditingCommentText(e.target.value)}
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => handleSaveComment(c.id)}
+                      className="btn-primary text-xs"
+                      disabled={!editingCommentText.trim()}
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditingCommentId(null)}
+                      className="btn-secondary text-xs"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-slate-600 mt-0.5">{c.text}</p>
+                    {userName && (
+                      <div className="flex gap-3 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => startEditComment(c.id, c.text)}
+                          className="text-xs text-slate-400 hover:text-navy-700"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteComment(c.id)}
+                          className="text-xs text-slate-400 hover:text-red-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           ))}

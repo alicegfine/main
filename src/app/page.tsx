@@ -212,6 +212,7 @@ function ProposeIdeaModal({
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [proposedBy, setProposedBy] = useState(userName);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -220,7 +221,7 @@ function ProposeIdeaModal({
     await fetch("/api/ideas", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description, proposed_by: userName }),
+      body: JSON.stringify({ title, description, proposed_by: proposedBy }),
     });
     onCreated();
     onClose();
@@ -250,7 +251,16 @@ function ProposeIdeaModal({
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
-          <button type="submit" className="btn-primary w-full" disabled={submitting || !title.trim()}>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Proposed by</label>
+            <input
+              className="input"
+              value={proposedBy}
+              onChange={(e) => setProposedBy(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit" className="btn-primary w-full" disabled={submitting || !title.trim() || !proposedBy.trim()}>
             {submitting ? "Submitting..." : "Submit Idea"}
           </button>
         </form>
@@ -487,13 +497,13 @@ export default function HomePage() {
   });
 
   useEffect(() => {
-    const stored = localStorage.getItem("unconference_name");
+    const stored = localStorage.getItem("sut_name") || localStorage.getItem("unconference_name");
     if (stored) setUserName(stored);
     setLoaded(true);
   }, []);
 
   const handleSetName = useCallback((name: string) => {
-    localStorage.setItem("unconference_name", name);
+    localStorage.setItem("sut_name", name);
     setUserName(name);
   }, []);
 
@@ -572,7 +582,7 @@ export default function HomePage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-navy-900 tracking-tight">Montreal Offsite</h1>
-            <p className="text-slate-500 mt-1">Unconference Schedule</p>
+            <p className="text-slate-500 mt-1">Structured Unstructured Time</p>
           </div>
           {userName && (
             <div className="flex items-center gap-3">
@@ -581,6 +591,7 @@ export default function HomePage() {
               </span>
               <button
                 onClick={() => {
+                  localStorage.removeItem("sut_name");
                   localStorage.removeItem("unconference_name");
                   setUserName(null);
                 }}

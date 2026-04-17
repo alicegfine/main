@@ -353,6 +353,21 @@ export async function addComment(
   return rows[0].id;
 }
 
+export async function updateComment(id: number, text: string) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    "UPDATE comments SET text = $1 WHERE id = $2 RETURNING *",
+    [text, id]
+  );
+  if (rows.length === 0) return null;
+  return fmtRow(rows[0]);
+}
+
+export async function deleteComment(id: number) {
+  await ensureInit();
+  await pool.query("DELETE FROM comments WHERE id = $1", [id]);
+}
+
 // ── Schedule an idea ──
 
 export async function scheduleIdea(
