@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllQuestions, createQuestion } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const team = req.nextUrl.searchParams.get("team") || undefined;
   const questions = await getAllQuestions(team);

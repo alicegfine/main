@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLogistics, updateLogistics } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const logistics = await getLogistics();
   return NextResponse.json(logistics);

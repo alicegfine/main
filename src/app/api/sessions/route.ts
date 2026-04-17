@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllSessions, createSession } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const sessions = await getAllSessions();
   return NextResponse.json(sessions);
