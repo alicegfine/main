@@ -26,9 +26,10 @@ export default function LogisticsPage() {
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [verifying, setVerifying] = useState(false);
 
   function startEdit() {
-    const stored = localStorage.getItem("logistics_admin_password");
+    const stored = localStorage.getItem("admin_password");
     if (stored) {
       setDraft(logistics?.content || "");
       setEditing(true);
@@ -40,7 +41,7 @@ export default function LogisticsPage() {
   }
 
   async function handleSave() {
-    const password = localStorage.getItem("logistics_admin_password");
+    const password = localStorage.getItem("admin_password");
     if (!password) {
       setShowPasswordPrompt(true);
       return;
@@ -56,7 +57,7 @@ export default function LogisticsPage() {
     });
     setSaving(false);
     if (res.status === 401) {
-      localStorage.removeItem("logistics_admin_password");
+      localStorage.removeItem("admin_password");
       setPasswordError("Password incorrect. Try again.");
       setPasswordInput("");
       setShowPasswordPrompt(true);
@@ -66,10 +67,23 @@ export default function LogisticsPage() {
     mutate();
   }
 
-  function handleSubmitPassword(e: React.FormEvent) {
+  async function handleSubmitPassword(e: React.FormEvent) {
     e.preventDefault();
-    if (!passwordInput.trim()) return;
-    localStorage.setItem("logistics_admin_password", passwordInput.trim());
+    const pwd = passwordInput.trim();
+    if (!pwd) return;
+    setVerifying(true);
+    setPasswordError("");
+    const res = await fetch("/api/admin/verify", {
+      method: "POST",
+      headers: { "x-admin-password": pwd },
+    });
+    setVerifying(false);
+    if (!res.ok) {
+      setPasswordError("Password incorrect.");
+      setPasswordInput("");
+      return;
+    }
+    localStorage.setItem("admin_password", pwd);
     setShowPasswordPrompt(false);
     setDraft(logistics?.content || "");
     setEditing(true);
@@ -149,8 +163,8 @@ export default function LogisticsPage() {
                 <p className="text-sm text-red-600 mb-3">{passwordError}</p>
               )}
               <div className="flex gap-2">
-                <button type="submit" className="btn-primary flex-1" disabled={!passwordInput.trim()}>
-                  Unlock
+                <button type="submit" className="btn-primary flex-1" disabled={!passwordInput.trim() || verifying}>
+                  {verifying ? "Checking..." : "Unlock"}
                 </button>
                 <button
                   type="button"
