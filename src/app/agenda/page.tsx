@@ -30,6 +30,7 @@ export default function AgendaPage() {
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<AgendaDay[]>([]);
+  const [collapsedDays, setCollapsedDays] = useState<Record<number, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -189,10 +190,24 @@ export default function AgendaPage() {
                 )}
               </div>
             ) : (
-              <h2 className="text-xl font-bold text-navy-800 mb-4">{day.day}</h2>
+              <button
+                onClick={() => setCollapsedDays((prev) => ({ ...prev, [dayIdx]: !prev[dayIdx] }))}
+                className="flex items-center gap-2 mb-4 group w-full text-left"
+              >
+                <h2 className="text-xl font-bold text-navy-800">{day.day}</h2>
+                <span className="text-xs text-slate-400 group-hover:text-slate-600">
+                  {day.items.length} {day.items.length === 1 ? "item" : "items"}
+                </span>
+                <svg
+                  className={`w-5 h-5 text-slate-400 group-hover:text-slate-600 transition-transform ml-auto ${collapsedDays[dayIdx] ? "-rotate-90" : ""}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
             )}
 
-            {day.items.length > 0 || editing ? (
+            {!collapsedDays[dayIdx] && (day.items.length > 0 || editing) ? (
               <>
                 {/* Mobile: stacked cards */}
                 <div className="sm:hidden space-y-3">
@@ -365,9 +380,9 @@ export default function AgendaPage() {
                   </table>
                 </div>
               </>
-            ) : (
+            ) : !collapsedDays[dayIdx] ? (
               <p className="text-sm text-slate-400 italic">No items yet.</p>
-            )}
+            ) : null}
           </div>
         ))}
       </div>
