@@ -117,6 +117,15 @@ export default function HomePage() {
             </p>
           </Link>
         </div>
+
+        <div className="mt-16 border-t border-slate-200 pt-8 max-w-2xl mx-auto text-center">
+          <p className="text-sm text-slate-500 leading-relaxed">
+            <span className="font-medium text-slate-600">Our north star:</span> Focus on cost-effective and leveraged bets to advance countermeasures against pandemic pathogens, especially those that reduce risk in 2&ndash;5 years, to save as many lives as possible.
+          </p>
+          <p className="text-xs text-slate-400 mt-3">
+            Agency &middot; Excellence &middot; Extreme Ownership &middot; Maximizing Impact &middot; Strategic Thinking &middot; Truthseeking
+          </p>
+        </div>
       </div>
     </>
   );
