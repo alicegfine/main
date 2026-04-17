@@ -668,22 +668,20 @@ export default function HomePage() {
         {/* Ideas Tab */}
         {tab === "ideas" && (
           <div>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <select
-                  className="text-sm border border-slate-300 rounded-md px-3 py-1.5 text-slate-600"
-                  value={ideaSort}
-                  onChange={(e) => setIdeaSort(e.target.value as "upvotes" | "newest")}
-                >
-                  <option value="upvotes">Most upvoted</option>
-                  <option value="newest">Newest first</option>
-                </select>
-              </div>
+            <div className="flex flex-col items-start gap-4 mb-6">
               {userName && (
                 <button onClick={() => setShowProposeIdea(true)} className="btn-primary text-sm">
                   Propose an idea
                 </button>
               )}
+              <select
+                className="text-sm border border-slate-300 rounded-md px-3 py-1.5 text-slate-600"
+                value={ideaSort}
+                onChange={(e) => setIdeaSort(e.target.value as "upvotes" | "newest")}
+              >
+                <option value="upvotes">Most upvoted</option>
+                <option value="newest">Newest first</option>
+              </select>
             </div>
 
             {sortedIdeas.length > 0 ? (
