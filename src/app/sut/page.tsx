@@ -231,7 +231,7 @@ function ProposeIdeaModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 backdrop-blur-sm">
       <div className="card p-6 max-w-lg w-full mx-4">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-navy-800">Propose an Idea</h2>
+          <h2 className="text-xl font-bold text-navy-800">Propose an idea</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">
             &times;
           </button>
@@ -681,7 +681,7 @@ export default function HomePage() {
               </div>
               {userName && (
                 <button onClick={() => setShowProposeIdea(true)} className="btn-primary text-sm">
-                  Propose an Idea
+                  Propose an idea
                 </button>
               )}
             </div>
