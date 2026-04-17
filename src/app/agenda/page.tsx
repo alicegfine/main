@@ -193,109 +193,178 @@ export default function AgendaPage() {
             )}
 
             {day.items.length > 0 || editing ? (
-              <div className="card overflow-hidden">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 w-28">
-                        Time
-                      </th>
-                      <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">
-                        Activity
-                      </th>
-                      <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 w-36">
-                        Location
-                      </th>
-                      {editing && (
-                        <th className="w-10" />
+              <>
+                {/* Mobile: stacked cards */}
+                <div className="sm:hidden space-y-3">
+                  {day.items.map((item, itemIdx) => (
+                    <div key={itemIdx} className="card p-4">
+                      {editing ? (
+                        <div className="space-y-2">
+                          <input
+                            className="input text-sm"
+                            value={item.time}
+                            onChange={(e) => updateItem(dayIdx, itemIdx, "time", e.target.value)}
+                            placeholder="e.g. 9:00 AM"
+                          />
+                          <input
+                            className="input text-sm"
+                            value={item.activity}
+                            onChange={(e) => updateItem(dayIdx, itemIdx, "activity", e.target.value)}
+                            placeholder="Title"
+                          />
+                          <input
+                            className="input text-sm"
+                            value={item.description || ""}
+                            onChange={(e) => updateItem(dayIdx, itemIdx, "description", e.target.value)}
+                            placeholder="Description (optional)"
+                          />
+                          <input
+                            className="input text-sm"
+                            value={item.location || ""}
+                            onChange={(e) => updateItem(dayIdx, itemIdx, "location", e.target.value)}
+                            placeholder="Location"
+                          />
+                          <button
+                            onClick={() => removeItem(dayIdx, itemIdx)}
+                            className="text-xs text-slate-400 hover:text-red-600"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-baseline gap-2 mb-1">
+                            <span className="text-sm font-semibold text-navy-700">{item.time}</span>
+                            {item.location && (
+                              <span className="text-xs text-slate-400">{item.location}</span>
+                            )}
+                          </div>
+                          <span className="text-sm font-medium text-slate-800">{item.activity}</span>
+                          {item.description && (
+                            <p className="text-sm text-slate-500 mt-0.5">{item.description}</p>
+                          )}
+                        </>
                       )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {day.items.map((item, itemIdx) => (
-                      <tr key={itemIdx} className="border-b border-slate-100 last:border-b-0">
-                        <td className="px-4 py-3 align-top">
-                          {editing ? (
-                            <input
-                              className="input text-sm"
-                              value={item.time}
-                              onChange={(e) => updateItem(dayIdx, itemIdx, "time", e.target.value)}
-                              placeholder="e.g. 9:00 AM"
-                            />
-                          ) : (
-                            <span className="text-sm font-medium text-navy-700 whitespace-nowrap">{item.time}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          {editing ? (
-                            <div className="space-y-2">
-                              <input
-                                className="input text-sm"
-                                value={item.activity}
-                                onChange={(e) => updateItem(dayIdx, itemIdx, "activity", e.target.value)}
-                                placeholder="Title"
-                              />
-                              <input
-                                className="input text-sm"
-                                value={item.description || ""}
-                                onChange={(e) => updateItem(dayIdx, itemIdx, "description", e.target.value)}
-                                placeholder="Description (optional)"
-                              />
-                            </div>
-                          ) : (
-                            <div>
-                              <span className="text-sm font-medium text-slate-800">{item.activity}</span>
-                              {item.description && (
-                                <p className="text-sm text-slate-500 mt-0.5">{item.description}</p>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 align-top">
-                          {editing ? (
-                            <input
-                              className="input text-sm"
-                              value={item.location || ""}
-                              onChange={(e) => updateItem(dayIdx, itemIdx, "location", e.target.value)}
-                              placeholder="Location"
-                            />
-                          ) : (
-                            item.location && <span className="text-sm text-slate-500">{item.location}</span>
-                          )}
-                        </td>
+                    </div>
+                  ))}
+                  {editing && (
+                    <button
+                      onClick={() => addItem(dayIdx)}
+                      className="text-sm text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      Add row
+                    </button>
+                  )}
+                </div>
+
+                {/* Desktop: table */}
+                <div className="hidden sm:block card overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 w-28">
+                          Time
+                        </th>
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3">
+                          Activity
+                        </th>
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 w-36">
+                          Location
+                        </th>
                         {editing && (
-                          <td className="px-2 py-3 align-top">
-                            <button
-                              onClick={() => removeItem(dayIdx, itemIdx)}
-                              className="text-slate-300 hover:text-red-500 transition-colors"
-                              title="Remove row"
-                            >
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </td>
+                          <th className="w-10" />
                         )}
                       </tr>
-                    ))}
-                    {editing && (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-3">
-                          <button
-                            onClick={() => addItem(dayIdx)}
-                            className="text-sm text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                            </svg>
-                            Add row
-                          </button>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {day.items.map((item, itemIdx) => (
+                        <tr key={itemIdx} className="border-b border-slate-100 last:border-b-0">
+                          <td className="px-4 py-3 align-top">
+                            {editing ? (
+                              <input
+                                className="input text-sm"
+                                value={item.time}
+                                onChange={(e) => updateItem(dayIdx, itemIdx, "time", e.target.value)}
+                                placeholder="e.g. 9:00 AM"
+                              />
+                            ) : (
+                              <span className="text-sm font-medium text-navy-700 whitespace-nowrap">{item.time}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            {editing ? (
+                              <div className="space-y-2">
+                                <input
+                                  className="input text-sm"
+                                  value={item.activity}
+                                  onChange={(e) => updateItem(dayIdx, itemIdx, "activity", e.target.value)}
+                                  placeholder="Title"
+                                />
+                                <input
+                                  className="input text-sm"
+                                  value={item.description || ""}
+                                  onChange={(e) => updateItem(dayIdx, itemIdx, "description", e.target.value)}
+                                  placeholder="Description (optional)"
+                                />
+                              </div>
+                            ) : (
+                              <div>
+                                <span className="text-sm font-medium text-slate-800">{item.activity}</span>
+                                {item.description && (
+                                  <p className="text-sm text-slate-500 mt-0.5">{item.description}</p>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 align-top">
+                            {editing ? (
+                              <input
+                                className="input text-sm"
+                                value={item.location || ""}
+                                onChange={(e) => updateItem(dayIdx, itemIdx, "location", e.target.value)}
+                                placeholder="Location"
+                              />
+                            ) : (
+                              item.location && <span className="text-sm text-slate-500">{item.location}</span>
+                            )}
+                          </td>
+                          {editing && (
+                            <td className="px-2 py-3 align-top">
+                              <button
+                                onClick={() => removeItem(dayIdx, itemIdx)}
+                                className="text-slate-300 hover:text-red-500 transition-colors"
+                                title="Remove row"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                      {editing && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-3">
+                            <button
+                              onClick={() => addItem(dayIdx)}
+                              className="text-sm text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                              </svg>
+                              Add row
+                            </button>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             ) : (
               <p className="text-sm text-slate-400 italic">No items yet.</p>
             )}
