@@ -87,9 +87,23 @@ async function ensureInit() {
       content TEXT NOT NULL DEFAULT '',
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS agenda (
+      id INTEGER PRIMARY KEY,
+      content JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
   await pool.query(
     "INSERT INTO logistics (id, content) VALUES (1, '') ON CONFLICT (id) DO NOTHING"
+  );
+  await pool.query(
+    `INSERT INTO agenda (id, content) VALUES (1, $1::jsonb) ON CONFLICT (id) DO NOTHING`,
+    [JSON.stringify([
+      { day: "Day 1", items: [] },
+      { day: "Day 2", items: [] },
+      { day: "Day 3", items: [] },
+    ])]
   );
 }
 
@@ -484,6 +498,23 @@ export async function toggleQuestionUpvote(questionId: number, userName: string)
     [questionId, userName]
   );
   return true;
+}
+
+// ── Agenda ──
+
+export async function getAgenda() {
+  await ensureInit();
+  const { rows } = await pool.query("SELECT * FROM agenda WHERE id = 1");
+  return rows[0] ? { content: rows[0].content, updated_at: fmtTs(rows[0].updated_at) } : { content: [], updated_at: null };
+}
+
+export async function updateAgenda(content: any) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    "UPDATE agenda SET content = $1::jsonb, updated_at = NOW() WHERE id = 1 RETURNING *",
+    [JSON.stringify(content)]
+  );
+  return { content: rows[0].content, updated_at: fmtTs(rows[0].updated_at) };
 }
 
 // ── Logistics ──
