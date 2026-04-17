@@ -5,3 +5,4 @@ out/
 data.json
 .env
 .env.local
+tsconfig.tsbuildinfo
