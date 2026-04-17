@@ -89,7 +89,7 @@ export default function HomePage() {
               Logistics
             </h2>
             <p className="text-slate-500">
-              Address, schedule, what to bring &mdash; everything you need to know.
+              Address, meals, comms &mdash; everything you need to know.
             </p>
           </Link>
 
