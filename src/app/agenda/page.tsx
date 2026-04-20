@@ -9,6 +9,7 @@ interface AgendaItem {
   activity: string;
   description: string;
   location: string;
+  facilitator: string;
 }
 
 interface AgendaDay {
@@ -120,7 +121,7 @@ export default function AgendaPage() {
     const next = [...draft];
     next[dayIdx] = {
       ...next[dayIdx],
-      items: [...next[dayIdx].items, { time: "", activity: "", description: "", location: "" }],
+      items: [...next[dayIdx].items, { time: "", activity: "", description: "", location: "", facilitator: "" }],
     };
     setDraft(next);
   }
@@ -236,6 +237,12 @@ export default function AgendaPage() {
                             onChange={(e) => updateItem(dayIdx, itemIdx, "location", e.target.value)}
                             placeholder="Location"
                           />
+                          <input
+                            className="input text-sm"
+                            value={item.facilitator || ""}
+                            onChange={(e) => updateItem(dayIdx, itemIdx, "facilitator", e.target.value)}
+                            placeholder="Facilitator (optional)"
+                          />
                           <button
                             onClick={() => removeItem(dayIdx, itemIdx)}
                             className="text-xs text-slate-400 hover:text-red-600"
@@ -254,6 +261,9 @@ export default function AgendaPage() {
                           <span className="text-sm font-medium text-slate-800">{item.activity}</span>
                           {item.description && (
                             <p className="text-sm text-slate-500 mt-0.5">{item.description}</p>
+                          )}
+                          {item.facilitator && (
+                            <p className="text-xs text-slate-400 mt-0.5">Facilitator: {item.facilitator}</p>
                           )}
                         </>
                       )}
@@ -285,6 +295,9 @@ export default function AgendaPage() {
                         </th>
                         <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 w-36">
                           Location
+                        </th>
+                        <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-4 py-3 w-36">
+                          Facilitator
                         </th>
                         {editing && (
                           <th className="w-10" />
@@ -343,6 +356,18 @@ export default function AgendaPage() {
                               item.location && <span className="text-sm text-slate-500">{item.location}</span>
                             )}
                           </td>
+                          <td className="px-4 py-3 align-top">
+                            {editing ? (
+                              <input
+                                className="input text-sm"
+                                value={item.facilitator || ""}
+                                onChange={(e) => updateItem(dayIdx, itemIdx, "facilitator", e.target.value)}
+                                placeholder="Facilitator"
+                              />
+                            ) : (
+                              item.facilitator && <span className="text-sm text-slate-500">{item.facilitator}</span>
+                            )}
+                          </td>
                           {editing && (
                             <td className="px-2 py-3 align-top">
                               <button
@@ -360,7 +385,7 @@ export default function AgendaPage() {
                       ))}
                       {editing && (
                         <tr>
-                          <td colSpan={4} className="px-4 py-3">
+                          <td colSpan={5} className="px-4 py-3">
                             <button
                               onClick={() => addItem(dayIdx)}
                               className="text-sm text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
