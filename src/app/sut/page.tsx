@@ -549,7 +549,7 @@ export default function HomePage() {
 
   const mySessions = userName
     ? (sessions || [])
-        .filter((s) => s.attendees?.includes(userName))
+        .filter((s) => s.speaker === userName || s.attendees?.includes(userName))
         .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time))
     : [];
 
