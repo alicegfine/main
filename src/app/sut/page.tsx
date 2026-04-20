@@ -362,19 +362,14 @@ function SessionCard({ session, allSessions }: { session: Session; allSessions: 
             Time conflict
           </div>
         )}
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-slate-500 mb-1">
-              {formatTime(session.start_time)} &ndash; {formatTime(endTime)}
-            </p>
-            <h3 className="font-semibold text-navy-800 group-hover:text-navy-600 truncate">
-              {session.title}
-            </h3>
-            <p className="text-sm text-slate-500 mt-0.5">hosted by {session.speaker}</p>
-          </div>
-          <span className={`badge ${ROOM_COLORS[session.room] || "bg-slate-100 text-slate-800"} shrink-0`}>
-            {session.room}
-          </span>
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-slate-500 mb-1">
+            {formatTime(session.start_time)} &ndash; {formatTime(endTime)}
+          </p>
+          <h3 className="font-semibold text-navy-800 group-hover:text-navy-600 truncate">
+            {session.title}
+          </h3>
+          <p className="text-sm text-slate-500 mt-0.5">hosted by {session.speaker}</p>
         </div>
         <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
           <span className="flex items-center gap-1">
