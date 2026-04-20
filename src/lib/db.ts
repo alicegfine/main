@@ -130,17 +130,21 @@ export async function getAllSessions() {
   const { rows: upvotes } = await pool.query(
     "SELECT target_id, COUNT(*)::int as count FROM upvotes WHERE target_type = 'session' GROUP BY target_id"
   );
-  const { rows: attendeeCounts } = await pool.query(
-    "SELECT session_id, COUNT(*)::int as count FROM attendees GROUP BY session_id"
+  const { rows: attendeeRows } = await pool.query(
+    "SELECT session_id, user_name FROM attendees ORDER BY created_at"
   );
 
   const upvoteMap = Object.fromEntries(upvotes.map((u) => [u.target_id, u.count]));
-  const attendeeMap = Object.fromEntries(attendeeCounts.map((a) => [a.session_id, a.count]));
+  const attendeesMap: Record<number, string[]> = {};
+  for (const r of attendeeRows) {
+    (attendeesMap[r.session_id] ||= []).push(r.user_name);
+  }
 
   return sessions.map((s) => ({
     ...fmtRow(s),
     upvotes: upvoteMap[s.id] || 0,
-    attendee_count: attendeeMap[s.id] || 0,
+    attendees: attendeesMap[s.id] || [],
+    attendee_count: (attendeesMap[s.id] || []).length,
   }));
 }
 

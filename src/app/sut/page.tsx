@@ -22,6 +22,7 @@ interface Session {
   duration_minutes: number;
   upvotes: number;
   attendee_count: number;
+  attendees: string[];
 }
 
 interface Idea {
@@ -111,7 +112,6 @@ function AddSessionModal({
   const [host, setHost] = useState(userName);
   const [room, setRoom] = useState(ROOMS[0]);
   const [startTime, setStartTime] = useState(block === 1 ? "13:30" : "15:15");
-  const [duration, setDuration] = useState("30");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -126,7 +126,7 @@ function AddSessionModal({
         speaker: host,
         room,
         start_time: startTime,
-        duration_minutes: Number(duration),
+        duration_minutes: 45,
         created_by: userName,
       }),
     });
@@ -168,27 +168,17 @@ function AddSessionModal({
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
-              <input
-                type="time"
-                className="input"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                min={block === 1 ? "13:30" : "15:15"}
-                max={block === 1 ? "14:59" : "16:44"}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Duration (min)</label>
-              <select className="input" value={duration} onChange={(e) => setDuration(e.target.value)}>
-                {[10, 15, 20, 30, 45, 60, 90].map((d) => (
-                  <option key={d} value={d}>{d} min</option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
+            <input
+              type="time"
+              className="input"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              min={block === 1 ? "13:30" : "15:15"}
+              max={block === 1 ? "14:59" : "16:44"}
+              required
+            />
           </div>
           <button type="submit" className="btn-primary w-full" disabled={submitting || !title.trim()}>
             {submitting ? "Creating..." : "Create Session"}
@@ -284,7 +274,6 @@ function ScheduleIdeaModal({
 }) {
   const [room, setRoom] = useState(ROOMS[0]);
   const [startTime, setStartTime] = useState("13:30");
-  const [duration, setDuration] = useState("30");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -296,7 +285,7 @@ function ScheduleIdeaModal({
       body: JSON.stringify({
         room,
         start_time: startTime,
-        duration_minutes: Number(duration),
+        duration_minutes: 45,
         scheduled_by: userName,
       }),
     });
@@ -325,25 +314,15 @@ function ScheduleIdeaModal({
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
-              <input
-                type="time"
-                className="input"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Duration (min)</label>
-              <select className="input" value={duration} onChange={(e) => setDuration(e.target.value)}>
-                {[10, 15, 20, 30, 45, 60, 90].map((d) => (
-                  <option key={d} value={d}>{d} min</option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
+            <input
+              type="time"
+              className="input"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              required
+            />
           </div>
           <button type="submit" className="btn-primary w-full" disabled={submitting}>
             {submitting ? "Scheduling..." : "Add to Schedule"}
@@ -483,7 +462,7 @@ function IdeaCard({
 export default function HomePage() {
   const [userName, setUserName] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState<"schedule" | "ideas">("schedule");
+  const [tab, setTab] = useState<"schedule" | "ideas" | "mine">("schedule");
   const [addSessionBlock, setAddSessionBlock] = useState<1 | 2 | null>(null);
   const [showProposeIdea, setShowProposeIdea] = useState(false);
   const [scheduleIdea, setScheduleIdea] = useState<Idea | null>(null);
@@ -573,6 +552,12 @@ export default function HomePage() {
     ideaSort === "upvotes" ? b.upvotes - a.upvotes : b.id - a.id
   );
 
+  const mySessions = userName
+    ? (sessions || [])
+        .filter((s) => s.attendees?.includes(userName))
+        .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time))
+    : [];
+
   return (
     <>
       {!userName && <NamePrompt onSet={handleSetName} />}
@@ -636,6 +621,21 @@ export default function HomePage() {
                 <span className="ml-2 badge bg-navy-100 text-navy-700">{ideas.length}</span>
               )}
             </button>
+            {userName && (
+              <button
+                onClick={() => setTab("mine")}
+                className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
+                  tab === "mine"
+                    ? "border-navy-700 text-navy-800"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                My Sessions
+                {mySessions.length > 0 && (
+                  <span className="ml-2 badge bg-navy-100 text-navy-700">{mySessions.length}</span>
+                )}
+              </button>
+            )}
           </nav>
         </div>
 
@@ -668,6 +668,9 @@ export default function HomePage() {
         {/* Ideas Tab */}
         {tab === "ideas" && (
           <div>
+            <p className="text-sm text-slate-500 mb-4">
+              Sessions are 45 minutes. Upvote ideas you&apos;d like to see, or schedule one into an open slot.
+            </p>
             <div className="flex flex-col items-start gap-4 mb-6">
               {userName && (
                 <button onClick={() => setShowProposeIdea(true)} className="btn-primary text-sm">
@@ -700,6 +703,29 @@ export default function HomePage() {
               <div className="text-center py-16">
                 <p className="text-slate-400 text-lg">No ideas proposed yet.</p>
                 <p className="text-slate-400 text-sm mt-1">Be the first to suggest a topic!</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* My Sessions Tab */}
+        {tab === "mine" && userName && (
+          <div className="max-w-2xl">
+            <p className="text-sm text-slate-500 mb-6">
+              Sessions you&apos;re signed up to attend. Tap one to view details or drop out.
+            </p>
+            {mySessions.length > 0 ? (
+              <div className="space-y-3">
+                {mySessions.map((s) => (
+                  <SessionCard key={s.id} session={s} allSessions={allSessions} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16">
+                <p className="text-slate-400 text-lg">You haven&apos;t signed up for any sessions yet.</p>
+                <p className="text-slate-400 text-sm mt-1">
+                  Browse the <button onClick={() => setTab("schedule")} className="text-navy-600 hover:text-navy-800 underline">schedule</button> and tap a session to attend.
+                </p>
               </div>
             )}
           </div>

@@ -150,7 +150,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
     await fetch(`/api/sessions/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...editForm, edited_by: userName }),
+      body: JSON.stringify({ ...editForm, duration_minutes: 45, edited_by: userName }),
     });
     setEditing(false);
     mutate();
@@ -311,19 +311,10 @@ export default function SessionPage({ params }: { params: { id: string } }) {
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
-              <input type="time" className="input" value={editForm.start_time} onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })} required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Duration (min)</label>
-              <select className="input" value={editForm.duration_minutes} onChange={(e) => setEditForm({ ...editForm, duration_minutes: Number(e.target.value) })}>
-                {[10, 15, 20, 30, 45, 60, 90].map((d) => (
-                  <option key={d} value={d}>{d} min</option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
+            <input type="time" className="input" value={editForm.start_time} onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })} required />
+            <p className="text-xs text-slate-400 mt-1">Sessions are 45 minutes.</p>
           </div>
           <div className="flex gap-3">
             <button type="submit" className="btn-primary">Save Changes</button>
