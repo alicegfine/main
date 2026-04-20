@@ -17,7 +17,6 @@ interface Session {
   title: string;
   description: string;
   speaker: string;
-  facilitator: string;
   room: string;
   start_time: string;
   duration_minutes: number;
@@ -111,7 +110,6 @@ function AddSessionModal({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [host, setHost] = useState(userName);
-  const [facilitator, setFacilitator] = useState("");
   const [room, setRoom] = useState(ROOMS[0]);
   const [startTime, setStartTime] = useState(block === 1 ? "13:30" : "15:15");
   const [submitting, setSubmitting] = useState(false);
@@ -126,7 +124,6 @@ function AddSessionModal({
         title,
         description,
         speaker: host,
-        facilitator,
         room,
         start_time: startTime,
         duration_minutes: 45,
@@ -162,12 +159,6 @@ function AddSessionModal({
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Host</label>
             <input className="input" value={host} onChange={(e) => setHost(e.target.value)} required />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Facilitator <span className="text-slate-400">(optional)</span>
-            </label>
-            <input className="input" value={facilitator} onChange={(e) => setFacilitator(e.target.value)} />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Room</label>
@@ -282,7 +273,6 @@ function ScheduleIdeaModal({
   onScheduled: () => void;
 }) {
   const [room, setRoom] = useState(ROOMS[0]);
-  const [facilitator, setFacilitator] = useState("");
   const [startTime, setStartTime] = useState("13:30");
   const [submitting, setSubmitting] = useState(false);
 
@@ -294,7 +284,6 @@ function ScheduleIdeaModal({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         room,
-        facilitator,
         start_time: startTime,
         duration_minutes: 45,
         scheduled_by: userName,
@@ -324,12 +313,6 @@ function ScheduleIdeaModal({
                 <option key={r} value={r}>{r}</option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Facilitator <span className="text-slate-400">(optional)</span>
-            </label>
-            <input className="input" value={facilitator} onChange={(e) => setFacilitator(e.target.value)} />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
@@ -387,9 +370,6 @@ function SessionCard({ session, allSessions }: { session: Session; allSessions: 
             {session.title}
           </h3>
           <p className="text-sm text-slate-500 mt-0.5">hosted by {session.speaker}</p>
-          {session.facilitator && (
-            <p className="text-sm text-slate-400 mt-0.5">facilitator: {session.facilitator}</p>
-          )}
         </div>
         <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
           <span className="flex items-center gap-1">
