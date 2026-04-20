@@ -98,10 +98,10 @@ export default function HomePage() {
               <span className="badge bg-navy-100 text-navy-700">Day 1</span>
             </div>
             <h2 className="text-2xl font-bold text-navy-800 group-hover:text-navy-600 transition-colors mb-2">
-              AMA
+              Director AMAs
             </h2>
             <p className="text-slate-500">
-              Submit and upvote questions for each team &mdash; answered live.
+              Submit and upvote questions for each director, answered in a live panel.
             </p>
           </Link>
 
