@@ -15,6 +15,7 @@ async function ensureInit() {
       title TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT '',
       speaker TEXT NOT NULL,
+      facilitator TEXT NOT NULL DEFAULT '',
       room TEXT NOT NULL,
       start_time TEXT NOT NULL,
       duration_minutes INTEGER NOT NULL,
@@ -94,6 +95,9 @@ async function ensureInit() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `);
+  await pool.query(
+    "ALTER TABLE sessions ADD COLUMN IF NOT EXISTS facilitator TEXT NOT NULL DEFAULT ''"
+  ).catch(() => {});
   await pool.query(
     "INSERT INTO logistics (id, content) VALUES (1, '') ON CONFLICT (id) DO NOTHING"
   );
@@ -185,6 +189,7 @@ export async function createSession(data: {
   title: string;
   description: string;
   speaker: string;
+  facilitator?: string;
   room: string;
   start_time: string;
   duration_minutes: number;
@@ -192,9 +197,9 @@ export async function createSession(data: {
 }) {
   await ensureInit();
   const { rows } = await pool.query(
-    `INSERT INTO sessions (title, description, speaker, room, start_time, duration_minutes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-    [data.title, data.description, data.speaker, data.room, data.start_time, data.duration_minutes, data.created_by]
+    `INSERT INTO sessions (title, description, speaker, facilitator, room, start_time, duration_minutes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+    [data.title, data.description, data.speaker, data.facilitator || "", data.room, data.start_time, data.duration_minutes, data.created_by]
   );
   return rows[0].id;
 }
@@ -205,6 +210,7 @@ export async function updateSession(
     title?: string;
     description?: string;
     speaker?: string;
+    facilitator?: string;
     room?: string;
     start_time?: string;
     duration_minutes?: number;
@@ -545,7 +551,8 @@ export async function scheduleIdea(
   room: string,
   startTime: string,
   durationMinutes: number,
-  scheduledBy: string
+  scheduledBy: string,
+  facilitator?: string
 ) {
   await ensureInit();
   const { rows } = await pool.query("SELECT * FROM ideas WHERE id = $1", [ideaId]);
@@ -553,9 +560,9 @@ export async function scheduleIdea(
   const idea = rows[0];
 
   const { rows: sessionRows } = await pool.query(
-    `INSERT INTO sessions (title, description, speaker, room, start_time, duration_minutes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-    [idea.title, idea.description, idea.proposed_by, room, startTime, durationMinutes, scheduledBy]
+    `INSERT INTO sessions (title, description, speaker, facilitator, room, start_time, duration_minutes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+    [idea.title, idea.description, idea.proposed_by, facilitator || "", room, startTime, durationMinutes, scheduledBy]
   );
   const sessionId = sessionRows[0].id;
 

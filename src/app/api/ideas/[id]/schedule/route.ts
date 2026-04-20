@@ -4,13 +4,13 @@ import { scheduleIdea } from "@/lib/db";
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const { id } = params;
   const body = await req.json();
-  const { room, start_time, duration_minutes, scheduled_by } = body;
+  const { room, start_time, duration_minutes, scheduled_by, facilitator } = body;
 
   if (!room || !start_time || !duration_minutes || !scheduled_by) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  const sessionId = await scheduleIdea(Number(id), room, start_time, Number(duration_minutes), scheduled_by);
+  const sessionId = await scheduleIdea(Number(id), room, start_time, Number(duration_minutes), scheduled_by, facilitator);
   if (!sessionId) return NextResponse.json({ error: "Idea not found" }, { status: 404 });
 
   return NextResponse.json({ session_id: sessionId }, { status: 201 });

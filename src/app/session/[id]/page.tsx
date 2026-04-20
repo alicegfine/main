@@ -18,6 +18,7 @@ interface SessionDetail {
   title: string;
   description: string;
   speaker: string;
+  facilitator: string;
   room: string;
   start_time: string;
   duration_minutes: number;
@@ -60,7 +61,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ title: "", description: "", speaker: "", room: "", start_time: "", duration_minutes: 30 });
+  const [editForm, setEditForm] = useState({ title: "", description: "", speaker: "", facilitator: "", room: "", start_time: "", duration_minutes: 30 });
   const [showEditLog, setShowEditLog] = useState(false);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -82,6 +83,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
         title: session.title,
         description: session.description,
         speaker: session.speaker,
+        facilitator: session.facilitator || "",
         room: session.room,
         start_time: session.start_time,
         duration_minutes: session.duration_minutes,
@@ -207,6 +209,9 @@ export default function SessionPage({ params }: { params: { id: string } }) {
             </div>
             <h1 className="text-3xl font-bold text-navy-900 tracking-tight mb-2">{session.title}</h1>
             <p className="text-lg text-slate-600">Hosted by {session.speaker}</p>
+            {session.facilitator && (
+              <p className="text-slate-500">Facilitator: {session.facilitator}</p>
+            )}
             {session.description && (
               <p className="text-slate-600 mt-4 leading-relaxed">{session.description}</p>
             )}
@@ -302,6 +307,12 @@ export default function SessionPage({ params }: { params: { id: string } }) {
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Host</label>
             <input className="input" value={editForm.speaker} onChange={(e) => setEditForm({ ...editForm, speaker: e.target.value })} required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Facilitator <span className="text-slate-400">(optional)</span>
+            </label>
+            <input className="input" value={editForm.facilitator} onChange={(e) => setEditForm({ ...editForm, facilitator: e.target.value })} />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Room</label>

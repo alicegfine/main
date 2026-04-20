@@ -10,7 +10,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { title, description, speaker, room, start_time, duration_minutes, created_by } = body;
+  const { title, description, speaker, facilitator, room, start_time, duration_minutes, created_by } = body;
 
   if (!title || !speaker || !room || !start_time || !duration_minutes || !created_by) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
     title,
     description: description || "",
     speaker,
+    facilitator: facilitator || "",
     room,
     start_time,
     duration_minutes: Number(duration_minutes),
