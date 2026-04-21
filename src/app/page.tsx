@@ -105,12 +105,12 @@ export default function HomePage() {
             </p>
           </Link>
 
-          <Link href="/sut" className="card p-8 hover:shadow-md transition-shadow group block">
+          <Link href="/team-sessions" className="card p-8 hover:shadow-md transition-shadow group block">
             <div className="flex items-center gap-2 mb-3">
               <span className="badge bg-amber-100 text-amber-800">Day 2</span>
             </div>
             <h2 className="text-2xl font-bold text-navy-800 group-hover:text-navy-600 transition-colors mb-2">
-              Structured Unstructured Time
+              Team-Led Sessions
             </h2>
             <p className="text-slate-500">
               Host sessions, propose ideas, and organize the schedule together.

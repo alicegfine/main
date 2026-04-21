@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Montreal Offsite",
-  description: "Structured unstructured time — schedule and idea board",
+  description: "Montreal Offsite — agenda, logistics, and team-led sessions",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -567,7 +567,7 @@ export default function HomePage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-navy-900 tracking-tight">Structured Unstructured Time</h1>
+            <h1 className="text-3xl font-bold text-navy-900 tracking-tight">Team-Led Sessions</h1>
             <p className="text-slate-500 mt-1">Montreal Offsite &middot; Day 2</p>
           </div>
           {userName && (

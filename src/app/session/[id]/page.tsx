@@ -100,7 +100,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-16 text-center">
         <p className="text-slate-500">Session not found.</p>
-        <Link href="/sut" className="text-navy-600 hover:text-navy-800 mt-4 inline-block">&larr; Back to schedule</Link>
+        <Link href="/team-sessions" className="text-navy-600 hover:text-navy-800 mt-4 inline-block">&larr; Back to schedule</Link>
       </div>
     );
   }
@@ -157,7 +157,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
 
   async function handleDelete() {
     await fetch(`/api/sessions/${id}`, { method: "DELETE" });
-    router.push("/sut");
+    router.push("/team-sessions");
   }
 
   function startEditComment(commentId: number, currentText: string) {
@@ -184,7 +184,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-      <Link href="/sut" className="text-navy-600 hover:text-navy-800 text-sm font-medium inline-flex items-center gap-1 mb-6">
+      <Link href="/team-sessions" className="text-navy-600 hover:text-navy-800 text-sm font-medium inline-flex items-center gap-1 mb-6">
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
         </svg>
