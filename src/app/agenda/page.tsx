@@ -135,8 +135,10 @@ export default function AgendaPage() {
     setDraft(next);
   }
 
-  function addDay() {
-    setDraft([...draft, { day: `Day ${draft.length + 1}`, items: [] }]);
+  function addDay(atIdx: number) {
+    const next = [...draft];
+    next.splice(atIdx, 0, { day: `Day ${draft.length + 1}`, items: [] });
+    setDraft(next);
   }
 
   function removeDay(dayIdx: number) {
@@ -170,9 +172,36 @@ export default function AgendaPage() {
         <p className="text-slate-400 italic">No agenda items yet.</p>
       )}
 
+      {days.length === 0 && editing && (
+        <div className="flex justify-center py-8">
+          <button
+            onClick={() => addDay(0)}
+            className="text-sm text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add day
+          </button>
+        </div>
+      )}
+
       <div className="space-y-8">
         {days.map((day, dayIdx) => (
           <div key={dayIdx}>
+            {editing && dayIdx === 0 && (
+              <div className="flex justify-center mb-4">
+                <button
+                  onClick={() => addDay(0)}
+                  className="text-xs text-slate-400 hover:text-navy-600 font-medium inline-flex items-center gap-1 border border-dashed border-slate-300 hover:border-navy-400 rounded-md px-3 py-1.5 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Insert day above
+                </button>
+              </div>
+            )}
             {editing ? (
               <div className="flex items-center gap-3 mb-4">
                 <input
@@ -405,22 +434,26 @@ export default function AgendaPage() {
             ) : !collapsedDays[dayIdx] ? (
               <p className="text-sm text-slate-400 italic">No items yet.</p>
             ) : null}
+
+            {editing && (
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => addDay(dayIdx + 1)}
+                  className="text-xs text-slate-400 hover:text-navy-600 font-medium inline-flex items-center gap-1 border border-dashed border-slate-300 hover:border-navy-400 rounded-md px-3 py-1.5 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Insert day below
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
 
       {editing && (
         <div className="mt-8 space-y-4">
-          <button
-            onClick={addDay}
-            className="text-sm text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Add day
-          </button>
-
           <div className="flex gap-3">
             <button onClick={handleSave} className="btn-primary" disabled={saving}>
               {saving ? "Saving..." : "Save"}
