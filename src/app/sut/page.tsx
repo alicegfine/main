@@ -4,12 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 
-const ROOMS = ["Anderson A", "Anderson B", "Bleury", "Walking/Lobby"];
+const ROOMS = ["Anderson A", "Anderson B", "Bleury"];
 const ROOM_COLORS: Record<string, string> = {
   "Anderson A": "bg-blue-100 text-blue-800",
   "Anderson B": "bg-emerald-100 text-emerald-800",
   Bleury: "bg-violet-100 text-violet-800",
-  "Walking/Lobby": "bg-amber-100 text-amber-800",
 };
 
 interface Session {
