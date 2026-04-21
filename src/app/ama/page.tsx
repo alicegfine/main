@@ -9,6 +9,7 @@ const TEAMS = [
   { id: "ppe", name: "PPE" },
   { id: "gov", name: "Gov" },
   { id: "comms", name: "Comms" },
+  { id: "ops", name: "Ops" },
 ];
 
 interface Question {
