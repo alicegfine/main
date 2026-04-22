@@ -93,6 +93,15 @@ async function ensureInit() {
       content JSONB NOT NULL DEFAULT '[]'::jsonb,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS suggestions (
+      id SERIAL PRIMARY KEY,
+      text TEXT NOT NULL,
+      user_name TEXT,
+      is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+      page_path TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
   await pool.query(
     "INSERT INTO logistics (id, content) VALUES (1, '') ON CONFLICT (id) DO NOTHING"
@@ -570,4 +579,37 @@ export async function scheduleIdea(
   await pool.query("DELETE FROM ideas WHERE id = $1", [ideaId]);
 
   return sessionId;
+}
+
+// ── Suggestions ──
+
+export async function createSuggestion(data: {
+  text: string;
+  user_name: string | null;
+  is_anonymous: boolean;
+  page_path: string;
+}) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    `INSERT INTO suggestions (text, user_name, is_anonymous, page_path)
+     VALUES ($1, $2, $3, $4) RETURNING id`,
+    [data.text, data.is_anonymous ? null : data.user_name, data.is_anonymous, data.page_path]
+  );
+  return rows[0].id;
+}
+
+export async function getAllSuggestions() {
+  await ensureInit();
+  const { rows } = await pool.query(
+    "SELECT * FROM suggestions ORDER BY created_at DESC"
+  );
+  return rows.map((r) => ({
+    ...fmtRow(r),
+    user_name: r.is_anonymous ? null : r.user_name,
+  }));
+}
+
+export async function deleteSuggestion(id: number) {
+  await ensureInit();
+  await pool.query("DELETE FROM suggestions WHERE id = $1", [id]);
 }
