@@ -25,9 +25,6 @@ function RestaurantsCard() {
         <h3 className="font-semibold text-navy-800 group-hover:text-navy-600 transition-colors">
           Restaurant recommendations
         </h3>
-        <p className="text-sm text-slate-500 mt-0.5">
-          For free time &mdash; classics, poutine, vegan, and more.
-        </p>
       </div>
       <svg className="w-5 h-5 text-slate-400 group-hover:text-navy-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
