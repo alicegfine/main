@@ -8,7 +8,8 @@ interface Restaurant {
   vegn: string;
   reservations: string;
   maps: string;
-  website: string;
+  menuOrSite: string;
+  menuOrSiteLabel: string;
   description: string;
 }
 
@@ -20,8 +21,9 @@ const RESTAURANTS: Restaurant[] = [
     gf: "No",
     vegn: "No",
     reservations: "None taken",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Schwartz%27s+Deli,+3895+Boulevard+Saint-Laurent,+Montreal&hl=en",
+    menuOrSite: "https://schwartzsdeli.com/pages/menu",
+    menuOrSiteLabel: "Menu",
     description:
       "Iconic smoked meat deli on the Main, open since 1928. First on every list of classic Montreal restaurants.",
   },
@@ -32,32 +34,35 @@ const RESTAURANTS: Restaurant[] = [
     gf: "Yes (GF menu + fryer)",
     vegn: "Limited",
     reservations: "Recommended for 6–8",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Holder,+407+Rue+McGill,+Montreal&hl=en",
+    menuOrSite: "https://restaurantholder.com/en/a-la-carte/",
+    menuOrSiteLabel: "Menu",
     description:
       "Classic Montreal bistro in Old Montreal. Does have a vegan option and a vegetarian option, but tough on protein. Has a gluten-free menu.",
   },
   {
     name: "Montreal Pool Room",
-    category: "Poutine",
+    category: "Classic Montreal",
     distance: "12-min walk",
     gf: "No",
     vegn: "Limited",
     reservations: "None taken",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Montreal+Pool+Room,+1217+Boulevard+Saint-Laurent,+Montreal&hl=en",
+    menuOrSite: "https://www.montrealpoolroom1912.com/",
+    menuOrSiteLabel: "Website",
     description:
       "Iconic, over 100 years old, extremely nonfancy. Classic poutine, steamies, hot dogs.",
   },
   {
     name: "Ma Poule Mouillée",
-    category: "Poutine",
+    category: "Classic Montreal",
     distance: "22 min cab/transit",
     gf: "Limited",
     vegn: "Limited",
     reservations: "None taken",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Ma+Poule+Mouill%C3%A9e,+969+Rue+Rachel+E,+Montreal&hl=en",
+    menuOrSite: "https://mapoulemouillee.ca/",
+    menuOrSiteLabel: "Website",
     description:
       "Portuguese chicken restaurant that happens to have very highly recommended poutine.",
   },
@@ -68,8 +73,9 @@ const RESTAURANTS: Restaurant[] = [
     gf: "Several GF",
     vegn: "100% vegan",
     reservations: "Recommended",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Lola+Rosa,+276+Rue+Sainte-Catherine+Ouest,+Montreal&hl=en",
+    menuOrSite: "https://lola-rosa.ca/en/menu/",
+    menuOrSiteLabel: "Menu",
     description: "100% vegan, comfort food, casual. Several GF options.",
   },
   {
@@ -79,8 +85,9 @@ const RESTAURANTS: Restaurant[] = [
     gf: "Some GF",
     vegn: "100% vegan",
     reservations: "Required for 6+",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Bloom+Sushi,+288+Rue+Sainte-Catherine+Ouest,+Montreal&hl=en",
+    menuOrSite: "https://bloomsushi.com/en/menu/",
+    menuOrSiteLabel: "Menu",
     description:
       "100% vegan sushi. Recommend making a reservation. GF options.",
   },
@@ -91,8 +98,9 @@ const RESTAURANTS: Restaurant[] = [
     gf: "Extensive (labeled)",
     vegn: "100% vegetarian",
     reservations: "None taken",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Resto+V%C3%A9go,+1720+Rue+Saint-Denis,+Montreal&hl=en",
+    menuOrSite: "https://restovego.ca/en/menu/",
+    menuOrSiteLabel: "Menu",
     description:
       "Enormous pay-by-weight vegetarian buffet, ~200 different dishes.",
   },
@@ -103,8 +111,9 @@ const RESTAURANTS: Restaurant[] = [
     gf: "100% GF",
     vegn: "Vegan + veg options",
     reservations: "Recommended",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Arepera,+Montreal&hl=en",
+    menuOrSite: "https://www.arepera.ca/",
+    menuOrSiteLabel: "Website",
     description:
       "100% GF; vegan, vegetarian, and omnivore options. Casual and very well-reviewed arepa restaurant.",
   },
@@ -115,8 +124,9 @@ const RESTAURANTS: Restaurant[] = [
     gf: "No",
     vegn: "Veg options",
     reservations: "None taken",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Qing+Hua+Dumpling,+1019+Boulevard+Saint-Laurent,+Montreal&hl=en",
+    menuOrSite: "https://qinghuadumpling.com/",
+    menuOrSiteLabel: "Website",
     description:
       "Chinatown dumpling spot with dozens of jiaozi varieties, including plentiful vegetarian options.",
   },
@@ -127,8 +137,9 @@ const RESTAURANTS: Restaurant[] = [
     gf: "Some GF pasta",
     vegn: "Veg options",
     reservations: "Recommended",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Jacopo,+436+Place+Jacques-Cartier,+Montreal&hl=en",
+    menuOrSite: "https://jacopomtl.com/en/menus/a-la-carte/",
+    menuOrSiteLabel: "Menu",
     description:
       "Stylish modern Italian bistro. Handmade pastas, wood-fired pizzas, natural wine list.",
   },
@@ -139,8 +150,9 @@ const RESTAURANTS: Restaurant[] = [
     gf: "Yes",
     vegn: "Vegan + veg options",
     reservations: "Strongly recommended",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Maggie+Oakes,+426+Place+Jacques-Cartier,+Montreal&hl=en",
+    menuOrSite: "https://maggieoakes.com/en/menus/",
+    menuOrSiteLabel: "Menu",
     description:
       "Modern steakhouse in Old Montreal with explicit vegetarian, vegan, and GF group accommodation.",
   },
@@ -151,8 +163,9 @@ const RESTAURANTS: Restaurant[] = [
     gf: "Good (raw fish)",
     vegn: "Limited",
     reservations: "Recommended for 6–8",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Tiradito,+1076+Rue+De+Bleury,+Montreal&hl=en",
+    menuOrSite: "https://www.tiraditomtl.com/english/menu/",
+    menuOrSiteLabel: "Menu",
     description:
       "Peruvian/Nikkei across the street from the hotel. Ceviche, tiradito, anticuchos.",
   },
@@ -163,8 +176,9 @@ const RESTAURANTS: Restaurant[] = [
     gf: "Limited",
     vegn: "Limited",
     reservations: "Recommended",
-    maps: "url",
-    website: "url",
+    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Stash+Caf%C3%A9,+200+Rue+Saint-Paul+Ouest,+Montreal&hl=en",
+    menuOrSite: "https://restaurantstashcafe.ca/en/home-english/#menu",
+    menuOrSiteLabel: "Menu",
     description:
       "Polish institution in Old Montreal since 1972. Pierogi, bigos, kielbasa, schnitzel.",
   },
@@ -172,7 +186,6 @@ const RESTAURANTS: Restaurant[] = [
 
 const CATEGORY_ORDER = [
   "Classic Montreal",
-  "Poutine",
   "Vegan/vegetarian",
   "Veg/omni",
   "Miscellaneous",
@@ -211,10 +224,10 @@ function RestaurantCard({ r }: { r: Restaurant }) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          Maps
+          Directions
         </a>
         <a
-          href={r.website}
+          href={r.menuOrSite}
           target="_blank"
           rel="noopener noreferrer"
           className="text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
@@ -222,7 +235,7 @@ function RestaurantCard({ r }: { r: Restaurant }) {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
-          Website
+          {r.menuOrSiteLabel}
         </a>
       </div>
     </div>
@@ -251,7 +264,6 @@ export default function RestaurantsPage() {
 
       <div className="mb-10">
         <h1 className="text-3xl font-bold text-navy-900 tracking-tight">Restaurant Recommendations</h1>
-        <p className="text-slate-500 mt-1">For free time &middot; distances from Monville</p>
       </div>
 
       <div className="space-y-12">
