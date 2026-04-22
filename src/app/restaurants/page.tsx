@@ -135,8 +135,8 @@ const RESTAURANTS: Restaurant[] = [
     name: "Jacopo",
     category: "Miscellaneous",
     distance: "16-min walk",
-    gf: "Some GF pasta",
-    vegn: "Veg options",
+    gf: "Yes",
+    vegn: "Vegetarian options but not vegan",
     reservations: "Recommended",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Jacopo,+436+Place+Jacques-Cartier,+Montreal&hl=en",
     menuLinks: [{ url: "https://jacopomtl.com/en/menus/a-la-carte/", label: "Menu" }],
@@ -144,22 +144,10 @@ const RESTAURANTS: Restaurant[] = [
       "Stylish modern Italian bistro. Handmade pastas, wood-fired pizzas, natural wine list.",
   },
   {
-    name: "Maggie Oakes",
-    category: "Miscellaneous",
-    distance: "17-min walk",
-    gf: "Yes",
-    vegn: "Vegan + veg options",
-    reservations: "Strongly recommended",
-    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Maggie+Oakes,+426+Place+Jacques-Cartier,+Montreal&hl=en",
-    menuLinks: [{ url: "https://maggieoakes.com/en/#ourmenus", label: "Menu" }],
-    description:
-      "Modern steakhouse in Old Montreal with explicit vegetarian, vegan, and GF group accommodation.",
-  },
-  {
     name: "Tiradito",
     category: "Miscellaneous",
     distance: "1-min walk (across street)",
-    gf: "Good (raw fish)",
+    gf: "Good (largely seafood, but one GF/veg option)",
     vegn: "Limited",
     reservations: "Recommended for 6–8",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Tiradito,+1076+Rue+De+Bleury,+Montreal&hl=en",
@@ -277,7 +265,7 @@ export default function RestaurantsPage() {
       </Link>
 
       <div className="mb-10">
-        <h1 className="text-3xl font-bold text-navy-900 tracking-tight">Restaurant Recommendations</h1>
+        <h1 className="text-3xl font-bold text-navy-900 tracking-tight">Restaurant Suggestions</h1>
       </div>
 
       <div className="space-y-12">
