@@ -133,7 +133,10 @@ export default function LogisticsPage() {
             onChange={(e) => setDraft(e.target.value)}
             placeholder="# Heading&#10;&#10;**Bold**, *italic*, [link](https://...)&#10;&#10;- bullet 1&#10;- bullet 2"
           />
-          <p className="text-xs text-slate-400 mt-2">Markdown supported: headings (#), bold (**), italic (*), lists (-), links ([text](url))</p>
+          <p className="text-xs text-slate-400 mt-2">
+            Markdown supported: headings (#), bold (**), italic (*), lists (-), links ([text](url)),
+            tables (| col | col |), and collapsible sections (&lt;details&gt;&lt;summary&gt;Title&lt;/summary&gt; ... &lt;/details&gt;).
+          </p>
           <div className="flex gap-3 mt-4">
             <button onClick={handleSave} className="btn-primary" disabled={saving}>
               {saving ? "Saving..." : "Save"}

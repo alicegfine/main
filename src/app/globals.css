@@ -77,4 +77,34 @@
   .prose-custom hr {
     @apply border-slate-200 my-6;
   }
+  .prose-custom table {
+    @apply w-full my-4 text-sm border-collapse;
+  }
+  .prose-custom thead {
+    @apply bg-slate-50 border-b border-slate-200;
+  }
+  .prose-custom th {
+    @apply text-left font-semibold text-slate-700 px-3 py-2;
+  }
+  .prose-custom td {
+    @apply px-3 py-2 border-b border-slate-100 text-slate-700 align-top;
+  }
+  .prose-custom tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .prose-custom details {
+    @apply border border-slate-200 rounded-md my-4 overflow-hidden;
+  }
+  .prose-custom summary {
+    @apply cursor-pointer select-none px-4 py-3 font-medium text-navy-800 bg-slate-50 hover:bg-slate-100 transition-colors;
+  }
+  .prose-custom details[open] summary {
+    @apply border-b border-slate-200;
+  }
+  .prose-custom details > *:not(summary) {
+    @apply px-4 pt-3;
+  }
+  .prose-custom details > *:last-child {
+    @apply pb-3;
+  }
 }
