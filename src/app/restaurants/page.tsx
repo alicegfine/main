@@ -78,7 +78,7 @@ const RESTAURANTS: Restaurant[] = [
     reservations: "Recommended",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Lola+Rosa,+276+Rue+Sainte-Catherine+Ouest,+Montreal&hl=en",
     menuLinks: [{ url: "https://lola-rosa.ca/wp-content/uploads/menu/PDA%20MENU%20COMPLET.pdf?_t=1760561927", label: "Menu" }],
-    description: "100% vegan, comfort food, casual. Several GF options.",
+    description: "100% vegan, comfort food, casual.",
   },
   {
     name: "Bloom Sushi",
@@ -90,7 +90,7 @@ const RESTAURANTS: Restaurant[] = [
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Bloom+Sushi,+288+Rue+Sainte-Catherine+Ouest,+Montreal&hl=en",
     menuLinks: [{ url: "https://bloomsushi.com/en/restaurants/bloom-sushi-quartier-des-spectacles/", label: "Menu" }],
     description:
-      "100% vegan sushi. Recommend making a reservation. GF options.",
+      "100% vegan sushi.",
   },
   {
     name: "Resto Végo",
@@ -174,7 +174,7 @@ const RESTAURANTS: Restaurant[] = [
     gf: "Limited",
     vegn: "Limited",
     reservations: "Recommended",
-    maps: "",
+    maps: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     menuLinks: [{ url: "https://www.hotelmonville.com/wp-content/uploads/2026/04/SOUPER-Menu-MONEME.docx-7.pdf", label: "Menu" }],
     description:
       "The hotel restaurant! Genuinely very well-reviewed, has vegan and GF options but is meat-heavy.",
