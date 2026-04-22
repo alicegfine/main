@@ -1,5 +1,10 @@
 import Link from "next/link";
 
+interface MenuLink {
+  url: string;
+  label: string;
+}
+
 interface Restaurant {
   name: string;
   category: string;
@@ -8,8 +13,7 @@ interface Restaurant {
   vegn: string;
   reservations: string;
   maps: string;
-  menuOrSite: string;
-  menuOrSiteLabel: string;
+  menuLinks: MenuLink[];
   description: string;
 }
 
@@ -17,13 +21,12 @@ const RESTAURANTS: Restaurant[] = [
   {
     name: "Schwartz's Deli",
     category: "Classic Montreal",
-    distance: "19 min cab/transit",
+    distance: "Transit or cab (about 15 minutes)",
     gf: "No",
     vegn: "No",
     reservations: "None taken",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Schwartz%27s+Deli,+3895+Boulevard+Saint-Laurent,+Montreal&hl=en",
-    menuOrSite: "https://schwartzsdeli.com/pages/menu",
-    menuOrSiteLabel: "Menu",
+    menuLinks: [{ url: "https://schwartzsdeli.com/pages/menu", label: "Menu" }],
     description:
       "Iconic smoked meat deli on the Main, open since 1928. First on every list of classic Montreal restaurants.",
   },
@@ -35,34 +38,34 @@ const RESTAURANTS: Restaurant[] = [
     vegn: "Limited",
     reservations: "Recommended for 6–8",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Holder,+407+Rue+McGill,+Montreal&hl=en",
-    menuOrSite: "https://restaurantholder.com/en/a-la-carte/",
-    menuOrSiteLabel: "Menu",
+    menuLinks: [{ url: "https://restaurantholder.com/en/a-la-carte/", label: "Menu" }],
     description:
       "Classic Montreal bistro in Old Montreal. Does have a vegan option and a vegetarian option, but tough on protein. Has a gluten-free menu.",
   },
   {
-    name: "Montreal Pool Room",
+    name: "Poutineville Bishop",
     category: "Classic Montreal",
-    distance: "12-min walk",
-    gf: "No",
+    distance: "Transit or cab (about 14 minutes), or a 25-min walk",
+    gf: "Limited",
     vegn: "Limited",
     reservations: "None taken",
-    maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Montreal+Pool+Room,+1217+Boulevard+Saint-Laurent,+Montreal&hl=en",
-    menuOrSite: "https://www.montrealpoolroom1912.com/",
-    menuOrSiteLabel: "Website",
+    maps: "https://google.com/maps/dir/Hôtel+Monville,+1041+Rue+de+Bleury,+Montreal,+Quebec+H2Z+0A3,+Canada/Poutineville+Bishop,+1228+R.+Bishop,+Montreal,+Quebec+H3G+2E3,+Canada",
+    menuLinks: [
+      { url: "https://poutineville.com/en/menu/montreal/", label: "Menu" },
+      { url: "https://poutineville.com/en/faq-frequently-asked-questions/", label: "Dietary info" },
+    ],
     description:
-      "Iconic, over 100 years old, extremely nonfancy. Classic poutine, steamies, hot dogs.",
+      "Casual build-your-own poutine spot with 40+ ingredients and classic varieties. Has dedicated vegan/GF options.",
   },
   {
     name: "Ma Poule Mouillée",
     category: "Classic Montreal",
-    distance: "22 min cab/transit",
+    distance: "Transit or cab (about 20 minutes)",
     gf: "Limited",
     vegn: "Limited",
     reservations: "None taken",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Ma+Poule+Mouill%C3%A9e,+969+Rue+Rachel+E,+Montreal&hl=en",
-    menuOrSite: "https://mapoulemouillee.ca/",
-    menuOrSiteLabel: "Website",
+    menuLinks: [{ url: "https://mapoulemouillee.menu-res.com/menu", label: "Menu (may not be up to date)" }],
     description:
       "Portuguese chicken restaurant that happens to have very highly recommended poutine.",
   },
@@ -74,8 +77,7 @@ const RESTAURANTS: Restaurant[] = [
     vegn: "100% vegan",
     reservations: "Recommended",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Lola+Rosa,+276+Rue+Sainte-Catherine+Ouest,+Montreal&hl=en",
-    menuOrSite: "https://lola-rosa.ca/en/menu/",
-    menuOrSiteLabel: "Menu",
+    menuLinks: [{ url: "https://lola-rosa.ca/wp-content/uploads/menu/PDA%20MENU%20COMPLET.pdf?_t=1760561927", label: "Menu" }],
     description: "100% vegan, comfort food, casual. Several GF options.",
   },
   {
@@ -86,73 +88,70 @@ const RESTAURANTS: Restaurant[] = [
     vegn: "100% vegan",
     reservations: "Required for 6+",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Bloom+Sushi,+288+Rue+Sainte-Catherine+Ouest,+Montreal&hl=en",
-    menuOrSite: "https://bloomsushi.com/en/menu/",
-    menuOrSiteLabel: "Menu",
+    menuLinks: [{ url: "https://bloomsushi.com/en/restaurants/bloom-sushi-quartier-des-spectacles/", label: "Menu" }],
     description:
       "100% vegan sushi. Recommend making a reservation. GF options.",
   },
   {
     name: "Resto Végo",
     category: "Vegan/vegetarian",
-    distance: "14 min cab / 24-min walk",
+    distance: "Transit or cab (about 13 minutes), or a 24-min walk",
     gf: "Extensive (labeled)",
     vegn: "100% vegetarian",
     reservations: "None taken",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Resto+V%C3%A9go,+1720+Rue+Saint-Denis,+Montreal&hl=en",
-    menuOrSite: "https://restovego.ca/en/menu/",
-    menuOrSiteLabel: "Menu",
+    menuLinks: [
+      { url: "https://restovego.ca/en/buffet/", label: "Buffet menu" },
+      { url: "https://restovego.ca/en/gourmet-counter/", label: "Gourmet counter" },
+    ],
     description:
       "Enormous pay-by-weight vegetarian buffet, ~200 different dishes.",
   },
   {
     name: "Arepera",
     category: "Veg/omni",
-    distance: "17 min cab / 26-min walk",
+    distance: "Transit or cab (about 15 minutes), or a 26-min walk",
     gf: "100% GF",
     vegn: "Vegan + veg options",
     reservations: "Recommended",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Arepera,+Montreal&hl=en",
-    menuOrSite: "https://www.arepera.ca/",
-    menuOrSiteLabel: "Website",
+    menuLinks: [{ url: "https://www.arepera.ca/general-4", label: "Menu" }],
     description:
       "100% GF; vegan, vegetarian, and omnivore options. Casual and very well-reviewed arepa restaurant.",
   },
   {
     name: "Qing Hua Dumpling",
     category: "Veg/omni",
-    distance: "~6-min walk",
+    distance: "7-min walk",
     gf: "No",
     vegn: "Veg options",
     reservations: "None taken",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Qing+Hua+Dumpling,+1019+Boulevard+Saint-Laurent,+Montreal&hl=en",
-    menuOrSite: "https://qinghuadumpling.com/",
-    menuOrSiteLabel: "Website",
+    menuLinks: [{ url: "https://www.qinghuadumpling.com/menu", label: "Menu" }],
     description:
       "Chinatown dumpling spot with dozens of jiaozi varieties, including plentiful vegetarian options.",
   },
   {
     name: "Jacopo",
     category: "Miscellaneous",
-    distance: "~8-min walk",
+    distance: "16-min walk",
     gf: "Some GF pasta",
     vegn: "Veg options",
     reservations: "Recommended",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Jacopo,+436+Place+Jacques-Cartier,+Montreal&hl=en",
-    menuOrSite: "https://jacopomtl.com/en/menus/a-la-carte/",
-    menuOrSiteLabel: "Menu",
+    menuLinks: [{ url: "https://jacopomtl.com/en/menus/a-la-carte/", label: "Menu" }],
     description:
       "Stylish modern Italian bistro. Handmade pastas, wood-fired pizzas, natural wine list.",
   },
   {
     name: "Maggie Oakes",
     category: "Miscellaneous",
-    distance: "~14-min walk",
+    distance: "17-min walk",
     gf: "Yes",
     vegn: "Vegan + veg options",
     reservations: "Strongly recommended",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Maggie+Oakes,+426+Place+Jacques-Cartier,+Montreal&hl=en",
-    menuOrSite: "https://maggieoakes.com/en/menus/",
-    menuOrSiteLabel: "Menu",
+    menuLinks: [{ url: "https://maggieoakes.com/en/#ourmenus", label: "Menu" }],
     description:
       "Modern steakhouse in Old Montreal with explicit vegetarian, vegan, and GF group accommodation.",
   },
@@ -164,23 +163,33 @@ const RESTAURANTS: Restaurant[] = [
     vegn: "Limited",
     reservations: "Recommended for 6–8",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Tiradito,+1076+Rue+De+Bleury,+Montreal&hl=en",
-    menuOrSite: "https://www.tiraditomtl.com/english/menu/",
-    menuOrSiteLabel: "Menu",
+    menuLinks: [{ url: "https://www.tiraditomtl.com/english/menu/?lang=en#menu", label: "Menu" }],
     description:
       "Peruvian/Nikkei across the street from the hotel. Ceviche, tiradito, anticuchos.",
   },
   {
     name: "Stash Café",
     category: "Miscellaneous",
-    distance: "~14-min walk",
+    distance: "10-min walk",
     gf: "Limited",
     vegn: "Limited",
     reservations: "Recommended",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Stash+Caf%C3%A9,+200+Rue+Saint-Paul+Ouest,+Montreal&hl=en",
-    menuOrSite: "https://restaurantstashcafe.ca/en/home-english/#menu",
-    menuOrSiteLabel: "Menu",
+    menuLinks: [{ url: "https://restaurantstashcafe.ca/en/home-english/#menu", label: "Menu" }],
     description:
       "Polish institution in Old Montreal since 1972. Pierogi, bigos, kielbasa, schnitzel.",
+  },
+  {
+    name: "Monème",
+    category: "Miscellaneous",
+    distance: "In the hotel",
+    gf: "Limited",
+    vegn: "Limited",
+    reservations: "Recommended",
+    maps: "",
+    menuLinks: [{ url: "https://www.hotelmonville.com/wp-content/uploads/2026/04/SOUPER-Menu-MONEME.docx-7.pdf", label: "Menu" }],
+    description:
+      "The hotel restaurant! Genuinely very well-reviewed, has vegan and GF options but is meat-heavy.",
   },
 ];
 
@@ -214,29 +223,34 @@ function RestaurantCard({ r }: { r: Restaurant }) {
       </dl>
 
       <div className="flex flex-wrap gap-3 text-sm">
-        <a
-          href={r.maps}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          Directions
-        </a>
-        <a
-          href={r.menuOrSite}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-          </svg>
-          {r.menuOrSiteLabel}
-        </a>
+        {r.maps && (
+          <a
+            href={r.maps}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Directions
+          </a>
+        )}
+        {r.menuLinks.map((link) => (
+          <a
+            key={link.url}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-navy-600 hover:text-navy-800 font-medium inline-flex items-center gap-1"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            {link.label}
+          </a>
+        ))}
       </div>
     </div>
   );
