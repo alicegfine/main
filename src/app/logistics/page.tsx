@@ -15,6 +15,46 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 marked.setOptions({ gfm: true, breaks: true });
 
+function RestaurantsCard() {
+  return (
+    <Link
+      href="/restaurants"
+      className="card p-5 hover:shadow-md transition-shadow group flex items-center justify-between gap-4 my-6"
+    >
+      <div>
+        <h3 className="font-semibold text-navy-800 group-hover:text-navy-600 transition-colors">
+          Restaurant recommendations
+        </h3>
+        <p className="text-sm text-slate-500 mt-0.5">
+          For free time &mdash; classics, poutine, vegan, and more.
+        </p>
+      </div>
+      <svg className="w-5 h-5 text-slate-400 group-hover:text-navy-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+      </svg>
+    </Link>
+  );
+}
+
+function LogisticsContent({ content }: { content: string }) {
+  const parts = content.split(/\{\{\s*restaurants\s*\}\}/);
+  return (
+    <>
+      {parts.map((part, i) => (
+        <span key={i}>
+          {part.trim() && (
+            <div
+              className="prose-custom"
+              dangerouslySetInnerHTML={{ __html: marked.parse(part) as string }}
+            />
+          )}
+          {i < parts.length - 1 && <RestaurantsCard />}
+        </span>
+      ))}
+    </>
+  );
+}
+
 export default function LogisticsPage() {
   const { data: logistics, mutate } = useSWR<Logistics>("/api/logistics", fetcher, {
     refreshInterval: 5000,
@@ -93,8 +133,6 @@ export default function LogisticsPage() {
     setEditing(true);
   }
 
-  const html = logistics?.content ? marked.parse(logistics.content) : "";
-
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <Link href="/" className="text-navy-600 hover:text-navy-800 text-sm font-medium inline-flex items-center gap-1 mb-6">
@@ -117,35 +155,11 @@ export default function LogisticsPage() {
       </div>
 
       {!editing ? (
-        <>
-          {logistics?.content ? (
-            <div
-              className="prose-custom"
-              dangerouslySetInnerHTML={{ __html: html as string }}
-            />
-          ) : (
-            <p className="text-slate-400 italic">No logistics info yet.</p>
-          )}
-
-          <div className="mt-8 pt-6 border-t border-slate-200">
-            <Link
-              href="/restaurants"
-              className="card p-5 hover:shadow-md transition-shadow group flex items-center justify-between gap-4"
-            >
-              <div>
-                <h3 className="font-semibold text-navy-800 group-hover:text-navy-600 transition-colors">
-                  Restaurant recommendations
-                </h3>
-                <p className="text-sm text-slate-500 mt-0.5">
-                  For free time &mdash; classics, poutine, vegan, and more.
-                </p>
-              </div>
-              <svg className="w-5 h-5 text-slate-400 group-hover:text-navy-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-          </div>
-        </>
+        logistics?.content ? (
+          <LogisticsContent content={logistics.content} />
+        ) : (
+          <p className="text-slate-400 italic">No logistics info yet.</p>
+        )
       ) : (
         <div>
           <textarea
@@ -157,6 +171,7 @@ export default function LogisticsPage() {
           <p className="text-xs text-slate-400 mt-2">
             Markdown supported: headings (#), bold (**), italic (*), lists (-), links ([text](url)),
             tables (| col | col |), and collapsible sections (&lt;details&gt;&lt;summary&gt;Title&lt;/summary&gt; ... &lt;/details&gt;).
+            Add <code className="bg-slate-100 px-1 py-0.5 rounded">{"{{restaurants}}"}</code> on its own line to embed the restaurant recommendations card wherever you want.
           </p>
           <div className="flex gap-3 mt-4">
             <button onClick={handleSave} className="btn-primary" disabled={saving}>
