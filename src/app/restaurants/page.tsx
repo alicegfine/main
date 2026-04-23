@@ -62,7 +62,7 @@ const RESTAURANTS: Restaurant[] = [
     category: "Classic Montreal",
     distance: "Transit or cab (about 20 minutes)",
     gf: "Limited",
-    vegn: "Limited",
+    vegn: "No",
     reservations: "None taken",
     maps: "https://www.google.com/maps/dir/?api=1&origin=H%C3%B4tel+Monville,+1041+Rue+De+Bleury,+Montreal&destination=Ma+Poule+Mouill%C3%A9e,+969+Rue+Rachel+E,+Montreal&hl=en",
     menuLinks: [{ url: "https://mapoulemouillee.menu-res.com/menu", label: "Menu (may not be up to date)" }],
