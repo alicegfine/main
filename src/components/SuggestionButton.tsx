@@ -70,7 +70,7 @@ export default function SuggestionButton() {
               </button>
             </div>
             <p className="text-sm text-slate-500 mb-4">
-              Feedback, bug reports, ideas &mdash; anything. Goes straight to Alice.
+              Feedback, bug reports, ideas &mdash; anything. Feedback is only visible to Alice, but may be shared as appropriate.
             </p>
 
             {submitted ? (
