@@ -267,15 +267,19 @@ export async function deleteSession(id: number) {
 export async function getAllIdeas() {
   await ensureInit();
   const { rows: ideas } = await pool.query("SELECT * FROM ideas ORDER BY created_at DESC");
-  const { rows: upvotes } = await pool.query(
-    "SELECT target_id, COUNT(*)::int as count FROM upvotes WHERE target_type = 'idea' GROUP BY target_id"
+  const { rows: upvoteRows } = await pool.query(
+    "SELECT target_id, user_name FROM upvotes WHERE target_type = 'idea'"
   );
 
-  const upvoteMap = Object.fromEntries(upvotes.map((u) => [u.target_id, u.count]));
+  const upvotersMap: Record<number, string[]> = {};
+  for (const r of upvoteRows) {
+    (upvotersMap[r.target_id] ||= []).push(r.user_name);
+  }
 
   return ideas.map((i) => ({
     ...fmtRow(i),
-    upvotes: upvoteMap[i.id] || 0,
+    upvotes: (upvotersMap[i.id] || []).length,
+    upvoters: upvotersMap[i.id] || [],
   }));
 }
 

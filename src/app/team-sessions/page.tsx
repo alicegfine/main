@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 const ROOMS = ["Anderson A", "Anderson B", "Bleury"];
 const ROOM_COLORS: Record<string, string> = {
@@ -30,6 +31,7 @@ interface Idea {
   description: string;
   proposed_by: string;
   upvotes: number;
+  upvoters: string[];
   created_at: string;
 }
 
@@ -403,6 +405,7 @@ function IdeaCard({
   onSchedule: () => void;
 }) {
   const [voting, setVoting] = useState(false);
+  const hasUpvoted = userName ? idea.upvoters?.includes(userName) : false;
 
   async function handleUpvote(e: React.MouseEvent) {
     e.preventDefault();
@@ -422,9 +425,11 @@ function IdeaCard({
         <button
           onClick={handleUpvote}
           disabled={voting}
-          className="flex flex-col items-center pt-0.5 text-slate-400 hover:text-navy-600 transition-colors"
+          className={`flex flex-col items-center pt-0.5 transition-colors ${
+            hasUpvoted ? "text-navy-600" : "text-slate-400 hover:text-navy-600"
+          }`}
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="w-5 h-5" fill={hasUpvoted ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
           </svg>
           <span className="text-sm font-semibold">{idea.upvotes}</span>
@@ -454,9 +459,12 @@ function IdeaCard({
 // ── Main Page ──
 
 export default function HomePage() {
+  const searchParams = useSearchParams();
   const [userName, setUserName] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState<"schedule" | "ideas" | "mine">("schedule");
+  const [tab, setTab] = useState<"schedule" | "ideas" | "mine">(
+    (searchParams.get("tab") as "schedule" | "ideas" | "mine") || "schedule"
+  );
   const [addSessionBlock, setAddSessionBlock] = useState<1 | 2 | null>(null);
   const [showProposeIdea, setShowProposeIdea] = useState(false);
   const [scheduleIdea, setScheduleIdea] = useState<Idea | null>(null);
