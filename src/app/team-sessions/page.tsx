@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 
 const ROOMS = ["Anderson A", "Anderson B", "Bleury"];
 const ROOM_COLORS: Record<string, string> = {
@@ -459,12 +458,9 @@ function IdeaCard({
 // ── Main Page ──
 
 export default function HomePage() {
-  const searchParams = useSearchParams();
   const [userName, setUserName] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState<"schedule" | "ideas" | "mine">(
-    (searchParams.get("tab") as "schedule" | "ideas" | "mine") || "schedule"
-  );
+  const [tab, setTab] = useState<"schedule" | "ideas" | "mine">("schedule");
   const [addSessionBlock, setAddSessionBlock] = useState<1 | 2 | null>(null);
   const [showProposeIdea, setShowProposeIdea] = useState(false);
   const [scheduleIdea, setScheduleIdea] = useState<Idea | null>(null);
@@ -480,6 +476,9 @@ export default function HomePage() {
   useEffect(() => {
     const stored = localStorage.getItem("sut_name") || localStorage.getItem("unconference_name");
     if (stored) setUserName(stored);
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("tab");
+    if (t === "ideas" || t === "mine") setTab(t);
     setLoaded(true);
   }, []);
 
