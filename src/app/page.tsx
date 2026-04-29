@@ -119,7 +119,7 @@ export default function HomePage() {
               <span className="badge bg-amber-100 text-amber-800">Day 2</span>
             </div>
             <h2 className="text-2xl font-bold text-navy-800 group-hover:text-navy-600 transition-colors mb-2">
-              Team-Led Sessions
+              Team-led sessions
             </h2>
             <p className="text-slate-500">
               Host sessions, propose ideas, and organize the schedule together.
