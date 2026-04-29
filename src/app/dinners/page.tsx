@@ -20,8 +20,8 @@ interface DinnerPlan {
 }
 
 const DAYS: { day: 2 | 3; label: string; date: string }[] = [
-  { day: 2, label: "Day 2", date: "Tue May 6" },
-  { day: 3, label: "Day 3", date: "Wed May 7" },
+  { day: 2, label: "Day 2", date: "Wed May 6" },
+  { day: 3, label: "Day 3", date: "Thu May 7" },
 ];
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
