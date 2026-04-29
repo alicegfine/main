@@ -126,7 +126,7 @@ export default function HomePage() {
             </p>
           </Link>
 
-          <Link href="/dinners" className="card p-8 hover:shadow-md transition-shadow group block md:col-span-2">
+          <Link href="/dinners" className="card p-8 hover:shadow-md transition-shadow group block">
             <div className="flex items-center gap-2 mb-3">
               <span className="badge bg-rose-100 text-rose-800">Day 2 &amp; 3</span>
             </div>
