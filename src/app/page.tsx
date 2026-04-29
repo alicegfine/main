@@ -93,6 +93,15 @@ export default function HomePage() {
             </p>
           </Link>
 
+          <Link href="/norms" className="card p-8 hover:shadow-md transition-shadow group block">
+            <h2 className="text-2xl font-bold text-navy-800 group-hover:text-navy-600 transition-colors mb-2">
+              Norms
+            </h2>
+            <p className="text-slate-500">
+              How we work together while we&apos;re here.
+            </p>
+          </Link>
+
           <Link href="/ama" className="card p-8 hover:shadow-md transition-shadow group block">
             <div className="flex items-center gap-2 mb-3">
               <span className="badge bg-navy-100 text-navy-700">Day 1</span>
@@ -114,6 +123,18 @@ export default function HomePage() {
             </h2>
             <p className="text-slate-500">
               Host sessions, propose ideas, and organize the schedule together.
+            </p>
+          </Link>
+
+          <Link href="/dinners" className="card p-8 hover:shadow-md transition-shadow group block md:col-span-2">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="badge bg-rose-100 text-rose-800">Day 2 &amp; 3</span>
+            </div>
+            <h2 className="text-2xl font-bold text-navy-800 group-hover:text-navy-600 transition-colors mb-2">
+              Dinner signups
+            </h2>
+            <p className="text-slate-500">
+              Self-organized dinners. Pick a restaurant, sign up, or volunteer to coordinate.
             </p>
           </Link>
         </div>

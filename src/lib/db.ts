@@ -102,7 +102,34 @@ async function ensureInit() {
       page_path TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS norms (
+      id INTEGER PRIMARY KEY,
+      content TEXT NOT NULL DEFAULT '',
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS dinner_plans (
+      id SERIAL PRIMARY KEY,
+      day INTEGER NOT NULL,
+      restaurant_name TEXT NOT NULL,
+      notes TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS dinner_attendees (
+      id SERIAL PRIMARY KEY,
+      plan_id INTEGER NOT NULL REFERENCES dinner_plans(id) ON DELETE CASCADE,
+      user_name TEXT NOT NULL,
+      is_point_person BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(plan_id, user_name)
+    );
   `);
+  await pool.query(
+    "INSERT INTO norms (id, content) VALUES (1, '') ON CONFLICT (id) DO NOTHING"
+  );
   await pool.query(
     "INSERT INTO logistics (id, content) VALUES (1, '') ON CONFLICT (id) DO NOTHING"
   );
@@ -616,4 +643,142 @@ export async function getAllSuggestions() {
 export async function deleteSuggestion(id: number) {
   await ensureInit();
   await pool.query("DELETE FROM suggestions WHERE id = $1", [id]);
+}
+
+// ── Norms ──
+
+export async function getNorms() {
+  await ensureInit();
+  const { rows } = await pool.query("SELECT * FROM norms WHERE id = 1");
+  return rows[0] ? fmtRow(rows[0]) : { id: 1, content: "", updated_at: null };
+}
+
+export async function updateNorms(content: string) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    "UPDATE norms SET content = $1, updated_at = NOW() WHERE id = 1 RETURNING *",
+    [content]
+  );
+  return fmtRow(rows[0]);
+}
+
+// ── Dinner Plans ──
+
+export async function getAllDinnerPlans() {
+  await ensureInit();
+  const { rows: plans } = await pool.query(
+    "SELECT * FROM dinner_plans ORDER BY day, created_at"
+  );
+  const { rows: attendees } = await pool.query(
+    "SELECT * FROM dinner_attendees ORDER BY created_at"
+  );
+  const attendeesByPlan: Record<number, { user_name: string; is_point_person: boolean }[]> = {};
+  for (const a of attendees) {
+    (attendeesByPlan[a.plan_id] ||= []).push({
+      user_name: a.user_name,
+      is_point_person: a.is_point_person,
+    });
+  }
+  return plans.map((p) => ({
+    ...fmtRow(p),
+    attendees: attendeesByPlan[p.id] || [],
+  }));
+}
+
+export async function createDinnerPlan(data: {
+  day: number;
+  restaurant_name: string;
+  notes: string;
+  created_by: string;
+}) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    `INSERT INTO dinner_plans (day, restaurant_name, notes, created_by)
+     VALUES ($1, $2, $3, $4) RETURNING id`,
+    [data.day, data.restaurant_name, data.notes, data.created_by]
+  );
+  const planId = rows[0].id;
+  await pool.query(
+    "INSERT INTO dinner_attendees (plan_id, user_name) VALUES ($1, $2)",
+    [planId, data.created_by]
+  );
+  return planId;
+}
+
+export async function updateDinnerPlan(
+  id: number,
+  data: { restaurant_name?: string; notes?: string }
+) {
+  await ensureInit();
+  const setClauses: string[] = [];
+  const values: any[] = [];
+  let paramIdx = 1;
+  if (data.restaurant_name !== undefined) {
+    setClauses.push(`restaurant_name = $${paramIdx++}`);
+    values.push(data.restaurant_name);
+  }
+  if (data.notes !== undefined) {
+    setClauses.push(`notes = $${paramIdx++}`);
+    values.push(data.notes);
+  }
+  if (setClauses.length === 0) return null;
+  values.push(id);
+  const { rows } = await pool.query(
+    `UPDATE dinner_plans SET ${setClauses.join(", ")} WHERE id = $${paramIdx} RETURNING *`,
+    values
+  );
+  return rows[0] ? fmtRow(rows[0]) : null;
+}
+
+export async function deleteDinnerPlan(id: number) {
+  await ensureInit();
+  await pool.query("DELETE FROM dinner_plans WHERE id = $1", [id]);
+}
+
+export async function joinDinnerPlan(planId: number, userName: string) {
+  await ensureInit();
+  await pool.query(
+    `INSERT INTO dinner_attendees (plan_id, user_name) VALUES ($1, $2)
+     ON CONFLICT (plan_id, user_name) DO NOTHING`,
+    [planId, userName]
+  );
+}
+
+export async function leaveDinnerPlan(planId: number, userName: string) {
+  await ensureInit();
+  await pool.query(
+    "DELETE FROM dinner_attendees WHERE plan_id = $1 AND user_name = $2",
+    [planId, userName]
+  );
+  // Auto-delete plan if no attendees remain
+  const { rows } = await pool.query(
+    "SELECT COUNT(*)::int as count FROM dinner_attendees WHERE plan_id = $1",
+    [planId]
+  );
+  if (rows[0].count === 0) {
+    await pool.query("DELETE FROM dinner_plans WHERE id = $1", [planId]);
+    return { planDeleted: true };
+  }
+  return { planDeleted: false };
+}
+
+export async function toggleDinnerPointPerson(planId: number, userName: string) {
+  await ensureInit();
+  const { rows } = await pool.query(
+    "SELECT is_point_person FROM dinner_attendees WHERE plan_id = $1 AND user_name = $2",
+    [planId, userName]
+  );
+  if (rows.length === 0) return false;
+  const next = !rows[0].is_point_person;
+  if (next) {
+    await pool.query(
+      "UPDATE dinner_attendees SET is_point_person = FALSE WHERE plan_id = $1",
+      [planId]
+    );
+  }
+  await pool.query(
+    "UPDATE dinner_attendees SET is_point_person = $3 WHERE plan_id = $1 AND user_name = $2",
+    [planId, userName, next]
+  );
+  return next;
 }
