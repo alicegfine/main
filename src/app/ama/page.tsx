@@ -5,12 +5,12 @@ import useSWR from "swr";
 import Link from "next/link";
 
 const TEAMS = [
-  { id: "general", name: "General/Org-Wide" },
   { id: "bets", name: "BETS" },
   { id: "ppe", name: "PPE" },
   { id: "gov", name: "Gov" },
   { id: "comms", name: "Comms" },
   { id: "ops", name: "Ops" },
+  { id: "general", name: "General/Org-Wide" },
 ];
 
 interface Question {
