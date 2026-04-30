@@ -98,7 +98,7 @@ function AskQuestionForm({
     <form onSubmit={handleSubmit} className="card p-4 mb-6">
       <textarea
         className="input min-h-[80px]"
-        placeholder={`Ask a question for ${TEAMS.find((t) => t.id === team)?.name}...`}
+        placeholder={team === "general" ? "Ask a question for Blueprint as a whole..." : `Ask a question for ${TEAMS.find((t) => t.id === team)?.name}...`}
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
