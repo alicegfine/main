@@ -22,12 +22,20 @@ interface DinnerPlan {
 interface DayConfig {
   day: number;
   label: string;
-  fixed?: string;
+  fixed?: { title: string; description: string };
 }
 
 const DAYS: DayConfig[] = [
   { day: 0, label: "Mon May 4" },
-  { day: 1, label: "Tue May 5 (Day 1)", fixed: "Team dinner at LOV McGill — 464 Rue McGill, 6 PM. Meet in the lobby at 5:50 PM to walk over together." },
+  {
+    day: 1,
+    label: "Tue May 5 (Day 1)",
+    fixed: {
+      title: "Team dinner at LOV McGill",
+      description:
+        "464 Rue McGill, 6 PM. Meet in the lobby at 5:50 PM to walk over together.",
+    },
+  },
   { day: 2, label: "Wed May 6 (Day 2)" },
   { day: 3, label: "Thu May 7 (Day 3)" },
 ];
@@ -407,7 +415,8 @@ export default function DinnersPage() {
                 <section key={day}>
                   <h2 className="text-xl font-bold text-navy-800 mb-4">{label}</h2>
                   <div className="card p-5">
-                    <h3 className="text-lg font-bold text-navy-900">{fixed}</h3>
+                    <h3 className="text-lg font-bold text-navy-900 mb-1">{fixed.title}</h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">{fixed.description}</p>
                   </div>
                 </section>
               );
