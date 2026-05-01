@@ -729,7 +729,7 @@ export default function HomePage() {
 
         {/* My Sessions Tab */}
         {tab === "mine" && userName && (
-          <div className="max-w-2xl">
+          <div className="max-w-lg">
             <p className="text-sm text-slate-500 mb-6">
               Your schedule at a glance. Tap a session to view details or drop out.
             </p>
