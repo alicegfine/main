@@ -62,6 +62,23 @@ function getBlock(startTime: string): 1 | 2 | null {
   return null;
 }
 
+const SLOTS = [
+  { id: 1, label: "1:30 – 2:15 PM", start: "13:30", end: "14:15" },
+  { id: 2, label: "2:15 – 3:00 PM", start: "14:15", end: "15:00" },
+  { id: 3, label: "3:15 – 4:00 PM", start: "15:15", end: "16:00" },
+  { id: 4, label: "4:00 – 4:45 PM", start: "16:00", end: "16:45" },
+];
+
+function getSlot(startTime: string): number | null {
+  const mins = timeToMinutes(startTime);
+  for (const slot of SLOTS) {
+    const slotStart = timeToMinutes(slot.start);
+    const slotEnd = timeToMinutes(slot.end);
+    if (mins >= slotStart && mins < slotEnd) return slot.id;
+  }
+  return null;
+}
+
 // ── Name Prompt ──
 
 function NamePrompt({ onSet }: { onSet: (name: string) => void }) {
@@ -348,12 +365,13 @@ function hasConflict(session: Session, allSessions: Session[]): boolean {
 
 // ── Session Card ──
 
-function SessionCard({ session, allSessions }: { session: Session; allSessions: Session[] }) {
+function SessionCard({ session, allSessions, userName }: { session: Session; allSessions: Session[]; userName?: string }) {
   const endTime = addMinutes(session.start_time, session.duration_minutes);
   const conflict = hasConflict(session, allSessions);
+  const isAttending = userName ? (session.speaker === userName || session.attendees?.includes(userName)) : false;
   return (
     <Link href={`/session/${session.id}`}>
-      <div className={`card p-4 hover:shadow-md transition-shadow cursor-pointer group ${conflict ? "border-amber-400 bg-amber-50/50" : ""}`}>
+      <div className={`card p-4 hover:shadow-md transition-shadow cursor-pointer group ${conflict ? "border-amber-400 bg-amber-50/50" : isAttending ? "ring-2 ring-navy-400 bg-navy-50/30" : ""}`}>
         {conflict && (
           <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700 mb-2">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -508,7 +526,7 @@ export default function HomePage() {
     return (
       <div className="space-y-3">
         {sorted.map((s) => (
-          <SessionCard key={s.id} session={s} allSessions={allSessions} />
+          <SessionCard key={s.id} session={s} allSessions={allSessions} userName={userName || undefined} />
         ))}
       </div>
     );
@@ -713,13 +731,36 @@ export default function HomePage() {
         {tab === "mine" && userName && (
           <div className="max-w-2xl">
             <p className="text-sm text-slate-500 mb-6">
-              Sessions you&apos;re signed up to attend. Tap one to view details or drop out.
+              Your schedule at a glance. Tap a session to view details or drop out.
             </p>
             {mySessions.length > 0 ? (
-              <div className="space-y-3">
-                {mySessions.map((s) => (
-                  <SessionCard key={s.id} session={s} allSessions={allSessions} />
-                ))}
+              <div className="space-y-4">
+                {SLOTS.map((slot) => {
+                  const slotSessions = mySessions.filter((s) => getSlot(s.start_time) === slot.id);
+                  const hasConflict = slotSessions.length > 1;
+                  return (
+                    <div key={slot.id}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="text-sm font-semibold text-slate-800">Slot {slot.id}</h3>
+                        <span className="text-sm text-slate-500">{slot.label}</span>
+                        {hasConflict && (
+                          <span className="badge bg-amber-100 text-amber-800 text-[10px]">
+                            conflict — {slotSessions.length} sessions
+                          </span>
+                        )}
+                      </div>
+                      {slotSessions.length > 0 ? (
+                        <div className="space-y-2">
+                          {slotSessions.map((s) => (
+                            <SessionCard key={s.id} session={s} allSessions={allSessions} userName={userName || undefined} />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-400 italic pl-1">No session</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-16">
