@@ -12,6 +12,18 @@ const ROOM_COLORS: Record<string, string> = {
   Bleury: "bg-violet-100 text-violet-800",
 };
 
+const SLOTS = [
+  { id: 1, label: "1:30 – 2:15 PM", start: "13:30" },
+  { id: 2, label: "2:15 – 3:00 PM", start: "14:15" },
+  { id: 3, label: "3:15 – 4:00 PM", start: "15:15" },
+  { id: 4, label: "4:00 – 4:45 PM", start: "16:00" },
+];
+
+function getSlotIdFromStart(startTime: string): number {
+  const slot = SLOTS.find((s) => s.start === startTime);
+  return slot ? slot.id : 1;
+}
+
 interface SessionDetail {
   id: number;
   title: string;
@@ -311,8 +323,21 @@ export default function SessionPage({ params }: { params: { id: string } }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
-            <input type="time" className="input" value={editForm.start_time} onChange={(e) => setEditForm({ ...editForm, start_time: e.target.value })} required />
+            <label className="block text-sm font-medium text-slate-700 mb-1">Slot</label>
+            <select
+              className="input"
+              value={getSlotIdFromStart(editForm.start_time)}
+              onChange={(e) => {
+                const slot = SLOTS.find((s) => s.id === Number(e.target.value));
+                if (slot) setEditForm({ ...editForm, start_time: slot.start });
+              }}
+            >
+              {SLOTS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  Slot {s.id} &middot; {s.label}
+                </option>
+              ))}
+            </select>
             <p className="text-xs text-slate-400 mt-1">Sessions are 45 minutes.</p>
           </div>
           <div className="flex gap-3">

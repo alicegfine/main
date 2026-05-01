@@ -55,13 +55,6 @@ function addMinutes(t: string, mins: number): string {
   return `${h}:${m.toString().padStart(2, "0")}`;
 }
 
-function getBlock(startTime: string): 1 | 2 | null {
-  const mins = timeToMinutes(startTime);
-  if (mins >= timeToMinutes("13:30") && mins < timeToMinutes("15:00")) return 1;
-  if (mins >= timeToMinutes("15:15") && mins < timeToMinutes("16:45")) return 2;
-  return null;
-}
-
 const SLOTS = [
   { id: 1, label: "1:30 – 2:15 PM", start: "13:30", end: "14:15" },
   { id: 2, label: "2:15 – 3:00 PM", start: "14:15", end: "15:00" },
@@ -114,12 +107,14 @@ function NamePrompt({ onSet }: { onSet: (name: string) => void }) {
 // ── Add Session Modal ──
 
 function AddSessionModal({
-  block,
+  defaultSlot,
+  defaultRoom,
   onClose,
   userName,
   onCreated,
 }: {
-  block: 1 | 2;
+  defaultSlot: number;
+  defaultRoom?: string;
   onClose: () => void;
   userName: string;
   onCreated: () => void;
@@ -127,13 +122,14 @@ function AddSessionModal({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [host, setHost] = useState(userName);
-  const [room, setRoom] = useState(ROOMS[0]);
-  const [startTime, setStartTime] = useState(block === 1 ? "13:30" : "15:15");
+  const [room, setRoom] = useState(defaultRoom || ROOMS[0]);
+  const [slot, setSlot] = useState(defaultSlot);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    const slotConfig = SLOTS.find((s) => s.id === slot)!;
     await fetch("/api/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -142,7 +138,7 @@ function AddSessionModal({
         description,
         speaker: host,
         room,
-        start_time: startTime,
+        start_time: slotConfig.start,
         duration_minutes: 45,
         created_by: userName,
       }),
@@ -186,16 +182,14 @@ function AddSessionModal({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
-            <input
-              type="time"
-              className="input"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              min={block === 1 ? "13:30" : "15:15"}
-              max={block === 1 ? "14:59" : "16:44"}
-              required
-            />
+            <label className="block text-sm font-medium text-slate-700 mb-1">Slot</label>
+            <select className="input" value={slot} onChange={(e) => setSlot(Number(e.target.value))}>
+              {SLOTS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  Slot {s.id} &middot; {s.label}
+                </option>
+              ))}
+            </select>
           </div>
           <button type="submit" className="btn-primary w-full" disabled={submitting || !title.trim()}>
             {submitting ? "Creating..." : "Create Session"}
@@ -290,18 +284,19 @@ function ScheduleIdeaModal({
   onScheduled: () => void;
 }) {
   const [room, setRoom] = useState(ROOMS[0]);
-  const [startTime, setStartTime] = useState("13:30");
+  const [slot, setSlot] = useState(1);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    const slotConfig = SLOTS.find((s) => s.id === slot)!;
     await fetch(`/api/ideas/${idea.id}/schedule`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         room,
-        start_time: startTime,
+        start_time: slotConfig.start,
         duration_minutes: 45,
         scheduled_by: userName,
       }),
@@ -332,14 +327,14 @@ function ScheduleIdeaModal({
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Start time</label>
-            <input
-              type="time"
-              className="input"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              required
-            />
+            <label className="block text-sm font-medium text-slate-700 mb-1">Slot</label>
+            <select className="input" value={slot} onChange={(e) => setSlot(Number(e.target.value))}>
+              {SLOTS.map((s) => (
+                <option key={s.id} value={s.id}>
+                  Slot {s.id} &middot; {s.label}
+                </option>
+              ))}
+            </select>
           </div>
           <button type="submit" className="btn-primary w-full" disabled={submitting}>
             {submitting ? "Scheduling..." : "Add to Schedule"}
@@ -479,7 +474,7 @@ export default function HomePage() {
   const [userName, setUserName] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<"schedule" | "ideas" | "mine">("schedule");
-  const [addSessionBlock, setAddSessionBlock] = useState<1 | 2 | null>(null);
+  const [addSessionTarget, setAddSessionTarget] = useState<{ slot: number; room?: string } | null>(null);
   const [showProposeIdea, setShowProposeIdea] = useState(false);
   const [scheduleIdea, setScheduleIdea] = useState<Idea | null>(null);
   const [ideaSort, setIdeaSort] = useState<"upvotes" | "newest">("upvotes");
@@ -507,59 +502,55 @@ export default function HomePage() {
 
   if (!loaded) return null;
 
-  const block1Sessions = (sessions || []).filter((s) => getBlock(s.start_time) === 1);
-  const block2Sessions = (sessions || []).filter((s) => getBlock(s.start_time) === 2);
-
   const allSessions = sessions || [];
 
-  function renderRoomColumn(roomSessions: Session[], room: string) {
-    const sorted = roomSessions
-      .filter((s) => s.room === room)
-      .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+  function renderSlotRoomCell(slotId: number, room: string) {
+    const slotSessions = allSessions.filter(
+      (s) => getSlot(s.start_time) === slotId && s.room === room
+    );
 
-    if (sorted.length === 0) {
+    if (slotSessions.length === 0) {
+      if (!userName) {
+        return (
+          <p className="text-sm text-slate-400 italic py-4 text-center">&mdash;</p>
+        );
+      }
       return (
-        <p className="text-sm text-slate-400 italic py-4 text-center">No sessions yet</p>
+        <button
+          onClick={() => setAddSessionTarget({ slot: slotId, room })}
+          className="w-full py-4 border border-dashed border-slate-300 rounded-md text-sm text-slate-400 hover:border-navy-400 hover:text-navy-600 transition-colors flex items-center justify-center gap-1"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          Add session
+        </button>
       );
     }
 
     return (
-      <div className="space-y-3">
-        {sorted.map((s) => (
+      <div className="space-y-2">
+        {slotSessions.map((s) => (
           <SessionCard key={s.id} session={s} allSessions={allSessions} userName={userName || undefined} />
         ))}
       </div>
     );
   }
 
-  function renderBlock(blockNum: 1 | 2, blockSessions: Session[], timeLabel: string) {
+  function renderSlot(slotId: number, label: string) {
     return (
-      <div className="mb-10">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-navy-800">Block {blockNum}</h2>
-            <span className="text-sm text-slate-500">{timeLabel}</span>
-          </div>
-          {userName && (
-            <button
-              onClick={() => setAddSessionBlock(blockNum)}
-              className="btn-ghost text-sm flex items-center gap-1"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              Add Session
-            </button>
-          )}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-3">
+          <h2 className="text-lg font-bold text-navy-800">Slot {slotId}</h2>
+          <span className="text-sm text-slate-500">{label}</span>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {ROOMS.map((room) => (
             <div key={room}>
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-2">
                 <span className={`badge ${ROOM_COLORS[room]}`}>{room}</span>
               </div>
-              {renderRoomColumn(blockSessions, room)}
+              {renderSlotRoomCell(slotId, room)}
             </div>
           ))}
         </div>
@@ -661,7 +652,8 @@ export default function HomePage() {
         {/* Schedule Tab */}
         {tab === "schedule" && (
           <div>
-            {renderBlock(1, block1Sessions, "1:30 PM \u2013 3:00 PM")}
+            {renderSlot(1, "1:30 \u2013 2:15 PM")}
+            {renderSlot(2, "2:15 \u2013 3:00 PM")}
 
             <div className="flex items-center gap-4 my-8">
               <div className="flex-1 h-px bg-slate-200" />
@@ -671,16 +663,8 @@ export default function HomePage() {
               <div className="flex-1 h-px bg-slate-200" />
             </div>
 
-            {renderBlock(2, block2Sessions, "3:15 PM \u2013 4:45 PM")}
-
-            {(!sessions || sessions.length === 0) && (
-              <div className="text-center py-16">
-                <p className="text-slate-400 text-lg">No sessions scheduled yet.</p>
-                <p className="text-slate-400 text-sm mt-1">
-                  Add a session above or propose an idea on the Idea Board.
-                </p>
-              </div>
-            )}
+            {renderSlot(3, "3:15 \u2013 4:00 PM")}
+            {renderSlot(4, "4:00 \u2013 4:45 PM")}
           </div>
         )}
 
@@ -775,10 +759,11 @@ export default function HomePage() {
       </div>
 
       {/* Modals */}
-      {addSessionBlock && userName && (
+      {addSessionTarget && userName && (
         <AddSessionModal
-          block={addSessionBlock}
-          onClose={() => setAddSessionBlock(null)}
+          defaultSlot={addSessionTarget.slot}
+          defaultRoom={addSessionTarget.room}
+          onClose={() => setAddSessionTarget(null)}
           userName={userName}
           onCreated={() => mutateSessions()}
         />
