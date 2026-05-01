@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { day, restaurant_name, notes, created_by } = body;
 
-  if (!day || ![2, 3].includes(Number(day))) {
+  if (day === undefined || ![0, 2, 3].includes(Number(day))) {
     return NextResponse.json({ error: "Invalid day" }, { status: 400 });
   }
   if (!restaurant_name || !String(restaurant_name).trim()) {

@@ -19,9 +19,17 @@ interface DinnerPlan {
   attendees: Attendee[];
 }
 
-const DAYS: { day: 2 | 3; label: string; date: string }[] = [
-  { day: 2, label: "Day 2", date: "Wed May 6" },
-  { day: 3, label: "Day 3", date: "Thu May 7" },
+interface DayConfig {
+  day: number;
+  label: string;
+  fixed?: string;
+}
+
+const DAYS: DayConfig[] = [
+  { day: 0, label: "Mon May 4" },
+  { day: 1, label: "Tue May 5 (Day 1)", fixed: "Team dinner at LOV McGill" },
+  { day: 2, label: "Wed May 6 (Day 2)" },
+  { day: 3, label: "Thu May 7 (Day 3)" },
 ];
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -62,7 +70,7 @@ function AddPlanModal({
   onClose,
   onCreated,
 }: {
-  day: 2 | 3;
+  day: number;
   dateLabel: string;
   userName: string;
   onClose: () => void;
@@ -97,7 +105,7 @@ function AddPlanModal({
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xl font-bold text-navy-800">Add a dinner plan</h2>
-            <p className="text-sm text-slate-500 mt-0.5">Day {day} &middot; {dateLabel}</p>
+            <p className="text-sm text-slate-500 mt-0.5">{dateLabel}</p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">
             &times;
@@ -330,7 +338,7 @@ function PlanCard({
 export default function DinnersPage() {
   const [userName, setUserName] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [addPlanDay, setAddPlanDay] = useState<2 | 3 | null>(null);
+  const [addPlanDay, setAddPlanDay] = useState<number | null>(null);
 
   const { data: plans, mutate } = useSWR<DinnerPlan[]>("/api/dinner-plans", fetcher, {
     refreshInterval: 5000,
@@ -367,7 +375,7 @@ export default function DinnersPage() {
           <div>
             <h1 className="text-3xl font-bold text-navy-900 tracking-tight">Dinner signups</h1>
             <p className="text-slate-500 mt-1">
-              Self-organized dinners on Day 2 &amp; Day 3.{" "}
+              Sign up for dinner.{" "}
               <Link href="/restaurants" className="text-navy-600 hover:text-navy-800 underline">
                 Need ideas?
               </Link>
@@ -393,14 +401,22 @@ export default function DinnersPage() {
         </div>
 
         <div className="space-y-12">
-          {DAYS.map(({ day, label, date }) => {
+          {DAYS.map(({ day, label, fixed }) => {
+            if (fixed) {
+              return (
+                <section key={day}>
+                  <h2 className="text-xl font-bold text-navy-800 mb-4">{label}</h2>
+                  <div className="card p-5">
+                    <h3 className="text-lg font-bold text-navy-900">{fixed}</h3>
+                  </div>
+                </section>
+              );
+            }
             const dayPlans = allPlans.filter((p) => p.day === day);
             return (
               <section key={day}>
                 <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-                  <h2 className="text-xl font-bold text-navy-800">
-                    {label} <span className="font-normal text-slate-500">&middot; {date}</span>
-                  </h2>
+                  <h2 className="text-xl font-bold text-navy-800">{label}</h2>
                   {userName && (
                     <button
                       onClick={() => setAddPlanDay(day)}
@@ -435,10 +451,10 @@ export default function DinnersPage() {
         </div>
       </div>
 
-      {addPlanDay && userName && (
+      {addPlanDay !== null && userName && (
         <AddPlanModal
           day={addPlanDay}
-          dateLabel={DAYS.find((d) => d.day === addPlanDay)!.date}
+          dateLabel={DAYS.find((d) => d.day === addPlanDay)!.label}
           userName={userName}
           onClose={() => setAddPlanDay(null)}
           onCreated={() => mutate()}
