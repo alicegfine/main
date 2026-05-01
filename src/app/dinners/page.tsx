@@ -27,7 +27,7 @@ interface DayConfig {
 
 const DAYS: DayConfig[] = [
   { day: 0, label: "Mon May 4" },
-  { day: 1, label: "Tue May 5 (Day 1)", fixed: "Team dinner at LOV McGill" },
+  { day: 1, label: "Tue May 5 (Day 1)", fixed: "Team dinner at LOV McGill — 464 Rue McGill" },
   { day: 2, label: "Wed May 6 (Day 2)" },
   { day: 3, label: "Thu May 7 (Day 3)" },
 ];
