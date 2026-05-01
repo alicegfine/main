@@ -188,6 +188,9 @@ function PlanCard({
   const isAttending = plan.attendees.some((a) => a.user_name === userName);
   const isPointPerson = plan.attendees.some((a) => a.user_name === userName && a.is_point_person);
   const pointPerson = plan.attendees.find((a) => a.is_point_person);
+  const sameDayConflict = isAttending && allPlans.some(
+    (p) => p.day === plan.day && p.id !== plan.id && p.attendees.some((a) => a.user_name === userName)
+  );
 
   async function handleJoin() {
     if (!userName) return;
@@ -252,7 +255,15 @@ function PlanCard({
   }
 
   return (
-    <div className="card p-5">
+    <div className={`card p-5 ${isAttending ? "border-2 border-navy-500 bg-navy-50/40" : ""}`}>
+      {sameDayConflict && (
+        <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700 mb-2">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          You&apos;re signed up for multiple dinners this day
+        </div>
+      )}
       {editing ? (
         <div className="space-y-3">
           <input
