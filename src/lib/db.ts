@@ -612,6 +612,32 @@ export async function scheduleIdea(
   return sessionId;
 }
 
+export async function unscheduleSession(sessionId: number) {
+  await ensureInit();
+  const { rows } = await pool.query("SELECT * FROM sessions WHERE id = $1", [sessionId]);
+  if (rows.length === 0) return null;
+  const session = rows[0];
+
+  const { rows: ideaRows } = await pool.query(
+    `INSERT INTO ideas (title, description, proposed_by) VALUES ($1, $2, $3) RETURNING id`,
+    [session.title, session.description, session.speaker]
+  );
+  const ideaId = ideaRows[0].id;
+
+  await pool.query(
+    "UPDATE upvotes SET target_type = 'idea', target_id = $1 WHERE target_type = 'session' AND target_id = $2",
+    [ideaId, sessionId]
+  );
+  await pool.query(
+    "UPDATE comments SET target_type = 'idea', target_id = $1 WHERE target_type = 'session' AND target_id = $2",
+    [ideaId, sessionId]
+  );
+  // attendees, edit_logs cascade delete with the session
+  await pool.query("DELETE FROM sessions WHERE id = $1", [sessionId]);
+
+  return ideaId;
+}
+
 // ── Suggestions ──
 
 export async function createSuggestion(data: {

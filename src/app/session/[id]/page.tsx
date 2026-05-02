@@ -75,6 +75,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
   const [showEditLog, setShowEditLog] = useState(false);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmUnschedule, setConfirmUnschedule] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
   const [editingCommentText, setEditingCommentText] = useState("");
 
@@ -172,6 +173,13 @@ export default function SessionPage({ params }: { params: { id: string } }) {
     router.push("/team-sessions");
   }
 
+  async function handleUnschedule() {
+    const res = await fetch(`/api/sessions/${id}/unschedule`, { method: "POST" });
+    if (res.ok) {
+      router.push("/team-sessions?tab=ideas");
+    }
+  }
+
   function startEditComment(commentId: number, currentText: string) {
     setEditingCommentId(commentId);
     setEditingCommentText(currentText);
@@ -262,6 +270,24 @@ export default function SessionPage({ params }: { params: { id: string } }) {
                 <button onClick={() => setEditing(true)} className="btn-ghost text-sm">
                   Edit
                 </button>
+                {!confirmUnschedule ? (
+                  <button
+                    onClick={() => setConfirmUnschedule(true)}
+                    className="text-sm text-slate-400 hover:text-navy-700 transition-colors px-3 py-1.5"
+                  >
+                    Move to ideas
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2 text-sm">
+                    <span className="text-slate-600">Move back to idea board?</span>
+                    <button onClick={handleUnschedule} className="font-medium text-navy-700 hover:text-navy-900">
+                      Yes
+                    </button>
+                    <button onClick={() => setConfirmUnschedule(false)} className="text-slate-500 hover:text-slate-700">
+                      No
+                    </button>
+                  </span>
+                )}
                 {!confirmDelete ? (
                   <button
                     onClick={() => setConfirmDelete(true)}
