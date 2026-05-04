@@ -4,10 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 
-const ROOMS = ["Anderson A", "Anderson B", "Bleury"];
+const ROOMS = ["Anderson 1", "Anderson 2", "Bleury"];
 const ROOM_COLORS: Record<string, string> = {
-  "Anderson A": "bg-blue-100 text-blue-800",
-  "Anderson B": "bg-emerald-100 text-emerald-800",
+  "Anderson 1": "bg-blue-100 text-blue-800",
+  "Anderson 2": "bg-emerald-100 text-emerald-800",
   Bleury: "bg-violet-100 text-violet-800",
 };
 
