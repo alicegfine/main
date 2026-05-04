@@ -131,7 +131,7 @@ export default function HomePage() {
               Dinner signups
             </h2>
             <p className="text-slate-500">
-              Pick a restaurant, sign up, or volunteer to coordinate.
+              All-team dinner on Tuesday. For dinner on Monday, Wednesday, and Thursday, sign up here.
             </p>
           </Link>
         </div>
