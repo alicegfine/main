@@ -130,6 +130,8 @@ async function ensureInit() {
   await pool.query(
     "INSERT INTO norms (id, content) VALUES (1, '') ON CONFLICT (id) DO NOTHING"
   );
+  await pool.query("UPDATE sessions SET room = 'Anderson 1' WHERE room = 'Anderson A'");
+  await pool.query("UPDATE sessions SET room = 'Anderson 2' WHERE room = 'Anderson B'");
   await pool.query(
     "INSERT INTO logistics (id, content) VALUES (1, '') ON CONFLICT (id) DO NOTHING"
   );
