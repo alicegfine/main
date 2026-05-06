@@ -407,11 +407,13 @@ function SessionCard({ session, allSessions, userName }: { session: Session; all
 function IdeaCard({
   idea,
   userName,
+  isAdmin,
   onUpvote,
   onSchedule,
 }: {
   idea: Idea;
   userName: string;
+  isAdmin: boolean;
   onUpvote: () => void;
   onSchedule: () => void;
 }) {
@@ -454,12 +456,14 @@ function IdeaCard({
           )}
           <div className="flex items-center gap-3 mt-2">
             <span className="text-xs text-slate-400">by {idea.proposed_by}</span>
-            <button
-              onClick={onSchedule}
-              className="text-xs font-medium text-navy-600 hover:text-navy-800 transition-colors"
-            >
-              Schedule this &rarr;
-            </button>
+            {isAdmin && (
+              <button
+                onClick={onSchedule}
+                className="text-xs font-medium text-navy-600 hover:text-navy-800 transition-colors"
+              >
+                Schedule this &rarr;
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -471,6 +475,7 @@ function IdeaCard({
 
 export default function HomePage() {
   const [userName, setUserName] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [tab, setTab] = useState<"schedule" | "ideas" | "mine">("schedule");
   const [addSessionTarget, setAddSessionTarget] = useState<{ slot: number; room?: string } | null>(null);
@@ -488,6 +493,7 @@ export default function HomePage() {
   useEffect(() => {
     const stored = localStorage.getItem("sut_name") || localStorage.getItem("unconference_name");
     if (stored) setUserName(stored);
+    if (localStorage.getItem("admin_password")) setIsAdmin(true);
     const params = new URLSearchParams(window.location.search);
     const t = params.get("tab");
     if (t === "ideas" || t === "mine") setTab(t);
@@ -509,9 +515,9 @@ export default function HomePage() {
     );
 
     if (slotSessions.length === 0) {
-      if (!userName) {
+      if (room === "Bleury" || !isAdmin) {
         return (
-          <p className="text-sm text-slate-400 italic py-4 text-center">&mdash;</p>
+          <p className="text-sm text-slate-400 italic py-4 text-center">No sessions</p>
         );
       }
       return (
@@ -696,6 +702,7 @@ export default function HomePage() {
                     key={idea.id}
                     idea={idea}
                     userName={userName || ""}
+                    isAdmin={isAdmin}
                     onUpvote={() => mutateIdeas()}
                     onSchedule={() => setScheduleIdea(idea)}
                   />

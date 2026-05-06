@@ -67,6 +67,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const router = useRouter();
   const [userName, setUserName] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -85,6 +86,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const stored = localStorage.getItem("sut_name") || localStorage.getItem("unconference_name");
     if (stored) setUserName(stored);
+    if (localStorage.getItem("admin_password")) setIsAdmin(true);
   }, []);
 
   useEffect(() => {
@@ -264,7 +266,7 @@ export default function SessionPage({ params }: { params: { id: string } }) {
               {isAttending ? "Attending" : "Attend"}
             </button>
 
-            {userName && (
+            {isAdmin && (
               <>
                 <button onClick={() => setEditing(true)} className="btn-ghost text-sm">
                   Edit
