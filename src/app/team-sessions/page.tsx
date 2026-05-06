@@ -4,10 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import Link from "next/link";
 
-const ROOMS = ["Anderson 1", "Anderson 2", "Bleury"];
+const ROOMS = ["Anderson", "Bleury"];
 const ROOM_COLORS: Record<string, string> = {
-  "Anderson 1": "bg-blue-100 text-blue-800",
-  "Anderson 2": "bg-emerald-100 text-emerald-800",
+  Anderson: "bg-blue-100 text-blue-800",
   Bleury: "bg-violet-100 text-violet-800",
 };
 
@@ -544,7 +543,7 @@ export default function HomePage() {
           <h2 className="text-lg font-bold text-navy-800">Slot {slotId}</h2>
           <span className="text-sm text-slate-500">{label}</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {ROOMS.map((room) => (
             <div key={room}>
               <div className="flex items-center gap-2 mb-2">
