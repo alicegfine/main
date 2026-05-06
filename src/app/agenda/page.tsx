@@ -31,7 +31,7 @@ export default function AgendaPage() {
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<AgendaDay[]>([]);
-  const [collapsedDays, setCollapsedDays] = useState<Record<number, boolean>>({});
+  const [collapsedDays, setCollapsedDays] = useState<Record<number, boolean>>({ 0: true, 1: true });
   const [saving, setSaving] = useState(false);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");

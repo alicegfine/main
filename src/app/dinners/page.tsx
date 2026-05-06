@@ -358,6 +358,7 @@ export default function DinnersPage() {
   const [userName, setUserName] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [addPlanDay, setAddPlanDay] = useState<number | null>(null);
+  const [collapsedDays, setCollapsedDays] = useState<Record<number, boolean>>({ 0: true, 1: true });
 
   const { data: plans, mutate } = useSWR<DinnerPlan[]>("/api/dinner-plans", fetcher, {
     refreshInterval: 5000,
@@ -421,14 +422,34 @@ export default function DinnersPage() {
 
         <div className="space-y-12">
           {DAYS.map(({ day, label, fixed }) => {
+            const collapsed = !!collapsedDays[day];
+            const toggle = () =>
+              setCollapsedDays((prev) => ({ ...prev, [day]: !prev[day] }));
+            const heading = (
+              <button
+                onClick={toggle}
+                className="flex items-center gap-2 group text-left"
+              >
+                <svg
+                  className={`w-5 h-5 text-slate-400 group-hover:text-slate-600 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+                <h2 className="text-xl font-bold text-navy-800">{label}</h2>
+              </button>
+            );
+
             if (fixed) {
               return (
                 <section key={day}>
-                  <h2 className="text-xl font-bold text-navy-800 mb-4">{label}</h2>
-                  <div className="card p-5">
-                    <h3 className="text-lg font-bold text-navy-900 mb-1">{fixed.title}</h3>
-                    <p className="text-sm text-slate-600 leading-relaxed">{fixed.description}</p>
-                  </div>
+                  <div className="mb-4">{heading}</div>
+                  {!collapsed && (
+                    <div className="card p-5">
+                      <h3 className="text-lg font-bold text-navy-900 mb-1">{fixed.title}</h3>
+                      <p className="text-sm text-slate-600 leading-relaxed">{fixed.description}</p>
+                    </div>
+                  )}
                 </section>
               );
             }
@@ -436,8 +457,8 @@ export default function DinnersPage() {
             return (
               <section key={day}>
                 <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-                  <h2 className="text-xl font-bold text-navy-800">{label}</h2>
-                  {userName && (
+                  {heading}
+                  {!collapsed && userName && (
                     <button
                       onClick={() => setAddPlanDay(day)}
                       className="btn-ghost text-sm flex items-center gap-1"
@@ -450,7 +471,7 @@ export default function DinnersPage() {
                   )}
                 </div>
 
-                {dayPlans.length === 0 ? (
+                {!collapsed && (dayPlans.length === 0 ? (
                   <p className="text-sm text-slate-400 italic">No plans yet for {label}.</p>
                 ) : (
                   <div className="grid md:grid-cols-2 gap-4">
@@ -464,7 +485,7 @@ export default function DinnersPage() {
                       />
                     ))}
                   </div>
-                )}
+                ))}
               </section>
             );
           })}
