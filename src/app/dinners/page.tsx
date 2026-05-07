@@ -358,7 +358,7 @@ export default function DinnersPage() {
   const [userName, setUserName] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [addPlanDay, setAddPlanDay] = useState<number | null>(null);
-  const [collapsedDays, setCollapsedDays] = useState<Record<number, boolean>>({ 0: true, 1: true });
+  const [collapsedDays, setCollapsedDays] = useState<Record<number, boolean>>({ 0: true, 1: true, 2: true });
 
   const { data: plans, mutate } = useSWR<DinnerPlan[]>("/api/dinner-plans", fetcher, {
     refreshInterval: 5000,
