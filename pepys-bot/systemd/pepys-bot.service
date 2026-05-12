@@ -1,0 +1,10 @@
+[Unit]
+Description=Send today's Samuel Pepys diary entry to a Signal group (as DMs)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/pepys-bot
+EnvironmentFile=/opt/pepys-bot/.env
+ExecStart=/usr/bin/python3 /opt/pepys-bot/pepys_bot.py

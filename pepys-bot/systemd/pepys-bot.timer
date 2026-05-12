@@ -1,0 +1,10 @@
+[Unit]
+Description=Run pepys-bot daily at 08:00 local time
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+Unit=pepys-bot.service
+
+[Install]
+WantedBy=timers.target
