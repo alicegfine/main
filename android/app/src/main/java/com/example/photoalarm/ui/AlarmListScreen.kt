@@ -77,6 +77,7 @@ private fun AlarmRow(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> U
             )
             val sub = buildString {
                 if (alarm.label.isNotBlank()) append(alarm.label).append(" • ")
+                append(formatRepeatDays(alarm.daysOfWeek)).append(" • ")
                 append(if (alarm.targetImagePath != null) "Target set" else "No target")
                 append(" • ").append("${alarm.graceSeconds}s grace")
             }
@@ -84,4 +85,13 @@ private fun AlarmRow(alarm: Alarm, onClick: () -> Unit, onToggle: (Boolean) -> U
         }
         Switch(checked = alarm.enabled, onCheckedChange = onToggle)
     }
+}
+
+private fun formatRepeatDays(mask: Int): String {
+    if (mask == 0) return "One-shot"
+    if (mask == 0b1111111) return "Every day"
+    if (mask == 0b0011111) return "Weekdays"
+    if (mask == 0b1100000) return "Weekends"
+    val letters = listOf("M" to 1, "T" to 2, "W" to 4, "T" to 8, "F" to 16, "S" to 32, "S" to 64)
+    return letters.filter { (mask and it.second) != 0 }.joinToString("") { it.first }
 }

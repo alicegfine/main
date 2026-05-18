@@ -44,6 +44,7 @@ fun AlarmEditScreen(alarmId: Long, onDone: () -> Unit) {
     var graceSeconds by remember { mutableStateOf(120) }
     var threshold by remember { mutableStateOf(0.75f) }
     var targetPath by remember { mutableStateOf<String?>(null) }
+    var daysOfWeek by remember { mutableStateOf(0) }
 
     LaunchedEffect(alarmId) {
         if (alarmId != 0L) {
@@ -52,6 +53,7 @@ fun AlarmEditScreen(alarmId: Long, onDone: () -> Unit) {
                 hour = a.hour; minute = a.minute; label = a.label
                 enabled = a.enabled; graceSeconds = a.graceSeconds
                 threshold = a.similarityThreshold; targetPath = a.targetImagePath
+                daysOfWeek = a.daysOfWeek
             }
         } else {
             val cal = Calendar.getInstance()
@@ -103,6 +105,7 @@ fun AlarmEditScreen(alarmId: Long, onDone: () -> Unit) {
                                 hour = hour,
                                 minute = minute,
                                 enabled = enabled,
+                                daysOfWeek = daysOfWeek,
                                 graceSeconds = graceSeconds,
                                 similarityThreshold = threshold,
                                 targetImagePath = targetPath,
@@ -151,6 +154,21 @@ fun AlarmEditScreen(alarmId: Long, onDone: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Enabled", modifier = Modifier.weight(1f))
                 Switch(checked = enabled, onCheckedChange = { enabled = it })
+            }
+
+            Column {
+                Text("Repeat")
+                Spacer(Modifier.height(8.dp))
+                DayOfWeekPicker(
+                    mask = daysOfWeek,
+                    onChange = { daysOfWeek = it }
+                )
+                Text(
+                    if (daysOfWeek == 0) "One-shot — fires once, then turns itself off."
+                    else "Repeats on selected days.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             Column {
@@ -213,6 +231,48 @@ fun AlarmEditScreen(alarmId: Long, onDone: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+
+            HorizontalDivider()
+
+            OutlinedButton(
+                onClick = {
+                    // Persist current edits then fire the alarm immediately so
+                    // the test uses exactly the settings on screen.
+                    val draft = Alarm(
+                        id = alarmId,
+                        label = label,
+                        hour = hour,
+                        minute = minute,
+                        enabled = enabled,
+                        daysOfWeek = daysOfWeek,
+                        graceSeconds = graceSeconds,
+                        similarityThreshold = threshold,
+                        targetImagePath = targetPath,
+                    )
+                    scope.launch(Dispatchers.IO) {
+                        val savedId = repo.upsert(draft)
+                        com.example.photoalarm.alarm.AlarmTrigger.fireNow(context, savedId)
+                    }
+                },
+                enabled = !loading && targetPath != null,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Test now (fire alarm immediately)") }
+        }
+    }
+}
+
+@Composable
+private fun DayOfWeekPicker(mask: Int, onChange: (Int) -> Unit) {
+    val days = listOf("M" to 1, "T" to 2, "W" to 4, "T" to 8, "F" to 16, "S" to 32, "S" to 64)
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        days.forEach { (label, bit) ->
+            val selected = (mask and bit) != 0
+            FilterChip(
+                selected = selected,
+                onClick = { onChange(if (selected) mask and bit.inv() else mask or bit) },
+                label = { Text(label) },
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 }
