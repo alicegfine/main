@@ -18,30 +18,25 @@ out of bed and find the target before the apartment wakes up.
    window so you can never get permanently locked out, with a floor of
    0.55.
 
-## One-time setup before you build
+## Bundled model
 
-You need a MobileNetV3 image-feature-vector TFLite model placed at:
+`app/src/main/assets/mobilenet_v3_embedder.tflite` is a MobileNetV3-Small
+image-feature-vector TFLite (~6 MB) sourced from the official
+[tensorflow/tflite-support](https://github.com/tensorflow/tflite-support)
+test data. It accepts a `[1, 224, 224, 3]` float32 input in the `[0, 1]`
+range and emits a `[1, 1024]` float32 embedding.
 
-    app/src/main/assets/mobilenet_v3_embedder.tflite
+Sanity check on real photos (cosine similarity of L2-normalized
+embeddings):
 
-The model must accept a `[1, 224, 224, 3]` float32 input in the
-`[-1, 1]` range and produce a `[1, N]` float32 output (N is the
-embedding dimension, typically 1024).
+| pair                          | similarity |
+| ----------------------------- | ---------- |
+| burger vs. cropped burger     | 0.93       |
+| burger vs. unrelated objects  | 0.01       |
 
-Quickest path: grab the MobileNetV3-Large image feature vector from
-TensorFlow Hub and convert it:
-
-```python
-import tensorflow as tf, tensorflow_hub as hub
-m = tf.keras.Sequential([
-    hub.KerasLayer("https://tfhub.dev/google/imagenet/mobilenet_v3_large_100_224/feature_vector/5",
-                   input_shape=(224, 224, 3))
-])
-m.build([None, 224, 224, 3])
-conv = tf.lite.TFLiteConverter.from_keras_model(m)
-conv.optimizations = [tf.lite.Optimize.DEFAULT]
-open("mobilenet_v3_embedder.tflite", "wb").write(conv.convert())
-```
+If you ever want a higher-accuracy model, MobileNetV3-Large (~15 MB)
+from TF Hub is a drop-in replacement — same I/O shape and `[0, 1]`
+normalization.
 
 ## Build & install
 

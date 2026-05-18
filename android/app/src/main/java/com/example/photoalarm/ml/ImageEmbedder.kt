@@ -39,8 +39,9 @@ class ImageEmbedder(context: Context) {
 
     private val preprocessor = ImageProcessor.Builder()
         .add(ResizeOp(inputSize, inputSize, ResizeOp.ResizeMethod.BILINEAR))
-        // Map [0,255] -> [-1,1]: (x - 127.5) / 127.5
-        .add(NormalizeOp(127.5f, 127.5f))
+        // MobileNetV3 image-feature-vector models expect inputs in [0, 1]:
+        // (x - 0) / 255.
+        .add(NormalizeOp(0f, 255f))
         .build()
 
     /** Returns an L2-normalized embedding for the supplied bitmap. */
