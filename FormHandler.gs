@@ -1,14 +1,16 @@
 // ============================================================
-// Form Submission Handler
+// Request Handler
 // ============================================================
-// Triggered automatically when a new Google Form response is
-// submitted. Posts an approval message to Slack with balance
-// info and over-budget warnings.
+// Shared logic for a new Flex Fund request, whether it arrives
+// from the legacy Google Form (onFormSubmit) or the web app
+// (submitFlexFundRequest in WebApp.gs). Posts an approval message
+// to Slack with correct balance info and over-budget warnings.
 // ============================================================
 
 /**
- * Installed trigger: runs on every form submission.
- * Set this up via Triggers > Add Trigger > onFormSubmit > From spreadsheet > On form submit.
+ * Installed trigger: runs on every legacy Google Form submission.
+ * The form has already written the row; we annotate it and process.
+ * Set up via Triggers > Add Trigger > onFormSubmit > On form submit.
  */
 function onFormSubmit(e) {
   try {
@@ -22,49 +24,79 @@ function onFormSubmit(e) {
       date: formatDate_(row[2]),
       description: row[3],
       amount: parseAmount_(row[4]),
-      category: row[5],
+      category: (row[5] || '').toString().trim(),
       receipt: row[6],
       explanation: row[7],
       row: lastRow
     };
 
-    // Calculate gross-up estimate if work-life improvement
-    var grossUpEstimate = 0;
-    var needsGrossUp = (submission.category === CONFIG.CATEGORY_WORK_LIFE);
-    if (needsGrossUp) {
-      grossUpEstimate = calculateGrossUp_(submission.amount);
-    }
-    var totalCost = submission.amount + grossUpEstimate;
-
-    // Write gross-up estimate to the new column
-    sheet.getRange(lastRow, CONFIG.FORM_COL.GROSS_UP_ESTIMATE).setValue(grossUpEstimate);
-
-    // Look up current balance
-    var balance = getBalance_(submission.email);
-
-    // Calculate remaining balance after this expense
-    var budgetField = needsGrossUp ? 'wlRemaining' : 'pdRemaining';
-    var remainingAfter = balance ? balance[budgetField] - totalCost : null;
-    var isOverBudget = (remainingAfter !== null && remainingAfter < 0);
-
-    // Post to Slack
-    var message = buildApprovalMessage_(submission, needsGrossUp, grossUpEstimate, totalCost, balance, remainingAfter, isOverBudget);
-    var messageTs = postToSlack_(CONFIG.APPROVAL_CHANNEL_ID, message);
-
-    // Store the message timestamp and row number for later reaction handling
-    if (messageTs) {
-      storeMessageMapping_(messageTs, submission, grossUpEstimate, totalCost);
-    }
+    processNewRequest_(submission);
 
   } catch (err) {
     Logger.log('Error in onFormSubmit: ' + err.toString());
-    // Post error notification to Slack so it doesn't silently fail
     try {
       postToSlack_(CONFIG.APPROVAL_CHANNEL_ID, ':warning: *Flex Fund automation error:* ' + err.toString());
     } catch (e2) {
       Logger.log('Failed to post error to Slack: ' + e2.toString());
     }
   }
+}
+
+/**
+ * Core handler for a new request whose row already exists in the
+ * Form Responses sheet (submission.row is its 1-based sheet row).
+ *
+ * Computes the gross-up estimate, writes the automation columns
+ * (estimate, status, request id), computes the CORRECT before/after
+ * balance — counting this request exactly once — and posts the Slack
+ * approval message.
+ *
+ * Returns { grossUpEstimate, totalCost, balance, remainingAfter,
+ *           isOverBudget, requestId }.
+ */
+function processNewRequest_(submission) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.FORM_RESPONSES_SHEET);
+
+  var needsGrossUp = (submission.category === CONFIG.CATEGORY_WORK_LIFE);
+  var grossUpEstimate = needsGrossUp ? calculateGrossUp_(submission.amount) : 0;
+  var totalCost = round2_(submission.amount + grossUpEstimate);
+
+  // Write the automation columns onto this request's row.
+  var requestId = Utilities.getUuid();
+  sheet.getRange(submission.row, CONFIG.FORM_COL.GROSS_UP_ESTIMATE).setValue(grossUpEstimate);
+  sheet.getRange(submission.row, CONFIG.FORM_COL.STATUS).setValue(CONFIG.STATUS_PENDING);
+  sheet.getRange(submission.row, CONFIG.FORM_COL.REQUEST_ID).setValue(requestId);
+  submission.requestId = requestId;
+
+  // Balance BEFORE this expense: compute from all non-declined rows but
+  // exclude this request's own row, so it is never double-counted.
+  var balance = computeBalance_(submission.email, null, null, submission.row);
+
+  // Funds available for THIS expense (work-life draws work-life only;
+  // prof-dev draws prof-dev first, then overflows into work-life).
+  var remainingAfter = null;
+  var isOverBudget = false;
+  if (balance) {
+    var available = availableFor_(submission.category, balance);
+    remainingAfter = round2_(available - totalCost);
+    isOverBudget = (remainingAfter < 0);
+  }
+
+  var message = buildApprovalMessage_(submission, needsGrossUp, grossUpEstimate, totalCost, balance, remainingAfter, isOverBudget);
+  var messageTs = postToSlack_(CONFIG.APPROVAL_CHANNEL_ID, message);
+
+  if (messageTs) {
+    storeMessageMapping_(messageTs, submission, grossUpEstimate, totalCost);
+  }
+
+  return {
+    grossUpEstimate: grossUpEstimate,
+    totalCost: totalCost,
+    balance: balance,
+    remainingAfter: remainingAfter,
+    isOverBudget: isOverBudget,
+    requestId: requestId
+  };
 }
 
 /**
@@ -98,22 +130,22 @@ function buildApprovalMessage_(submission, needsGrossUp, grossUpEstimate, totalC
   lines.push('---');
 
   if (balance) {
-    var categoryLabel = needsGrossUp ? 'Work-Life' : 'Prof Dev';
-    var relevantRemaining = needsGrossUp ? balance.wlRemaining : balance.pdRemaining;
+    var poolLabel = needsGrossUp ? 'Work-Life' : 'Prof Dev (+ Work-Life overflow)';
 
     lines.push('*Balance before this expense:*');
     lines.push('  Prof Dev: $' + balance.pdRemaining.toFixed(2) + ' remaining');
     lines.push('  Work-Life: $' + balance.wlRemaining.toFixed(2) + ' remaining');
     lines.push('  Total: $' + balance.totalRemaining.toFixed(2) + ' remaining');
     lines.push('');
-    lines.push('*' + categoryLabel + ' balance after this expense:* $' + remainingAfter.toFixed(2));
+    lines.push('*Available for this ' + poolLabel + ' expense:* $' + availableFor_(submission.category, balance).toFixed(2));
+    lines.push('*Remaining after this expense:* $' + remainingAfter.toFixed(2));
 
     if (isOverBudget) {
       lines.push('');
-      lines.push(':rotating_light: This expense would put ' + submission.email.split('@')[0] + ' *$' + Math.abs(remainingAfter).toFixed(2) + ' over* their ' + categoryLabel + ' budget.');
+      lines.push(':rotating_light: This expense would put ' + submission.email.split('@')[0] + ' *$' + Math.abs(remainingAfter).toFixed(2) + ' over* their available ' + (needsGrossUp ? 'Work-Life' : 'Prof Dev') + ' budget.');
     }
   } else {
-    lines.push(':warning: _Could not find balance for ' + submission.email + '. Please check the Math sheet._');
+    lines.push(':warning: _Could not find an allocation for ' + submission.email + '. Please check the Math sheet._');
   }
 
   lines.push('');
@@ -139,6 +171,7 @@ function storeMessageMapping_(messageTs, submission, grossUpEstimate, totalCost)
     totalCost: totalCost,
     needsGrossUp: (submission.category === CONFIG.CATEGORY_WORK_LIFE),
     row: submission.row,
+    requestId: submission.requestId || '',
     status: 'pending',
     submittedAt: new Date().toISOString()
   };

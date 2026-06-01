@@ -33,7 +33,10 @@ var CONFIG = {
   MATH_SHEET: 'Math',
 
   // Column indices in the Form Responses sheet (1-based)
-  // Adjust if your columns are in a different order
+  // Adjust if your columns are in a different order.
+  // Columns A–H mirror the original Google Form fields so legacy data
+  // and the web app share one sheet. Columns I–M are added by this
+  // automation (see SETUP_GUIDE.md).
   FORM_COL: {
     TIMESTAMP: 1,
     EMAIL: 2,
@@ -43,7 +46,11 @@ var CONFIG = {
     CATEGORY: 6,
     RECEIPT: 7,
     EXPLANATION: 8,
-    GROSS_UP_ESTIMATE: 9  // New column we'll add
+    GROSS_UP_ESTIMATE: 9,   // I — estimated gross-up at GROSS_UP_TAX_RATE
+    STATUS: 10,             // J — pending | approved | declined
+    ACTUAL_GROSS_UP: 11,    // K — actual gross-up from payroll (overrides estimate)
+    PAID: 12,               // L — date/flag set when payroll confirms payment
+    REQUEST_ID: 13          // M — unique id for this request
   },
 
   // Column indices in the Math sheet (1-based)
@@ -66,7 +73,19 @@ var CONFIG = {
   // Estimated marginal tax rate for gross-up calculation
   GROSS_UP_TAX_RATE: 0.30,
 
+  // --- Allocations (full annual, per person, before proration) ---
+  // Proration for FTE% and partial years is read from the Math sheet's
+  // PD_ALLOCATED / WL_ALLOCATED columns; these constants are the
+  // full-year reference values and a fallback when the sheet is blank.
+  WL_FULL_ALLOCATION: 3000,   // Work-life improvement (taxable; may also fund prof dev)
+  PD_FULL_ALLOCATION: 2000,   // Professional development only (not taxable)
+
   // --- Categories ---
   CATEGORY_WORK_LIFE: 'Work-life improvement',
-  CATEGORY_PROF_DEV: 'Professional development'
+  CATEGORY_PROF_DEV: 'Professional development',
+
+  // --- Request statuses ---
+  STATUS_PENDING: 'pending',
+  STATUS_APPROVED: 'approved',
+  STATUS_DECLINED: 'declined'
 };

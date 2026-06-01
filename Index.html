@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      :root {
+        --bp-navy: #0f2a43;
+        --bp-blue: #1f6feb;
+        --bp-bg: #f5f7fa;
+        --bp-card: #ffffff;
+        --bp-border: #e3e8ef;
+        --bp-text: #1b2733;
+        --bp-muted: #647184;
+        --bp-good: #1a7f4b;
+        --bp-warn: #b54708;
+        --bp-danger: #b42318;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: var(--bp-bg);
+        color: var(--bp-text);
+        line-height: 1.45;
+      }
+      .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+      header h1 { font-size: 22px; margin: 0 0 2px; color: var(--bp-navy); }
+      header p { margin: 0 0 20px; color: var(--bp-muted); font-size: 14px; }
+      .card {
+        background: var(--bp-card);
+        border: 1px solid var(--bp-border);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 2px rgba(16,24,40,0.04);
+      }
+      .card h2 { font-size: 16px; margin: 0 0 14px; color: var(--bp-navy); }
+      .balances { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+      @media (max-width: 520px) { .balances { grid-template-columns: 1fr; } }
+      .bal {
+        border: 1px solid var(--bp-border);
+        border-radius: 10px;
+        padding: 14px;
+        background: #fbfcfe;
+      }
+      .bal .label { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--bp-muted); }
+      .bal .amount { font-size: 24px; font-weight: 700; margin: 4px 0 2px; color: var(--bp-navy); }
+      .bal .sub { font-size: 12px; color: var(--bp-muted); }
+      .bal.total .amount { color: var(--bp-blue); }
+      .bal.neg .amount { color: var(--bp-danger); }
+
+      label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 4px; }
+      input, select, textarea {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 14px;
+        border: 1px solid var(--bp-border);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--bp-text);
+        font-family: inherit;
+      }
+      textarea { min-height: 72px; resize: vertical; }
+      .hint { font-size: 12px; color: var(--bp-muted); margin-top: 4px; }
+      .hint.taxable { color: var(--bp-warn); }
+      button {
+        margin-top: 20px;
+        width: 100%;
+        padding: 12px 16px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #fff;
+        background: var(--bp-blue);
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      button:disabled { opacity: .55; cursor: not-allowed; }
+
+      .note { font-size: 14px; padding: 12px 14px; border-radius: 8px; margin-bottom: 16px; }
+      .note.info { background: #eef4ff; color: #1f4ba0; border: 1px solid #cfe0ff; }
+      .note.ok { background: #ecfdf3; color: var(--bp-good); border: 1px solid #c3ecd2; }
+      .note.warn { background: #fff7ed; color: var(--bp-warn); border: 1px solid #fed8a8; }
+      .note.error { background: #fef3f2; color: var(--bp-danger); border: 1px solid #fccfca; }
+      .hidden { display: none; }
+      .muted { color: var(--bp-muted); font-size: 13px; }
+      .spinner { text-align: center; color: var(--bp-muted); padding: 24px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>Blueprint Flex Fund</h1>
+        <p id="greeting">Loading your balance…</p>
+      </header>
+
+      <div id="globalError" class="note error hidden"></div>
+
+      <!-- Balance card -->
+      <div class="card" id="balanceCard">
+        <h2>Your remaining balance</h2>
+        <div id="balanceSpinner" class="spinner">Loading…</div>
+        <div id="balances" class="balances hidden"></div>
+        <p class="muted" id="balanceFootnote" style="margin-top:14px;"></p>
+      </div>
+
+      <!-- Request form -->
+      <div class="card" id="formCard">
+        <h2>Submit a reimbursement request</h2>
+
+        <div id="result" class="note hidden"></div>
+
+        <form id="requestForm">
+          <label for="date">Date of purchase</label>
+          <input type="date" id="date" name="date" required>
+
+          <label for="description">Description of purchase</label>
+          <input type="text" id="description" name="description" maxlength="200" required>
+
+          <label for="amount">Reimbursement amount (USD)</label>
+          <input type="number" id="amount" name="amount" min="0.01" step="0.01" required>
+
+          <label for="category">Reimbursement category</label>
+          <select id="category" name="category" required>
+            <option value="">Choose a category…</option>
+            <option value="Work-life improvement">Work-life improvement</option>
+            <option value="Professional development">Professional development</option>
+          </select>
+          <div class="hint" id="categoryHint"></div>
+
+          <label for="receipt">Link to receipt</label>
+          <input type="url" id="receipt" name="receipt" placeholder="https://drive.google.com/…">
+          <div class="hint">Paste a link (e.g. Google Drive) to your receipt.</div>
+
+          <label for="explanation">Explanation of purchase</label>
+          <textarea id="explanation" name="explanation" maxlength="1000"></textarea>
+
+          <button type="submit" id="submitBtn">Submit request</button>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      var WL = 'Work-life improvement';
+      var PD = 'Professional development';
+
+      function money(n) {
+        var v = (typeof n === 'number') ? n : 0;
+        return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      function showGlobalError(msg) {
+        var el = document.getElementById('globalError');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+      }
+
+      // --- Render balance ---
+      function renderBalance(resp) {
+        document.getElementById('balanceSpinner').classList.add('hidden');
+
+        if (!resp.ok) {
+          document.getElementById('greeting').textContent = resp.email ? ('Signed in as ' + resp.email) : '';
+          showGlobalError(resp.error || 'Could not load your balance.');
+          document.getElementById('balanceCard').classList.add('hidden');
+          return;
+        }
+
+        document.getElementById('greeting').textContent = 'Signed in as ' + resp.name + ' (' + resp.email + ')';
+
+        var b = resp.balance;
+        var cells = [
+          { label: 'Prof Dev', amount: b.pdRemaining, sub: 'of ' + money(b.pdAllocated) + ' allocated' },
+          { label: 'Work-Life', amount: b.wlRemaining, sub: 'of ' + money(b.wlAllocated) + ' allocated' },
+          { label: 'Total', amount: b.totalRemaining, sub: 'remaining this year', total: true }
+        ];
+        var html = '';
+        cells.forEach(function(c) {
+          var cls = 'bal' + (c.total ? ' total' : '') + (c.amount < 0 ? ' neg' : '');
+          html += '<div class="' + cls + '">' +
+            '<div class="label">' + c.label + '</div>' +
+            '<div class="amount">' + money(c.amount) + '</div>' +
+            '<div class="sub">' + c.sub + '</div></div>';
+        });
+        document.getElementById('balances').innerHTML = html;
+        document.getElementById('balances').classList.remove('hidden');
+        document.getElementById('balanceFootnote').textContent =
+          'Work-life balances include an estimated 30% tax gross-up; the exact amount is set by payroll. ' +
+          'Professional development funds may be topped up by your work-life balance. Balances reset January 1.';
+      }
+
+      function loadBalance() {
+        google.script.run.withSuccessHandler(renderBalance)
+          .withFailureHandler(function(err) {
+            document.getElementById('balanceSpinner').classList.add('hidden');
+            showGlobalError('Could not load your balance: ' + err.message);
+          })
+          .getMyBalance();
+      }
+
+      // --- Category hint ---
+      document.getElementById('category').addEventListener('change', function() {
+        var hint = document.getElementById('categoryHint');
+        if (this.value === WL) {
+          hint.textContent = 'Work-life improvement may be taxable, so it will be grossed up (est. 30%) and drawn from your $3,000 work-life budget.';
+          hint.className = 'hint taxable';
+        } else if (this.value === PD) {
+          hint.textContent = 'Professional development is not taxable. It draws your $2,000 prof-dev budget first, then any remaining work-life funds.';
+          hint.className = 'hint';
+        } else {
+          hint.textContent = '';
+        }
+      });
+
+      // --- Submit ---
+      document.getElementById('requestForm').addEventListener('submit', function(ev) {
+        ev.preventDefault();
+        var btn = document.getElementById('submitBtn');
+        var result = document.getElementById('result');
+        result.classList.add('hidden');
+
+        var data = {
+          date: document.getElementById('date').value,
+          description: document.getElementById('description').value,
+          amount: document.getElementById('amount').value,
+          category: document.getElementById('category').value,
+          receipt: document.getElementById('receipt').value,
+          explanation: document.getElementById('explanation').value
+        };
+
+        btn.disabled = true;
+        btn.textContent = 'Submitting…';
+
+        google.script.run
+          .withSuccessHandler(function(resp) {
+            btn.disabled = false;
+            btn.textContent = 'Submit request';
+            showResult(resp);
+          })
+          .withFailureHandler(function(err) {
+            btn.disabled = false;
+            btn.textContent = 'Submit request';
+            result.className = 'note error';
+            result.textContent = 'Submission failed: ' + err.message;
+            result.classList.remove('hidden');
+          })
+          .submitFlexFundRequest(data);
+      });
+
+      function showResult(resp) {
+        var result = document.getElementById('result');
+        if (!resp.ok) {
+          result.className = 'note error';
+          result.textContent = resp.error || 'Submission failed.';
+          result.classList.remove('hidden');
+          return;
+        }
+
+        var msg = 'Request submitted and sent to Jake & Siobhan for approval. ';
+        if (resp.needsGrossUp) {
+          msg += 'Estimated gross-up: ' + money(resp.grossUpEstimate) + ' (est. total ' + money(resp.totalCost) + '). ';
+        }
+        if (resp.isOverBudget) {
+          result.className = 'note warn';
+          msg += 'Heads up: this would put you ' + money(Math.abs(resp.remainingAfter)) +
+                 ' over your available budget, so it may be declined.';
+        } else {
+          result.className = 'note ok';
+        }
+        result.textContent = msg;
+        result.classList.remove('hidden');
+
+        // Reset the form and refresh the balance from the server.
+        document.getElementById('requestForm').reset();
+        document.getElementById('categoryHint').textContent = '';
+        loadBalance();
+      }
+
+      loadBalance();
+    </script>
+  </body>
+</html>

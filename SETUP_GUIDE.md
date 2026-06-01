@@ -3,10 +3,16 @@
 This guide walks you through setting up the Flex Fund automation from scratch. It replaces your existing Zapier workflow.
 
 **What this automation does:**
-1. When someone submits the Flex Fund Google Form, posts an approval message to #flex-fund-approvals with balance info and over-budget warnings
-2. When Siobhan or Jake reacts with :white_check_mark:, sends a payroll email to Leanna and DMs you about the gross-up
-3. Employees can type `/balance` in Slack to see their remaining Flex Fund balance (visible only to them)
-4. Posts a monthly summary of all remaining balances to #flex-fund-approvals on the last business day of each month
+1. Gives employees a **web app** to see their correct live balance and submit reimbursement requests (replacing the Google Form)
+2. On submit, posts an approval message to #flex-fund-approvals with balance info and over-budget warnings (legacy Google Form submissions still work too)
+3. When Siobhan or Jake reacts with :white_check_mark:, sends a payroll email to Leanna and DMs you about the gross-up; reacting with :x: declines it and frees up the balance
+4. Employees can also type `/balance` in Slack to see their remaining balance
+5. Posts a monthly summary of all remaining balances to #flex-fund-approvals on the last business day of each month
+
+**How balances are calculated:** balances are computed **in code** (see `BalanceHelpers.gs`), not by formulas in the Math sheet. The code reads each person's *allocations* from the Math sheet (which carry your FTE% / partial-year proration) and computes "used" and "remaining" from the request rows themselves — counting each request once, ignoring declined requests, and using the actual gross-up once payroll reports it. Rules applied:
+- **Work-Life ($3,000, taxable):** grossed-up cost draws the work-life budget only.
+- **Professional development ($2,000, not taxable):** draws the prof-dev budget first, then overflows into any remaining work-life budget.
+- Balances reset January 1; unused funds do not carry over.
 
 ---
 
@@ -23,29 +29,34 @@ This guide walks you through setting up the Flex Fund automation from scratch. I
    - `ReactionHandler.gs` — paste the contents of `ReactionHandler.gs`
    - `WebApp.gs` — paste the contents of `WebApp.gs`
    - `MonthlySummary.gs` — paste the contents of `MonthlySummary.gs`
+   - `WeeklyDigest.gs` — paste the contents of `WeeklyDigest.gs`
+   - `Payroll.gs` — paste the contents of `Payroll.gs`
+   - `Index.html` — click **+ → HTML**, name it `Index`, and paste the contents of `Index.html`
 
 5. Click **Save** (Ctrl+S / Cmd+S)
 
-## Step 2: Add the "Estimated Gross-Up" column to your Form Responses sheet
+## Step 2: Add the automation columns to your Form Responses sheet
 
-1. In your Form Responses sheet, add a header in **column I** (the first empty column after your form fields): `Estimated Gross-Up`
-2. That's it — the automation will populate this column automatically
+The web app and balance math share the **Form Responses 1** sheet. Columns **A–H** are the original Google Form fields. Add these headers in the first empty columns after them:
 
-## Step 3: Update your Math sheet formulas
+| Column | Header |
+|--------|--------|
+| I | `Estimated Gross-Up` |
+| J | `Status` |
+| K | `Actual Gross-Up` |
+| L | `Paid` |
+| M | `Request ID` |
 
-Your Math sheet's "WL Budget Used" column needs to include gross-up estimates. Update the formula for each person's WL Budget Used to also sum their gross-up amounts from the new column I.
+The automation populates these automatically. (If your form has a different number of fields, adjust the `FORM_COL` indices in `Config.gs` to match.)
 
-For example, if your current WL Budget Used formula for a row looks something like:
-```
-=SUMIFS('Form Responses 1'!E:E, 'Form Responses 1'!B:B, A2, 'Form Responses 1'!F:F, "Work-life improvement")
-```
+## Step 3: Check your Math sheet — allocations only
 
-Change it to:
-```
-=SUMIFS('Form Responses 1'!E:E, 'Form Responses 1'!B:B, A2, 'Form Responses 1'!F:F, "Work-life improvement") + SUMIFS('Form Responses 1'!I:I, 'Form Responses 1'!B:B, A2)
-```
+Balances are now computed in code, so you **do not** need the old "Budget Used / Remaining" formulas, and you should not add gross-up sums to them (that caused the double-counting bug). The code only reads each person's **allocation** columns from the Math sheet:
 
-This adds the estimated gross-up amounts (column I) for that person to their work-life budget used.
+- Column F — `PD Allocated` (prof-dev budget for the person, after FTE%/partial-year proration)
+- Column G — `WL Allocated` (work-life budget for the person, after proration)
+
+Make sure those two columns hold the correct prorated allocations for each person (e.g. a 50% FTE who started mid-year). The "used/remaining" columns can stay for your reference but are no longer used by the automation. If your Math sheet columns are laid out differently, update the `MATH_COL` indices in `Config.gs`.
 
 ## Step 4: Create a Slack App
 
@@ -78,19 +89,34 @@ This adds the estimated gross-up amounts (column I) for that person to their wor
 1. In the left sidebar, click **Basic Information**
 2. Under **App Credentials**, copy the **Signing Secret** — you'll need this in Step 6
 
-## Step 5: Deploy the Apps Script as a Web App
+## Step 5: Deploy the Apps Script — TWO web app deployments
 
-1. In the Apps Script editor, click **Deploy → New deployment**
-2. Click the gear icon next to "Select type" → choose **Web app**
-3. Set:
-   - **Description:** `Flex Fund Bot v1`
-   - **Execute as:** `Me` (your Google account)
+You need **two** deployments of the same script, because they need different access settings:
+
+- **Slack** sends webhooks that are *not* signed in to Google, so its endpoint must be open to `Anyone`.
+- **The employee web app** must require a Google sign-in so the script knows *who* is submitting (`Session.getActiveUser()`), so it must be restricted to your Workspace.
+
+Both run the same code; `doPost` handles Slack and `doGet` serves the web app.
+
+### Deployment A — Slack endpoint
+1. **Deploy → New deployment** → gear icon → **Web app**
+2. Set:
+   - **Description:** `Flex Fund — Slack`
+   - **Execute as:** `Me`
    - **Who has access:** `Anyone`
-4. Click **Deploy**
-5. **Authorize** the app when prompted (it needs access to your Gmail and Sheets)
-6. Copy the **Web app URL** — you'll need this for the Slack app configuration
+3. **Deploy**, authorize when prompted (it needs Gmail + Sheets access), and copy the **Web app URL** — this is the URL you'll paste into Slack (Steps 7 & 8).
 
-> **Important:** Every time you change the code, you need to create a new deployment or update the existing one via **Deploy → Manage deployments → Edit (pencil icon) → Version: New version → Deploy**.
+### Deployment B — Employee web app
+1. **Deploy → New deployment** → gear icon → **Web app**
+2. Set:
+   - **Description:** `Flex Fund — Web app`
+   - **Execute as:** `Me`
+   - **Who has access:** `Anyone within Blueprint Biosecurity`
+3. **Deploy** and copy this **Web app URL** — this is the link you share with employees to check balances and submit requests.
+
+> **Why "Execute as: Me" for the web app?** The script runs as you (so it can read the Sheet and post to Slack), but because employees sign in with their `@blueprintbiosecurity.org` account in the same Workspace, `Session.getActiveUser().getEmail()` still returns *their* email. That's how each person sees their own balance.
+
+> **Important:** Every time you change the code, update **both** deployments via **Deploy → Manage deployments → Edit (pencil) → Version: New version → Deploy**.
 
 ## Step 6: Configure Script Properties
 
@@ -123,7 +149,7 @@ This adds the estimated gross-up amounts (column I) for that person to their wor
 3. Click **Create New Command**
 4. Fill in:
    - **Command:** `/balance`
-   - **Request URL:** The Web app URL from Step 5
+   - **Request URL:** The **Deployment A (Slack)** URL from Step 5
    - **Short Description:** `Check your Flex Fund balance`
    - **Usage Hint:** (leave blank)
 5. Click **Save**
@@ -132,7 +158,7 @@ This adds the estimated gross-up amounts (column I) for that person to their wor
 
 1. In the left sidebar, click **Event Subscriptions**
 2. Toggle **Enable Events** to On
-3. In **Request URL**, paste the Web app URL from Step 5
+3. In **Request URL**, paste the **Deployment A (Slack)** URL from Step 5
    - Slack will send a verification challenge — the script handles this automatically
    - You should see a green "Verified" checkmark
 4. Under **Subscribe to bot events**, click **Add Bot User Event** and add:
@@ -179,16 +205,44 @@ This adds the estimated gross-up amounts (column I) for that person to their wor
 - **Time of day:** `9am to 10am`
 - Click **Save**
 
-## Step 11: Disable Your Zapier Automation
+### Trigger 5 (optional): Clean up old message mappings
+- **Function:** `cleanupOldMappings`
+- **Event source:** `Time-driven`
+- **Type of time-based trigger:** `Month timer`
+- Click **Save**
+
+> **Payroll ingestion (Trigger 6) is not set up yet.** `ingestPayrollEmails_` is a stub until we have one real sample of Leanna's payroll data — see "Payroll ingestion" below. Do not add this trigger yet.
+
+## Step 11: Share the web app with the team
+
+Send employees the **Deployment B (Web app)** URL from Step 5. They open it, sign in with their Blueprint Google account, and can see their balance and submit requests there instead of the old Google Form. The first time, Google will ask them to authorize viewing — that's expected.
+
+## Step 12: Disable Your Zapier Automation
 
 Once you've verified the new automation is working (test by submitting a form response), disable or delete your existing Zapier zaps.
 
-## Step 12: Test!
+## Step 13: Test!
 
-1. **Test form submission:** Submit a test entry through the Google Form. You should see a message appear in #flex-fund-approvals within a few seconds.
-2. **Test approval:** React to the message with :white_check_mark: using Siobhan or Jake's account (or temporarily add your own user ID to the approvers list). Check that the email arrives.
-3. **Test /balance:** Type `/balance` in any Slack channel. You should see an ephemeral message with your balance.
-4. **Test monthly summary:** Run `postMonthlySummary` manually from the Apps Script editor (click the function dropdown → select `postMonthlySummary` → click Run).
+1. **Test the web app:** Open the Deployment B URL, sign in, and confirm your balance shows correctly. Submit a small test request and check that a message appears in #flex-fund-approvals within a few seconds.
+2. **Test the math:** Submit a request and verify the "Balance before this expense" matches what you expect *before* the purchase, and "Remaining after this expense" = before − (amount + gross-up). It should no longer double-count.
+3. **Test approval:** React with :white_check_mark: using Siobhan or Jake's account (or temporarily add your own user ID to the approvers list). Check that the payroll email arrives.
+4. **Test decline:** React with :x: on a test request and confirm its balance is freed up (the row's Status becomes `declined` and `/balance` goes back up).
+5. **Test /balance:** Type `/balance` in any Slack channel. You should see an ephemeral message with your balance.
+6. **Test monthly summary:** Run `postMonthlySummary` manually from the Apps Script editor (function dropdown → `postMonthlySummary` → Run).
+
+---
+
+## Payroll ingestion (not yet enabled)
+
+The goal is for Leanna's payroll data to automatically mark requests **paid** and record the **actual gross-up**, with no extra step for her or for you. The scaffolding is in `Payroll.gs`, but the parser is a deliberate stub: we don't yet know the format of what Leanna sends.
+
+To turn it on, we need **one real sample** of her payroll data — ideally answering:
+- Is it a standard report she already produces each pay run, or something new?
+- Format: CSV, Excel, PDF, or prose in the email body?
+- Does it itemize reimbursements per person, with the gross-up broken out?
+- How often does payroll run, and how soon after does she send it?
+
+Once we have a sample, we implement `parsePayrollMessage_()`, set up a Gmail filter that labels her messages `Flex Fund Payroll`, and add a time-based trigger for `ingestPayrollEmails_`. Until then, the actual gross-up can be entered by hand in the **Actual Gross-Up** column (K) of the Form Responses sheet, which the balance math will pick up automatically.
 
 ---
 
