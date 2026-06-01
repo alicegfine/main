@@ -137,7 +137,7 @@ function computeBalance_(email, rows, allocations, excludeRowIndex) {
 
 /**
  * Look up a person's current balance. Backwards-compatible wrapper used by
- * the Slack /balance command, the web app, and the approval flow.
+ * the web app, the approval flow, and the monthly summary.
  */
 function getBalance_(email) {
   return computeBalance_(email);

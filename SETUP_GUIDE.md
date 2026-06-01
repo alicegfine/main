@@ -6,8 +6,7 @@ This guide walks you through setting up the Flex Fund automation from scratch. I
 1. Gives employees a **web app** to see their correct live balance and submit reimbursement requests (replacing the Google Form)
 2. On submit, posts an approval message to #flex-fund-approvals with balance info and over-budget warnings (legacy Google Form submissions still work too)
 3. When Siobhan or Jake reacts with :white_check_mark:, sends a payroll email to Leanna and DMs you about the gross-up; reacting with :x: declines it and frees up the balance
-4. Employees can also type `/balance` in Slack to see their remaining balance
-5. Posts a monthly summary of all remaining balances to #flex-fund-approvals on the last business day of each month
+4. Posts a monthly summary of all remaining balances to #flex-fund-approvals on the last business day of each month
 
 **How balances are calculated:** balances are computed **in code** (see `BalanceHelpers.gs`), not by formulas in the Math sheet. The code reads each person's *allocations* from the Math sheet (which carry your FTE% / partial-year proration) and computes "used" and "remaining" from the request rows themselves — counting each request once, ignoring declined requests, and using the actual gross-up once payroll reports it. Rules applied:
 - **Work-Life ($3,000, taxable):** grossed-up cost draws the work-life budget only.
@@ -74,8 +73,6 @@ Make sure those two columns hold the correct prorated allocations for each perso
    - `chat:write` (post messages)
    - `chat:write.public` (post to channels the bot isn't in)
    - `reactions:read` (read emoji reactions)
-   - `users:read` (look up user profiles)
-   - `users:read.email` (look up user emails)
    - `im:write` (send DMs)
 
 ### 4b: Install the App
@@ -142,19 +139,7 @@ Both run the same code; `doPost` handles Slack and `doGet` serves the web app.
 2. Click the **...** (more) button
 3. Click **Copy member ID**
 
-## Step 7: Set Up the Slash Command
-
-1. Go back to your Slack app settings at https://api.slack.com/apps
-2. In the left sidebar, click **Slash Commands**
-3. Click **Create New Command**
-4. Fill in:
-   - **Command:** `/balance`
-   - **Request URL:** The **Deployment A (Slack)** URL from Step 5
-   - **Short Description:** `Check your Flex Fund balance`
-   - **Usage Hint:** (leave blank)
-5. Click **Save**
-
-## Step 8: Enable Events API (for reaction handling)
+## Step 7: Enable Events API (for reaction handling)
 
 1. In the left sidebar, click **Event Subscriptions**
 2. Toggle **Enable Events** to On
@@ -165,14 +150,14 @@ Both run the same code; `doPost` handles Slack and `doGet` serves the web app.
    - `reaction_added`
 5. Click **Save Changes**
 
-> If the URL verification fails, make sure you deployed the web app (Step 5) and that it's set to "Anyone" access.
+> If the URL verification fails, make sure you deployed Deployment A (Step 5) and that it's set to "Anyone" access.
 
-## Step 9: Invite the Bot to the Channel
+## Step 8: Invite the Bot to the Channel
 
 1. In Slack, go to #flex-fund-approvals
 2. Type `/invite @Flex Fund Bot` (or whatever you named your app)
 
-## Step 10: Set Up Triggers in Apps Script
+## Step 9: Set Up Triggers in Apps Script
 
 1. In the Apps Script editor, click the **clock icon** (Triggers) in the left sidebar
 2. Click **Add Trigger** in the bottom right
@@ -183,21 +168,14 @@ Both run the same code; `doPost` handles Slack and `doGet` serves the web app.
 - **Event type:** `On form submit`
 - Click **Save**
 
-### Trigger 2: Balance request processor
-- **Function:** `processBalanceRequests`
-- **Event source:** `Time-driven`
-- **Type of time-based trigger:** `Minutes timer`
-- **Interval:** `Every minute`
-- Click **Save**
-
-### Trigger 3: Monthly summary
+### Trigger 2: Monthly summary
 - **Function:** `postMonthlySummaryIfLastBusinessDay`
 - **Event source:** `Time-driven`
 - **Type of time-based trigger:** `Day timer`
 - **Time of day:** `9am to 10am` (or whenever you'd like)
 - Click **Save**
 
-### Trigger 4: Weekly digest of unapproved requests
+### Trigger 3: Weekly digest of unapproved requests
 - **Function:** `postWeeklyDigest`
 - **Event source:** `Time-driven`
 - **Type of time-based trigger:** `Week timer`
@@ -205,30 +183,29 @@ Both run the same code; `doPost` handles Slack and `doGet` serves the web app.
 - **Time of day:** `9am to 10am`
 - Click **Save**
 
-### Trigger 5 (optional): Clean up old message mappings
+### Trigger 4 (optional): Clean up old message mappings
 - **Function:** `cleanupOldMappings`
 - **Event source:** `Time-driven`
 - **Type of time-based trigger:** `Month timer`
 - Click **Save**
 
-> **Payroll ingestion (Trigger 6) is not set up yet.** `ingestPayrollEmails_` is a stub until we have one real sample of Leanna's payroll data — see "Payroll ingestion" below. Do not add this trigger yet.
+> **Payroll ingestion is not set up yet.** `ingestPayrollEmails_` is a stub until we have one real sample of Leanna's payroll data — see "Payroll ingestion" below. Do not add a trigger for it yet.
 
-## Step 11: Share the web app with the team
+## Step 10: Share the web app with the team
 
 Send employees the **Deployment B (Web app)** URL from Step 5. They open it, sign in with their Blueprint Google account, and can see their balance and submit requests there instead of the old Google Form. The first time, Google will ask them to authorize viewing — that's expected.
 
-## Step 12: Disable Your Zapier Automation
+## Step 11: Disable Your Zapier Automation
 
-Once you've verified the new automation is working (test by submitting a form response), disable or delete your existing Zapier zaps.
+Once you've verified the new automation is working (test by submitting a request through the web app), disable or delete your existing Zapier zaps.
 
-## Step 13: Test!
+## Step 12: Test!
 
 1. **Test the web app:** Open the Deployment B URL, sign in, and confirm your balance shows correctly. Submit a small test request and check that a message appears in #flex-fund-approvals within a few seconds.
 2. **Test the math:** Submit a request and verify the "Balance before this expense" matches what you expect *before* the purchase, and "Remaining after this expense" = before − (amount + gross-up). It should no longer double-count.
 3. **Test approval:** React with :white_check_mark: using Siobhan or Jake's account (or temporarily add your own user ID to the approvers list). Check that the payroll email arrives.
-4. **Test decline:** React with :x: on a test request and confirm its balance is freed up (the row's Status becomes `declined` and `/balance` goes back up).
-5. **Test /balance:** Type `/balance` in any Slack channel. You should see an ephemeral message with your balance.
-6. **Test monthly summary:** Run `postMonthlySummary` manually from the Apps Script editor (function dropdown → `postMonthlySummary` → Run).
+4. **Test decline:** React with :x: on a test request and confirm its balance is freed up (the row's Status becomes `declined` and the web app balance goes back up).
+5. **Test monthly summary:** Run `postMonthlySummary` manually from the Apps Script editor (function dropdown → `postMonthlySummary` → Run).
 
 ---
 
@@ -254,10 +231,10 @@ Once we have a sample, we implement `parsePayrollMessage_()`, set up a Gmail fil
 - Check that the bot is invited to the channel
 - Check the Apps Script execution log: **Executions** in the left sidebar
 
-### /balance not working
-- Make sure the slash command Request URL matches your web app URL exactly
-- Make sure you redeployed after any code changes
-- Check that the bot has `users:read` and `users:read.email` scopes
+### Web app shows the wrong balance / "no allocation found"
+- Confirm the person's email in the Math sheet matches their Google login email
+- Confirm columns F/G of the Math sheet hold their prorated PD/WL allocations
+- Make sure you redeployed Deployment B after any code changes
 
 ### Reactions not triggering payroll email
 - Check that `APPROVER_USER_IDS` contains the correct Slack user IDs (comma-separated, no spaces)
