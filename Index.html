@@ -128,9 +128,9 @@
           </select>
           <div class="hint" id="categoryHint"></div>
 
-          <label for="receipt">Link to receipt</label>
-          <input type="url" id="receipt" name="receipt" placeholder="https://drive.google.com/…">
-          <div class="hint">Paste a link (e.g. Google Drive) to your receipt.</div>
+          <label for="receipt">Receipt (photo or PDF)</label>
+          <input type="file" id="receipt" name="receipt" accept="image/*,application/pdf,.pdf">
+          <div class="hint">Upload a photo or PDF of your receipt — it's saved to Drive and shared with your approvers automatically.</div>
 
           <label for="explanation">Explanation of purchase</label>
           <textarea id="explanation" name="explanation" maxlength="1000"></textarea>
@@ -215,18 +215,10 @@
       // --- Submit ---
       document.getElementById('requestForm').addEventListener('submit', function(ev) {
         ev.preventDefault();
+        var formEl = this;  // pass the whole form so the receipt file uploads
         var btn = document.getElementById('submitBtn');
         var result = document.getElementById('result');
         result.classList.add('hidden');
-
-        var data = {
-          date: document.getElementById('date').value,
-          description: document.getElementById('description').value,
-          amount: document.getElementById('amount').value,
-          category: document.getElementById('category').value,
-          receipt: document.getElementById('receipt').value,
-          explanation: document.getElementById('explanation').value
-        };
 
         btn.disabled = true;
         btn.textContent = 'Submitting…';
@@ -244,7 +236,7 @@
             result.textContent = 'Submission failed: ' + err.message;
             result.classList.remove('hidden');
           })
-          .submitFlexFundRequest(data);
+          .submitFlexFundRequest(formEl);
       });
 
       function showResult(resp) {
