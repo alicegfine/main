@@ -17,7 +17,7 @@ This guide walks you through setting up the Flex Fund automation from scratch. I
 
 ## Step 1: Add the code to Google Apps Script
 
-1. Open your Flex Fund Google Sheet (the one with the Form Responses and Math tabs)
+1. Open your Flex Fund Google Sheet (the one with the **Current Year Form Responses** and **Current Year Balances** tabs)
 2. Go to **Extensions → Apps Script**
 3. This opens the Apps Script editor. You'll see a default `Code.gs` file — you can delete it
 4. Create the following files by clicking the **+** next to "Files" and choosing "Script":
@@ -36,7 +36,7 @@ This guide walks you through setting up the Flex Fund automation from scratch. I
 
 ## Step 2: Add the automation columns to your Form Responses sheet
 
-The web app and balance math share the **Form Responses 1** sheet. Columns **A–H** are the original Google Form fields. Add these headers in the first empty columns after them:
+The web app and balance math share the **Current Year Form Responses** sheet. Columns **A–H** are the original Google Form fields and column **I** is `Estimated Gross-Up`. Add these headers in the first empty columns after them:
 
 | Column | Header |
 |--------|--------|
@@ -48,9 +48,9 @@ The web app and balance math share the **Form Responses 1** sheet. Columns **A�
 
 The automation populates these automatically. (If your form has a different number of fields, adjust the `FORM_COL` indices in `Config.gs` to match.)
 
-## Step 3: Check your Math sheet — allocations only
+## Step 3: Check your Current Year Balances sheet — allocations only
 
-Balances are now computed in code, so you **do not** need the old "Budget Used / Remaining" formulas, and you should not add gross-up sums to them (that caused the double-counting bug). The code only reads each person's **allocation** columns from the Math sheet:
+Balances are now computed in code, so you **do not** need the old "Budget Used / Remaining" formulas, and you should not add gross-up sums to them (that caused the double-counting bug). The code only reads each person's **allocation** columns from the **Current Year Balances** sheet:
 
 - Column F — `PD Allocated` (prof-dev budget for the person, after FTE%/partial-year proration)
 - Column G — `WL Allocated` (work-life budget for the person, after proration)

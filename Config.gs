@@ -28,9 +28,10 @@ var CONFIG = {
   SENDER_EMAIL: 'alice.fine@blueprintbiosecurity.org',
 
   // --- Spreadsheet ---
-  // Sheet names (tabs) in the Google Sheet
-  FORM_RESPONSES_SHEET: 'Form Responses 1',
-  MATH_SHEET: 'Math',
+  // Sheet names (tabs) in the Google Sheet. These point at the CURRENT
+  // year's tabs; at year-end, repoint them (or rename last year's tabs).
+  FORM_RESPONSES_SHEET: 'Current Year Form Responses',
+  MATH_SHEET: 'Current Year Balances',
 
   // Column indices in the Form Responses sheet (1-based)
   // Adjust if your columns are in a different order.
