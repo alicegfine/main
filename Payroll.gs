@@ -187,12 +187,13 @@ function matchAndPay_(email, name, category, paidTotal, payDate, open, isTaxable
     req = candidates[0];
   } else {
     // Several open requests: keep only the plausible ones.
-    //  - work-life: payroll is grossed up, so original <= payroll, with a
-    //    gross-up no larger than ~60% (payroll <= original / 0.40).
+    //  - work-life: payroll is the grossed-up total, so the implied gross-up
+    //    rate (1 - original/payroll) should sit in a realistic ~15–60% band,
+    //    i.e. original/0.85 <= payroll <= original/0.40.
     //  - prof-dev: not grossed up, so the amount should match directly.
     var plausible = candidates.filter(function(r) {
       if (isTaxable) {
-        return paidTotal >= r.amount - 0.01 && paidTotal <= (r.amount / 0.40) + 0.01;
+        return paidTotal >= (r.amount / 0.85) - 0.01 && paidTotal <= (r.amount / 0.40) + 0.01;
       }
       return Math.abs(r.amount - paidTotal) <= 0.50;
     });
