@@ -141,20 +141,14 @@ function parsePayrollJournalCsv_(csv) {
 function applyPayrollReport_(parsed) {
   var lines = [];
 
-  // Build a display-name -> email map from the people in the balances sheet.
   var allocations = getAllocations_();
-  var nameToEmail = {};
-  for (var key in allocations) {
-    nameToEmail[formatName_(allocations[key].email).toLowerCase()] = key;
-  }
-
   var open = getOpenRequests_();
 
   for (var i = 0; i < parsed.rows.length; i++) {
     var pr = parsed.rows[i];
-    var email = nameToEmail[pr.name.toLowerCase()];
+    var email = resolveEmailByName_(pr.name, allocations);
     if (!email) {
-      lines.push(':warning: ' + pr.name + ': not found in the balances sheet — skipped.');
+      lines.push(':warning: ' + pr.name + ': not found in the balances sheet (name mismatch?) — skipped.');
       continue;
     }
     if (pr.taxable > 0) {
@@ -178,19 +172,33 @@ function matchAndPay_(email, name, category, paidTotal, payDate, open, isTaxable
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.FORM_RESPONSES_SHEET);
   var label = isTaxable ? 'work-life' : 'prof-dev';
 
-  var list = (open[email] || []).filter(function(r) { return r.category === category; });
+  var candidates = (open[email] || []).filter(function(r) { return r.category === category; });
 
-  if (list.length === 0) {
+  if (candidates.length === 0) {
     return [':warning: ' + name + ': payroll paid $' + paidTotal.toFixed(2) + ' (' + label +
             '), but no unpaid ' + label + ' request was found — please check.'];
   }
-  if (list.length > 1) {
-    var rowList = list.map(function(r) { return r.rowIndex; }).join(', ');
-    return [':warning: ' + name + ': payroll paid $' + paidTotal.toFixed(2) + ' (' + label + '), but ' +
-            list.length + ' unpaid ' + label + ' requests exist (rows ' + rowList + ') — please reconcile by hand.'];
+
+  // Match by amount. For work-life, payroll reports the grossed-up total, so
+  // compare against each request's amount grossed up; for prof-dev, the amount
+  // is reported directly. A request matches if it's within $0.50.
+  var matches = candidates.filter(function(r) {
+    var expected = isTaxable ? grossUpTotal_(r.amount) : r.amount;
+    return Math.abs(expected - paidTotal) <= 0.50;
+  });
+
+  if (matches.length === 0) {
+    var opts = candidates.map(function(r) { return 'row ' + r.rowIndex + ' ($' + r.amount.toFixed(2) + ')'; }).join(', ');
+    return [':warning: ' + name + ': payroll paid $' + paidTotal.toFixed(2) + ' (' + label +
+            '), but no single unpaid request matches that amount. Open: ' + opts + '. Please reconcile by hand.'];
+  }
+  if (matches.length > 1) {
+    var rowList = matches.map(function(r) { return r.rowIndex; }).join(', ');
+    return [':warning: ' + name + ': payroll paid $' + paidTotal.toFixed(2) + ' (' + label +
+            '), and ' + matches.length + ' requests match that amount (rows ' + rowList + ') — please pick the right one by hand.'];
   }
 
-  var req = list[0];
+  var req = matches[0];
 
   if (isTaxable) {
     var actualGrossUp = round2_(paidTotal - req.amount);
@@ -257,4 +265,54 @@ function rowHas_(row, target) {
     if (row[i] && row[i].toString().trim() === target) return true;
   }
   return false;
+}
+
+/** The grossed-up total for a given pre-gross-up amount, at the configured rate. */
+function grossUpTotal_(amount) {
+  return round2_(amount / (1 - CONFIG.GROSS_UP_TAX_RATE));
+}
+
+/**
+ * Resolve a payroll display name (e.g. "Rockwell Schwartz") to an email in
+ * the balances sheet. Tries an exact name match first, then falls back to
+ * matching on last name (handling nicknames like Rocky/Rockwell), using the
+ * first initial to break ties. Returns null if it can't match confidently.
+ */
+function resolveEmailByName_(payrollName, allocations) {
+  var target = payrollName.toString().trim().toLowerCase();
+
+  var byFullName = {};
+  var byLastName = {};
+  for (var key in allocations) {
+    var local = allocations[key].email.split('@')[0].toLowerCase();
+    var parts = local.split('.');
+    var last = parts[parts.length - 1];
+    byFullName[formatName_(allocations[key].email).toLowerCase()] = key;
+    if (!byLastName[last]) byLastName[last] = [];
+    byLastName[last].push({ email: key, first: parts[0] });
+  }
+
+  if (byFullName[target]) return byFullName[target];
+
+  var tokens = target.split(/\s+/);
+  var pLast = tokens[tokens.length - 1];
+  var pFirstInitial = (tokens[0] || '').charAt(0);
+  var cands = byLastName[pLast] || [];
+
+  if (cands.length === 1) return cands[0].email;
+  if (cands.length > 1) {
+    var narrowed = cands.filter(function(c) { return c.first.charAt(0) === pFirstInitial; });
+    if (narrowed.length === 1) return narrowed[0].email;
+  }
+  return null;
+}
+
+/**
+ * Clear the record of processed payroll emails so they'll be re-read on the
+ * next run. Useful for re-testing after a code change. (Already-paid rows are
+ * still skipped, so this won't double-apply anything.)
+ */
+function resetPayrollProcessed() {
+  PropertiesService.getScriptProperties().deleteProperty('payroll_processed_msgs');
+  Logger.log('Payroll processed-email record cleared.');
 }
