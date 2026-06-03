@@ -71,8 +71,11 @@ var CONFIG = {
   },
 
   // --- Gross-Up ---
-  // Estimated marginal tax rate for gross-up calculation
-  GROSS_UP_TAX_RATE: 0.30,
+  // Up-front estimate of the marginal tax rate used to reserve budget at
+  // submission time. Set conservatively (a bit high) so people don't slip
+  // over budget — observed actual gross-ups run ~33–41%. The ACTUAL gross-up
+  // from payroll later overrides this per request.
+  GROSS_UP_TAX_RATE: 0.40,
 
   // --- Allocations (full annual, per person, before proration) ---
   // Proration for FTE% and partial years is read from the Math sheet's

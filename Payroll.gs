@@ -164,9 +164,12 @@ function applyPayrollReport_(parsed) {
 }
 
 /**
- * Match a paid amount to a single unpaid request of the given category for
- * a person, and write the actual gross-up (work-life) and Paid date. Flags
- * (without writing) when the match is ambiguous.
+ * Match a payroll line to an open request for a person and record the result.
+ * Primary rule: if the person has exactly ONE open request of the matching
+ * type, attach it — the actual gross-up is simply (payroll total - original
+ * amount), no tax-rate assumption needed. If there are several, try to pick
+ * the single plausible one; otherwise flag for a human. Writes the actual
+ * gross-up (work-life) and the Paid date.
  */
 function matchAndPay_(email, name, category, paidTotal, payDate, open, isTaxable) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.FORM_RESPONSES_SHEET);
@@ -176,29 +179,31 @@ function matchAndPay_(email, name, category, paidTotal, payDate, open, isTaxable
 
   if (candidates.length === 0) {
     return [':warning: ' + name + ': payroll paid $' + paidTotal.toFixed(2) + ' (' + label +
-            '), but no unpaid ' + label + ' request was found — please check.'];
+            '), but no open ' + label + ' request was found — please check.'];
   }
 
-  // Match by amount. For work-life, payroll reports the grossed-up total, so
-  // compare against each request's amount grossed up; for prof-dev, the amount
-  // is reported directly. A request matches if it's within $0.50.
-  var matches = candidates.filter(function(r) {
-    var expected = isTaxable ? grossUpTotal_(r.amount) : r.amount;
-    return Math.abs(expected - paidTotal) <= 0.50;
-  });
-
-  if (matches.length === 0) {
-    var opts = candidates.map(function(r) { return 'row ' + r.rowIndex + ' ($' + r.amount.toFixed(2) + ')'; }).join(', ');
-    return [':warning: ' + name + ': payroll paid $' + paidTotal.toFixed(2) + ' (' + label +
-            '), but no single unpaid request matches that amount. Open: ' + opts + '. Please reconcile by hand.'];
+  var req;
+  if (candidates.length === 1) {
+    req = candidates[0];
+  } else {
+    // Several open requests: keep only the plausible ones.
+    //  - work-life: payroll is grossed up, so original <= payroll, with a
+    //    gross-up no larger than ~60% (payroll <= original / 0.40).
+    //  - prof-dev: not grossed up, so the amount should match directly.
+    var plausible = candidates.filter(function(r) {
+      if (isTaxable) {
+        return paidTotal >= r.amount - 0.01 && paidTotal <= (r.amount / 0.40) + 0.01;
+      }
+      return Math.abs(r.amount - paidTotal) <= 0.50;
+    });
+    if (plausible.length === 1) {
+      req = plausible[0];
+    } else {
+      var opts = candidates.map(function(r) { return 'row ' + r.rowIndex + ' ($' + r.amount.toFixed(2) + ')'; }).join(', ');
+      return [':warning: ' + name + ': payroll paid $' + paidTotal.toFixed(2) + ' (' + label +
+              ') and it could match more than one open request. Candidates: ' + opts + '. Please pick by hand.'];
+    }
   }
-  if (matches.length > 1) {
-    var rowList = matches.map(function(r) { return r.rowIndex; }).join(', ');
-    return [':warning: ' + name + ': payroll paid $' + paidTotal.toFixed(2) + ' (' + label +
-            '), and ' + matches.length + ' requests match that amount (rows ' + rowList + ') — please pick the right one by hand.'];
-  }
-
-  var req = matches[0];
 
   if (isTaxable) {
     var actualGrossUp = round2_(paidTotal - req.amount);
@@ -315,4 +320,34 @@ function resolveEmailByName_(payrollName, allocations) {
 function resetPayrollProcessed() {
   PropertiesService.getScriptProperties().deleteProperty('payroll_processed_msgs');
   Logger.log('Payroll processed-email record cleared.');
+}
+
+/**
+ * One-time cold-start helper: mark every currently-open (unpaid, non-declined)
+ * request as paid, with the label "pre-import backlog", so the importer starts
+ * from a clean slate. These requests were already paid outside the system, and
+ * clearing them means each future payroll run usually has just one open request
+ * per person — which the matcher handles cleanly. Skips rows already marked
+ * paid; does not change balances (paid requests still count as used).
+ */
+function markBacklogPaid() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.FORM_RESPONSES_SHEET);
+  var data = sheet.getDataRange().getValues();
+  var count = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var email = (data[i][CONFIG.FORM_COL.EMAIL - 1] || '').toString().trim();
+    if (!email) continue;
+
+    var status = (data[i][CONFIG.FORM_COL.STATUS - 1] || CONFIG.STATUS_PENDING).toString().trim().toLowerCase();
+    if (status === CONFIG.STATUS_DECLINED) continue;
+
+    var paid = data[i][CONFIG.FORM_COL.PAID - 1];
+    if (paid !== '' && paid !== null && paid !== undefined) continue;
+
+    sheet.getRange(i + 1, CONFIG.FORM_COL.PAID).setValue('pre-import backlog');
+    count++;
+  }
+
+  Logger.log('markBacklogPaid: marked ' + count + ' open requests as paid (backlog).');
 }
