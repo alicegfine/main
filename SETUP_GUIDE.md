@@ -209,17 +209,30 @@ Once you've verified the new automation is working (test by submitting a request
 
 ---
 
-## Payroll ingestion (not yet enabled)
+## Payroll ingestion
 
-The goal is for Leanna's payroll data to automatically mark requests **paid** and record the **actual gross-up**, with no extra step for her or for you. The scaffolding is in `Payroll.gs`, but the parser is a deliberate stub: we don't yet know the format of what Leanna sends.
+`Payroll.gs` reads the **Payroll Journal Report** CSV that Leanna emails each
+pay run — straight from the script owner's inbox, so there's nothing for
+Leanna to set up beyond emailing the CSV as usual. For each person it records
+the **actual gross-up** (taxable reimbursement − original request amount) and
+the **Paid** date, and the balances self-correct.
 
-To turn it on, we need **one real sample** of her payroll data — ideally answering:
-- Is it a standard report she already produces each pay run, or something new?
-- Format: CSV, Excel, PDF, or prose in the email body?
-- Does it itemize reimbursements per person, with the gross-up broken out?
-- How often does payroll run, and how soon after does she send it?
+Because the report totals per pay run (not per request) and carries no request
+id, it only auto-applies when a person has exactly **one** unpaid request of the
+matching type; anything ambiguous is left untouched and flagged to Alice in a
+Slack DM. Already-paid rows and already-seen emails are skipped, so it's safe to
+run repeatedly.
 
-Once we have a sample, we implement `parsePayrollMessage_()`, set up a Gmail filter that labels her messages `Flex Fund Payroll`, and add a time-based trigger for `ingestPayrollEmails_`. Until then, the actual gross-up can be entered by hand in the **Actual Gross-Up** column (K) of the Form Responses sheet, which the balance math will pick up automatically.
+**To turn it on:**
+1. Make sure `Payroll.gs` is pasted in.
+2. Run `ingestPayrollEmails_` once from the editor and authorize the new Gmail
+   access when prompted (it needs to read Leanna's emails). This run also
+   processes any payroll emails already sitting in the inbox.
+3. Add a trigger: **Function** `ingestPayrollEmails_`, **Time-driven**, **Day
+   timer** (e.g. 8–9am). It de-duplicates, so daily is fine.
+
+> Confirm `PAYROLL_EMAIL` in `Config.gs` matches the address Leanna sends from,
+> and that she attaches the **CSV** journal (not only the PDF).
 
 ---
 
