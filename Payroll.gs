@@ -16,9 +16,18 @@
 // flagged to Alice in a Slack DM for a human to handle. Paid rows and
 // processed emails are remembered so nothing is applied twice.
 //
-// Turn-on (see SETUP_GUIDE.md): paste this file, run ingestPayrollEmails_
+// Turn-on (see SETUP_GUIDE.md): paste this file, run runPayrollImport
 // once to authorize Gmail access, then add a daily time-based trigger.
 // ============================================================
+
+/**
+ * Public entry point (no trailing underscore) so it appears in the
+ * editor's Run menu and the trigger picker. Use this for the manual run
+ * and as the trigger's target function.
+ */
+function runPayrollImport() {
+  ingestPayrollEmails_();
+}
 
 /**
  * Trigger entry point. Finds unprocessed payroll emails from Leanna,

@@ -225,10 +225,10 @@ run repeatedly.
 
 **To turn it on:**
 1. Make sure `Payroll.gs` is pasted in.
-2. Run `ingestPayrollEmails_` once from the editor and authorize the new Gmail
+2. Run `runPayrollImport` once from the editor and authorize the new Gmail
    access when prompted (it needs to read Leanna's emails). This run also
    processes any payroll emails already sitting in the inbox.
-3. Add a trigger: **Function** `ingestPayrollEmails_`, **Time-driven**, **Day
+3. Add a trigger: **Function** `runPayrollImport`, **Time-driven**, **Day
    timer** (e.g. 8–9am). It de-duplicates, so daily is fine.
 
 > Confirm `PAYROLL_EMAIL` in `Config.gs` matches the address Leanna sends from,
