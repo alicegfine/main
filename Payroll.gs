@@ -1,354 +1,170 @@
 // ============================================================
-// Payroll Ingestion
+// Payroll Gross-Up Reconciliation (from Leanna's email replies)
 // ============================================================
-// Reads the "Payroll Journal Report" CSV that Leanna emails each pay
-// run (straight from the script owner's inbox — no forwarding needed)
-// and reconciles it against the Form Responses sheet:
-//   - "Taxable Reimbursement (amount USD)"  -> work-life, grossed up.
-//        actual gross-up = taxable amount - original request amount.
-//   - "Expense Reimbursement (amount USD)"  -> prof-dev, not taxable.
-//   - Pay Date -> the "Paid" date written onto the request row.
+// When an approved reimbursement is sent to payroll, the script emails
+// Leanna; she replies in the same thread with the grossed-up amount for
+// that single reimbursement. This reads her replies, matches each one to
+// its request (using the requester + amount in the original email in the
+// same thread), records the ACTUAL gross-up and a paid date, and DMs Alice
+// a summary. Anything it can't read or match cleanly is flagged, not guessed.
 //
-// Safety: the report totals per pay run per person, not per request, and
-// carries no request id. So we only auto-apply when a person has exactly
-// ONE unpaid request of the matching type. Anything ambiguous (no match,
-// multiple matches, or amounts that don't add up) is left untouched and
-// flagged to Alice in a Slack DM for a human to handle. Paid rows and
-// processed emails are remembered so nothing is applied twice.
+// This is per-request and exact — unlike the old payroll-journal importer,
+// which gave one lumped total per person per pay run and so mis-attributed
+// people who had more than one reimbursement in a run.
 //
-// Turn-on (see SETUP_GUIDE.md): paste this file, run runPayrollImport
-// once to authorize Gmail access, then add a daily time-based trigger.
+// Turn-on: paste this file, run runGrossUpReplies once, then add a daily
+// time-based trigger for runGrossUpReplies. Remove the old runPayrollImport
+// trigger.
 // ============================================================
 
-/**
- * Public entry point (no trailing underscore) so it appears in the
- * editor's Run menu and the trigger picker. Use this for the manual run
- * and as the trigger's target function.
- */
-function runPayrollImport() {
-  ingestPayrollEmails_();
+function runGrossUpReplies() {
+  ingestGrossUpReplies_();
 }
 
-/**
- * Trigger entry point. Finds unprocessed payroll emails from Leanna,
- * parses any Payroll Journal CSV attachments, applies them, and DMs
- * Alice a summary. Safe to run on a daily trigger — it de-duplicates.
- */
-function ingestPayrollEmails_() {
-  var threads = GmailApp.search('from:' + CONFIG.PAYROLL_EMAIL + ' has:attachment filename:csv newer_than:90d');
+function ingestGrossUpReplies_() {
+  // Threads for our payroll emails (our sent message + Leanna's replies).
+  var threads = GmailApp.search('subject:"Flex Fund Reimbursement" newer_than:120d');
 
   var props = PropertiesService.getScriptProperties();
   var processed = {};
-  try { processed = JSON.parse(props.getProperty('payroll_processed_msgs') || '{}'); } catch (e) { processed = {}; }
+  try { processed = JSON.parse(props.getProperty('grossup_processed_msgs') || '{}'); } catch (e) { processed = {}; }
 
+  var requests = getRequestsForMatch_();
   var summary = [];
   var changed = false;
 
   for (var t = 0; t < threads.length; t++) {
-    var messages = threads[t].getMessages();
-    for (var m = 0; m < messages.length; m++) {
-      var msg = messages[m];
-      var msgId = msg.getId();
-      if (processed[msgId]) continue;
+    var msgs = threads[t].getMessages();
 
-      var handled = false;
-      var attachments = msg.getAttachments();
-      for (var a = 0; a < attachments.length; a++) {
-        var att = attachments[a];
-        if (att.getName().toLowerCase().indexOf('.csv') === -1) continue;
+    // The request details live in the original email we sent (the message
+    // whose body contains the "Submitted by:" template line).
+    var who = '', baseAmt = 0;
+    for (var k = 0; k < msgs.length; k++) {
+      var ob = msgs[k].getPlainBody();
+      if (ob.indexOf('Submitted by:') !== -1) {
+        who = matchField_(ob, /Submitted by:\s*([^\s<>]+@[^\s<>]+)/i) || who;
+        var amt = parseAmount_(matchField_(ob, /Reimbursement amount \(USD\):\s*\$?([0-9.,]+)/i));
+        if (amt > 0) baseAmt = amt;
+        break;
+      }
+    }
 
-        var parsed;
-        try {
-          parsed = parsePayrollJournalCsv_(att.getDataAsString());
-        } catch (err) {
-          parsed = null;
-        }
-        if (!parsed) continue;  // not a journal report (e.g. cash requirements)
+    // Process Leanna's replies in this thread.
+    for (var m = 0; m < msgs.length; m++) {
+      var msg = msgs[m];
+      if (msg.getFrom().toLowerCase().indexOf(CONFIG.PAYROLL_EMAIL.toLowerCase()) === -1) continue;
+      var id = msg.getId();
+      if (processed[id]) continue;
 
-        summary.push('*Pay date ' + (parsed.payDate || 'unknown') + '*  _(' + att.getName() + ')_');
-        summary = summary.concat(applyPayrollReport_(parsed));
-        summary.push('');
-        handled = true;
+      processed[id] = new Date().toISOString();
+      changed = true;
+
+      var grossed = singleAmount_(newReplyText_(msg.getPlainBody()));
+
+      if (!who || !(baseAmt > 0)) {
+        summary.push(':warning: A reply from Leanna couldn’t be tied to a request (couldn’t read the original email) — please record by hand.');
+        continue;
+      }
+      if (grossed === null) {
+        summary.push(':warning: ' + formatName_(who) + ' ($' + baseAmt.toFixed(2) + '): couldn’t read a single grossed-up amount in the reply — please record by hand.');
+        continue;
       }
 
-      if (handled) {
-        processed[msgId] = new Date().toISOString();
-        changed = true;
+      var req = pickRequest_(requests, who, baseAmt);
+      if (!req) {
+        summary.push(':warning: ' + formatName_(who) + ' ($' + baseAmt.toFixed(2) + '): no matching open request, or already recorded — please check.');
+        continue;
       }
+      if (grossed + 0.01 < baseAmt) {
+        summary.push(':warning: ' + formatName_(who) + ': grossed-up $' + grossed.toFixed(2) + ' is less than the $' + baseAmt.toFixed(2) + ' request — please check row ' + req.rowIndex + '.');
+        continue;
+      }
+
+      var actualGrossUp = round2_(grossed - baseAmt);
+      var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.FORM_RESPONSES_SHEET);
+      sheet.getRange(req.rowIndex, CONFIG.FORM_COL.ACTUAL_GROSS_UP).setValue(actualGrossUp);
+      sheet.getRange(req.rowIndex, CONFIG.FORM_COL.PAID).setValue(formatDate_(msg.getDate()));
+      req.done = true;  // don't match it again in this run
+      summary.push(':white_check_mark: ' + formatName_(who) + ': $' + baseAmt.toFixed(2) +
+        ' → grossed $' + grossed.toFixed(2) + ' (gross-up $' + actualGrossUp.toFixed(2) + '), row ' + req.rowIndex + '.');
     }
   }
 
   if (changed) {
-    props.setProperty('payroll_processed_msgs', JSON.stringify(processed));
+    props.setProperty('grossup_processed_msgs', JSON.stringify(processed));
     if (summary.length) {
-      sendSlackDM_(CONFIG.ALICE_SLACK_USER_ID,
-        [':inbox_tray: *Payroll import results*', ''].concat(summary).join('\n'));
+      sendSlackDM_(CONFIG.ALICE_SLACK_USER_ID, [':inbox_tray: *Gross-up updates from payroll*', ''].concat(summary).join('\n'));
     }
   }
 }
 
-/**
- * Parse a Payroll Journal Report CSV into { payDate, rows }, where each
- * row is { name, taxable, expense }. Returns null if the CSV isn't a
- * journal report (so other attachments are safely ignored).
- */
-function parsePayrollJournalCsv_(csv) {
-  var table = Utilities.parseCsv(csv);
-  var payDate = '';
-  var headerIdx = -1;
-
-  for (var i = 0; i < table.length; i++) {
-    var row = table[i];
-    if (row.length >= 2 && row[0] && row[0].toString().trim() === 'Pay Date') {
-      payDate = row[1].toString().trim();
-    }
-    if (headerIdx === -1 && rowHas_(row, 'Name') && rowHas_(row, 'Taxable Reimbursement (amount USD)')) {
-      headerIdx = i;
-    }
-  }
-
-  if (headerIdx === -1) return null;
-
-  var header = table[headerIdx];
-  var col = {};
-  for (var c = 0; c < header.length; c++) {
-    col[header[c].toString().trim()] = c;
-  }
-
-  var nameC = col['Name'];
-  var taxC = col['Taxable Reimbursement (amount USD)'];
-  var expC = col['Expense Reimbursement (amount USD)'];
-  if (nameC === undefined || (taxC === undefined && expC === undefined)) return null;
-
-  var rows = [];
-  for (var r = headerIdx + 1; r < table.length; r++) {
-    var dr = table[r];
-    var name = (dr[nameC] || '').toString().trim();
-    if (!name) continue;
-    var taxable = taxC === undefined ? 0 : parseAmount_(dr[taxC]);
-    var expense = expC === undefined ? 0 : parseAmount_(dr[expC]);
-    if (taxable === 0 && expense === 0) continue;  // no reimbursement this run
-    rows.push({ name: name, taxable: taxable, expense: expense });
-  }
-
-  return { payDate: payDate, rows: rows };
-}
-
-/**
- * Apply one parsed report. Returns an array of human-readable summary
- * lines (matches applied + anything that needs review).
- */
-function applyPayrollReport_(parsed) {
-  var lines = [];
-
-  var allocations = getAllocations_();
-  var open = getOpenRequests_();
-
-  for (var i = 0; i < parsed.rows.length; i++) {
-    var pr = parsed.rows[i];
-    var email = resolveEmailByName_(pr.name, allocations);
-    if (!email) {
-      lines.push(':warning: ' + pr.name + ': not found in the balances sheet (name mismatch?) — skipped.');
-      continue;
-    }
-    if (pr.taxable > 0) {
-      lines = lines.concat(matchAndPay_(email, pr.name, CONFIG.CATEGORY_WORK_LIFE, pr.taxable, parsed.payDate, open, true));
-    }
-    if (pr.expense > 0) {
-      lines = lines.concat(matchAndPay_(email, pr.name, CONFIG.CATEGORY_PROF_DEV, pr.expense, parsed.payDate, open, false));
-    }
-  }
-
-  if (lines.length === 0) lines.push('_No reimbursements to apply in this report._');
-  return lines;
-}
-
-/**
- * Match a payroll line to an open request for a person and record the result.
- * Primary rule: if the person has exactly ONE open request of the matching
- * type, attach it — the actual gross-up is simply (payroll total - original
- * amount), no tax-rate assumption needed. If there are several, try to pick
- * the single plausible one; otherwise flag for a human. Writes the actual
- * gross-up (work-life) and the Paid date.
- */
-function matchAndPay_(email, name, category, paidTotal, payDate, open, isTaxable) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.FORM_RESPONSES_SHEET);
-  var label = isTaxable ? 'work-life' : 'prof-dev';
-
-  var candidates = (open[email] || []).filter(function(r) { return r.category === category; });
-
-  if (candidates.length === 0) {
-    return [':warning: ' + name + ': payroll paid $' + paidTotal.toFixed(2) + ' (' + label +
-            '), but no open ' + label + ' request was found — please check.'];
-  }
-
-  var req;
-  if (candidates.length === 1) {
-    req = candidates[0];
-  } else {
-    // Several open requests: keep only the plausible ones.
-    //  - work-life: payroll is the grossed-up total, so the implied gross-up
-    //    rate (1 - original/payroll) should sit in a realistic ~15–60% band,
-    //    i.e. original/0.85 <= payroll <= original/0.40.
-    //  - prof-dev: not grossed up, so the amount should match directly.
-    var plausible = candidates.filter(function(r) {
-      if (isTaxable) {
-        return paidTotal >= (r.amount / 0.85) - 0.01 && paidTotal <= (r.amount / 0.40) + 0.01;
-      }
-      return Math.abs(r.amount - paidTotal) <= 0.50;
-    });
-    if (plausible.length === 1) {
-      req = plausible[0];
-    } else {
-      var opts = candidates.map(function(r) { return 'row ' + r.rowIndex + ' ($' + r.amount.toFixed(2) + ')'; }).join(', ');
-      return [':warning: ' + name + ': payroll paid $' + paidTotal.toFixed(2) + ' (' + label +
-              ') and it could match more than one open request. Candidates: ' + opts + '. Please pick by hand.'];
-    }
-  }
-
-  if (isTaxable) {
-    var actualGrossUp = round2_(paidTotal - req.amount);
-    if (actualGrossUp < -0.01) {
-      return [':warning: ' + name + ': taxable reimbursement ($' + paidTotal.toFixed(2) +
-              ') is less than the request amount ($' + req.amount.toFixed(2) + ') — please check row ' + req.rowIndex + '.'];
-    }
-    sheet.getRange(req.rowIndex, CONFIG.FORM_COL.ACTUAL_GROSS_UP).setValue(actualGrossUp);
-    sheet.getRange(req.rowIndex, CONFIG.FORM_COL.PAID).setValue(payDate || formatDate_(new Date()));
-    removeOpen_(open, email, req.rowIndex);
-    return [':white_check_mark: ' + name + ': work-life $' + req.amount.toFixed(2) +
-            ' paid — actual gross-up $' + actualGrossUp.toFixed(2) + ' (total $' + paidTotal.toFixed(2) +
-            '), row ' + req.rowIndex + '.'];
-  }
-
-  // Prof-dev: no gross-up; just record the Paid date. Note any amount mismatch.
-  var note = (Math.abs(paidTotal - req.amount) > 1)
-    ? ' :grey_question: (payroll $' + paidTotal.toFixed(2) + ' vs request $' + req.amount.toFixed(2) + ')'
-    : '';
-  sheet.getRange(req.rowIndex, CONFIG.FORM_COL.PAID).setValue(payDate || formatDate_(new Date()));
-  removeOpen_(open, email, req.rowIndex);
-  return [':white_check_mark: ' + name + ': prof-dev $' + req.amount.toFixed(2) + ' paid, row ' + req.rowIndex + '.' + note];
-}
-
-/**
- * Read unpaid, non-declined requests grouped by email.
- * Returns { email: [ { rowIndex, category, amount } ] }.
- */
-function getOpenRequests_() {
+/** All non-declined requests, flagged as already done if a gross-up or paid date is recorded. */
+function getRequestsForMatch_() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.FORM_RESPONSES_SHEET);
   var data = sheet.getDataRange().getValues();
-  var map = {};
-
+  var rows = [];
   for (var i = 1; i < data.length; i++) {
     var email = (data[i][CONFIG.FORM_COL.EMAIL - 1] || '').toString().trim().toLowerCase();
     if (!email) continue;
-
     var status = (data[i][CONFIG.FORM_COL.STATUS - 1] || CONFIG.STATUS_PENDING).toString().trim().toLowerCase();
     if (status === CONFIG.STATUS_DECLINED) continue;
 
+    var actual = data[i][CONFIG.FORM_COL.ACTUAL_GROSS_UP - 1];
     var paid = data[i][CONFIG.FORM_COL.PAID - 1];
-    if (paid !== '' && paid !== null && paid !== undefined) continue;  // already paid
+    var done = (actual !== '' && actual !== null && actual !== undefined) ||
+               (paid !== '' && paid !== null && paid !== undefined);
 
-    if (!map[email]) map[email] = [];
-    map[email].push({
+    rows.push({
       rowIndex: i + 1,
-      category: (data[i][CONFIG.FORM_COL.CATEGORY - 1] || '').toString().trim(),
-      amount: parseAmount_(data[i][CONFIG.FORM_COL.AMOUNT - 1])
+      email: email,
+      amount: parseAmount_(data[i][CONFIG.FORM_COL.AMOUNT - 1]),
+      done: done
     });
   }
-
-  return map;
+  return rows;
 }
 
-/** Remove a matched request from the open map so it isn't matched twice. */
-function removeOpen_(open, email, rowIndex) {
-  if (!open[email]) return;
-  open[email] = open[email].filter(function(r) { return r.rowIndex !== rowIndex; });
+/** The single not-yet-recorded request matching this requester + amount, or null. */
+function pickRequest_(requests, email, baseAmt) {
+  var key = email.toString().trim().toLowerCase();
+  var matches = requests.filter(function(r) {
+    return !r.done && r.email === key && Math.abs(r.amount - baseAmt) < 0.01;
+  });
+  return matches.length === 1 ? matches[0] : null;
 }
 
-/** True if any cell in the row trims to the target string. */
-function rowHas_(row, target) {
-  for (var i = 0; i < row.length; i++) {
-    if (row[i] && row[i].toString().trim() === target) return true;
+/** The portion of an email body above the quoted original (i.e. Leanna's new text). */
+function newReplyText_(body) {
+  var markers = [body.search(/\nOn .+wrote:/i), body.indexOf('Hi Leanna'), body.search(/\n>/)];
+  var cut = -1;
+  for (var i = 0; i < markers.length; i++) {
+    if (markers[i] > 0 && (cut === -1 || markers[i] < cut)) cut = markers[i];
   }
-  return false;
+  return cut === -1 ? body : body.substring(0, cut);
 }
 
-/** The grossed-up total for a given pre-gross-up amount, at the configured rate. */
-function grossUpTotal_(amount) {
-  return round2_(amount / (1 - CONFIG.GROSS_UP_TAX_RATE));
+/** First regex capture group in text, or '' if none. */
+function matchField_(text, re) {
+  var m = text.match(re);
+  return m ? m[1].toString().trim() : '';
 }
 
-/**
- * Resolve a payroll display name (e.g. "Rockwell Schwartz") to an email in
- * the balances sheet. Tries an exact name match first, then falls back to
- * matching on last name (handling nicknames like Rocky/Rockwell), using the
- * first initial to break ties. Returns null if it can't match confidently.
- */
-function resolveEmailByName_(payrollName, allocations) {
-  var target = payrollName.toString().trim().toLowerCase();
-
-  var byFullName = {};
-  var byLastName = {};
-  for (var key in allocations) {
-    var local = allocations[key].email.split('@')[0].toLowerCase();
-    var parts = local.split('.');
-    var last = parts[parts.length - 1];
-    byFullName[formatName_(allocations[key].email).toLowerCase()] = key;
-    if (!byLastName[last]) byLastName[last] = [];
-    byLastName[last].push({ email: key, first: parts[0] });
+/** The single dollar amount in text, or null if there are zero or more than one. */
+function singleAmount_(text) {
+  var found = [];
+  var m, re = /\$\s?([0-9][0-9,]*(?:\.[0-9]{1,2})?)/g;   // amounts written with a $
+  while ((m = re.exec(text)) !== null) found.push(parseAmount_(m[1]));
+  if (found.length === 0) {                               // fall back to bare decimals like 766.14
+    var re2 = /\b([0-9][0-9,]*\.[0-9]{2})\b/g;
+    while ((m = re2.exec(text)) !== null) found.push(parseAmount_(m[1]));
   }
-
-  if (byFullName[target]) return byFullName[target];
-
-  var tokens = target.split(/\s+/);
-  var pLast = tokens[tokens.length - 1];
-  var pFirstInitial = (tokens[0] || '').charAt(0);
-  var cands = byLastName[pLast] || [];
-
-  if (cands.length === 1) return cands[0].email;
-  if (cands.length > 1) {
-    var narrowed = cands.filter(function(c) { return c.first.charAt(0) === pFirstInitial; });
-    if (narrowed.length === 1) return narrowed[0].email;
-  }
-  return null;
+  var uniq = [];
+  found.forEach(function(v) { if (v > 0 && uniq.indexOf(v) === -1) uniq.push(v); });
+  return uniq.length === 1 ? uniq[0] : null;
 }
 
-/**
- * Clear the record of processed payroll emails so they'll be re-read on the
- * next run. Useful for re-testing after a code change. (Already-paid rows are
- * still skipped, so this won't double-apply anything.)
- */
-function resetPayrollProcessed() {
-  PropertiesService.getScriptProperties().deleteProperty('payroll_processed_msgs');
-  Logger.log('Payroll processed-email record cleared.');
-}
-
-/**
- * One-time cold-start helper: mark every currently-open (unpaid, non-declined)
- * request as paid, with the label "pre-import backlog", so the importer starts
- * from a clean slate. These requests were already paid outside the system, and
- * clearing them means each future payroll run usually has just one open request
- * per person — which the matcher handles cleanly. Skips rows already marked
- * paid; does not change balances (paid requests still count as used).
- */
-function markBacklogPaid() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.FORM_RESPONSES_SHEET);
-  var data = sheet.getDataRange().getValues();
-  var count = 0;
-
-  for (var i = 1; i < data.length; i++) {
-    var email = (data[i][CONFIG.FORM_COL.EMAIL - 1] || '').toString().trim();
-    if (!email) continue;
-
-    var status = (data[i][CONFIG.FORM_COL.STATUS - 1] || CONFIG.STATUS_PENDING).toString().trim().toLowerCase();
-    if (status === CONFIG.STATUS_DECLINED) continue;
-
-    var paid = data[i][CONFIG.FORM_COL.PAID - 1];
-    if (paid !== '' && paid !== null && paid !== undefined) continue;
-
-    sheet.getRange(i + 1, CONFIG.FORM_COL.PAID).setValue('pre-import backlog');
-    count++;
-  }
-
-  Logger.log('markBacklogPaid: marked ' + count + ' open requests as paid (backlog).');
+/** Clear the processed-reply record so replies can be re-read (for testing). */
+function resetGrossUpProcessed() {
+  PropertiesService.getScriptProperties().deleteProperty('grossup_processed_msgs');
+  Logger.log('Gross-up processed-reply record cleared.');
 }

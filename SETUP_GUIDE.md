@@ -209,30 +209,29 @@ Once you've verified the new automation is working (test by submitting a request
 
 ---
 
-## Payroll ingestion
+## Payroll gross-up reconciliation
 
-`Payroll.gs` reads the **Payroll Journal Report** CSV that Leanna emails each
-pay run — straight from the script owner's inbox, so there's nothing for
-Leanna to set up beyond emailing the CSV as usual. For each person it records
-the **actual gross-up** (taxable reimbursement − original request amount) and
-the **Paid** date, and the balances self-correct.
+When a reimbursement is approved, the script emails Leanna; she **replies in
+the same thread with the grossed-up amount** for that one reimbursement.
+`Payroll.gs` reads those replies, matches each to its request (by the requester
+and amount in the original email in the thread), records the **actual gross-up**
+and a **Paid** date, and DMs Alice a summary. It is per-request and exact;
+anything it can't read or match cleanly is flagged rather than guessed.
 
-Because the report totals per pay run (not per request) and carries no request
-id, it only auto-applies when a person has exactly **one** unpaid request of the
-matching type; anything ambiguous is left untouched and flagged to Alice in a
-Slack DM. Already-paid rows and already-seen emails are skipped, so it's safe to
-run repeatedly.
+Ask Leanna to reply with **just the grossed-up amount** (e.g. `$766.14`), one
+reply per reimbursement email.
 
 **To turn it on:**
 1. Make sure `Payroll.gs` is pasted in.
-2. Run `runPayrollImport` once from the editor and authorize the new Gmail
-   access when prompted (it needs to read Leanna's emails). This run also
-   processes any payroll emails already sitting in the inbox.
-3. Add a trigger: **Function** `runPayrollImport`, **Time-driven**, **Day
+2. Run `runGrossUpReplies` once from the editor (authorizes Gmail access if not
+   already). This also processes any replies already in the inbox.
+3. Add a trigger: **Function** `runGrossUpReplies`, **Time-driven**, **Day
    timer** (e.g. 8–9am). It de-duplicates, so daily is fine.
+4. Remove any old `runPayrollImport` trigger — that approach (reading the lumped
+   payroll-journal CSV) is superseded because it mis-attributed people with more
+   than one reimbursement in a pay run.
 
-> Confirm `PAYROLL_EMAIL` in `Config.gs` matches the address Leanna sends from,
-> and that she attaches the **CSV** journal (not only the PDF).
+> Confirm `PAYROLL_EMAIL` in `Config.gs` matches the address Leanna replies from.
 
 ---
 
