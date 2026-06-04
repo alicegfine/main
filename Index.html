@@ -44,7 +44,8 @@
         background: #fbfcfe;
       }
       .bal .label { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--bp-muted); }
-      .bal .amount { font-size: 24px; font-weight: 700; margin: 4px 0 2px; color: var(--bp-navy); }
+      .bal .amount { font-size: 24px; font-weight: 700; margin: 4px 0 0; color: var(--bp-navy); }
+      .bal .rem { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--bp-muted); margin-bottom: 4px; }
       .bal .sub { font-size: 12px; color: var(--bp-muted); }
       .bal.total .amount { color: var(--bp-blue); }
       .bal.neg .amount { color: var(--bp-danger); }
@@ -172,10 +173,11 @@
         document.getElementById('greeting').textContent = 'Signed in as ' + resp.name + ' (' + resp.email + ')';
 
         var b = resp.balance;
+        var totalAlloc = b.pdAllocated + b.wlAllocated;
         var cells = [
-          { label: 'Prof Dev', amount: b.pdRemaining, sub: 'of ' + money(b.pdAllocated) + ' allocated' },
-          { label: 'Work-Life', amount: b.wlRemaining, sub: 'of ' + money(b.wlAllocated) + ' allocated' },
-          { label: 'Total', amount: b.totalRemaining, sub: 'remaining this year', total: true }
+          { label: 'Prof Dev', amount: b.pdRemaining, sub: money(b.pdAllocated - b.pdRemaining) + ' used of ' + money(b.pdAllocated) },
+          { label: 'Work-Life', amount: b.wlRemaining, sub: money(b.wlAllocated - b.wlRemaining) + ' used of ' + money(b.wlAllocated) },
+          { label: 'Total', amount: b.totalRemaining, sub: money(totalAlloc - b.totalRemaining) + ' used of ' + money(totalAlloc), total: true }
         ];
         var html = '';
         cells.forEach(function(c) {
@@ -183,6 +185,7 @@
           html += '<div class="' + cls + '">' +
             '<div class="label">' + c.label + '</div>' +
             '<div class="amount">' + money(c.amount) + '</div>' +
+            '<div class="rem">remaining</div>' +
             '<div class="sub">' + c.sub + '</div></div>';
         });
         document.getElementById('balances').innerHTML = html;
