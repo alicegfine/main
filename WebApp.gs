@@ -92,13 +92,14 @@ function submitFlexFundRequest(form) {
     return { ok: false, error: 'No Flex Fund allocation found for ' + email + '. Please contact the ops team.' };
   }
 
-  // --- Save the uploaded receipt to Drive (optional) ---
+  // --- Policy: a receipt is required ---
+  var blob = form.receipt;
+  if (!(blob && typeof blob === 'object' && blob.getBytes && blob.getBytes().length > 0)) {
+    return { ok: false, error: 'A receipt is required. Please attach a photo or PDF of your receipt and submit again.' };
+  }
   var receipt = '';
   try {
-    var blob = form.receipt;
-    if (blob && typeof blob === 'object' && blob.getBytes && blob.getBytes().length > 0) {
-      receipt = saveReceipt_(blob, email, date);
-    }
+    receipt = saveReceipt_(blob, email, date);
   } catch (recErr) {
     Logger.log('Receipt save failed: ' + recErr.toString());
     return { ok: false, error: 'Your request was not submitted — the receipt upload failed. Please try a smaller file (or a PDF/image) and submit again.' };
