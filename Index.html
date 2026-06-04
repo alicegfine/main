@@ -90,8 +90,11 @@
   <body>
     <div class="wrap">
       <header>
-        <h1>Blueprint Flex Fund</h1>
+        <h1>Flex Fund</h1>
         <p id="greeting">Loading your balance…</p>
+        <p style="margin:0 0 20px;font-size:14px;">
+          <a href="https://coda.io/d/_dXjoZt3s5rz/Flex-Fund-pilot-procedure_suniNBqo" target="_blank" rel="noopener">📖 Read the Flex Fund policy &amp; procedure</a>
+        </p>
       </header>
 
       <div id="globalError" class="note error hidden"></div>
@@ -185,7 +188,7 @@
         document.getElementById('balances').innerHTML = html;
         document.getElementById('balances').classList.remove('hidden');
         document.getElementById('balanceFootnote').textContent =
-          'Work-life balances include an estimated 30% tax gross-up; the exact amount is set by payroll. ' +
+          'Work-life balances include an estimated 40% tax gross-up; the exact amount is set by payroll. ' +
           'Professional development funds may be topped up by your work-life balance. Balances reset January 1.';
       }
 
@@ -202,7 +205,7 @@
       document.getElementById('category').addEventListener('change', function() {
         var hint = document.getElementById('categoryHint');
         if (this.value === WL) {
-          hint.textContent = 'Work-life improvement may be taxable, so it will be grossed up (est. 30%) and drawn from your $3,000 work-life budget.';
+          hint.textContent = 'Work-life improvement may be taxable, so it will be grossed up (est. 40%) and drawn from your $3,000 work-life budget.';
           hint.className = 'hint taxable';
         } else if (this.value === PD) {
           hint.textContent = 'Professional development is not taxable. It draws your $2,000 prof-dev budget first, then any remaining work-life funds.';
