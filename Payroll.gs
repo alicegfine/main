@@ -23,7 +23,7 @@ function runGrossUpReplies() {
 
 function ingestGrossUpReplies_() {
   // Threads for our payroll emails (our sent message + Leanna's replies).
-  var threads = GmailApp.search('subject:"Flex Fund Reimbursement" newer_than:120d');
+  var threads = GmailApp.search('subject:"Flex Fund Reimbursement" newer_than:365d');
 
   var props = PropertiesService.getScriptProperties();
   var processed = {};
@@ -149,17 +149,17 @@ function matchField_(text, re) {
   return m ? m[1].toString().trim() : '';
 }
 
-/** The single dollar amount in text, or null if there are zero or more than one. */
+/** The single dollar amount in text, or null if there are zero or more than one.
+ *  Handles "$766.14", "766.14", "2,278.42", or a whole number — with or without a $. */
 function singleAmount_(text) {
   var found = [];
-  var m, re = /\$\s?([0-9][0-9,]*(?:\.[0-9]{1,2})?)/g;   // amounts written with a $
-  while ((m = re.exec(text)) !== null) found.push(parseAmount_(m[1]));
-  if (found.length === 0) {                               // fall back to bare decimals like 766.14
-    var re2 = /\b([0-9][0-9,]*\.[0-9]{2})\b/g;
-    while ((m = re2.exec(text)) !== null) found.push(parseAmount_(m[1]));
+  var m, re = /\$?\s*([0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/g;
+  while ((m = re.exec(text)) !== null) {
+    var v = parseAmount_(m[1]);
+    if (v > 0) found.push(v);
   }
   var uniq = [];
-  found.forEach(function(v) { if (v > 0 && uniq.indexOf(v) === -1) uniq.push(v); });
+  found.forEach(function(v) { if (uniq.indexOf(v) === -1) uniq.push(v); });
   return uniq.length === 1 ? uniq[0] : null;
 }
 
@@ -167,4 +167,22 @@ function singleAmount_(text) {
 function resetGrossUpProcessed() {
   PropertiesService.getScriptProperties().deleteProperty('grossup_processed_msgs');
   Logger.log('Gross-up processed-reply record cleared.');
+}
+
+/**
+ * One-time cleanup: blank the Actual Gross-Up and Paid columns and the
+ * processed-reply record, so runGrossUpReplies can repopulate everything
+ * from Leanna's replies (the source of truth). Use this once to clear the
+ * bad data the old journal importer wrote, then run runGrossUpReplies.
+ * Does not touch amounts, categories, or statuses.
+ */
+function resetGrossUpData() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.FORM_RESPONSES_SHEET);
+  var last = sheet.getLastRow();
+  if (last >= 2) {
+    sheet.getRange(2, CONFIG.FORM_COL.ACTUAL_GROSS_UP, last - 1, 1).clearContent();
+    sheet.getRange(2, CONFIG.FORM_COL.PAID, last - 1, 1).clearContent();
+  }
+  PropertiesService.getScriptProperties().deleteProperty('grossup_processed_msgs');
+  Logger.log('Cleared Actual Gross-Up + Paid columns and processed-reply record.');
 }
