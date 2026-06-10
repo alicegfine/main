@@ -50,7 +50,7 @@ by four different parties.
 | **Google Sheet — "Current Year Balances"** | Per-person allocations with start/end dates and FTE %; maintained by Operations |
 | **Google Drive — "Flex Fund Receipts"** | Uploaded receipts, auto-shared so approvers can view |
 | **Slack — #flex-fund-approvals** | Approval record: the approver's ✅ reaction and timestamp |
-| **Payroll (AJG/Gallagher)** | Actual payment + tax gross-up; **Payroll Journal Report (CSV)** issued each pay run |
+| **Payroll (AJG/Gallagher)** | Actual payment + tax gross-up. The grossed-up amount per reimbursement comes back as **Leanna's email reply** to the auto-sent payroll request |
 
 Balances are **computed from the request records** (allocation − non-declined requests,
 using the actual gross-up once payroll reports it), not hand-entered.
@@ -102,14 +102,15 @@ using the actual gross-up once payroll reports it), not hand-entered.
 - **FTE change:** update FTE % and re-prorate.
 - This sheet is the source of truth the app reads for allocations.
 
-### 6b. Reconcile payroll — each pay run
-- Leanna emails the **Payroll Journal Report (CSV)** after each semi-monthly run.
-- The automated importer (daily job) reads it from the Operations inbox and, per person,
-  matches each reimbursement to the open request, records the **actual gross-up**
-  (work-life) and the **paid date**, then DMs Operations a summary of what it applied and
-  anything it flagged.
-- **Review the summary.** Resolve flagged items by hand (e.g., when a person has multiple
-  same-amount open requests) by entering the paid date / actual gross-up on the correct row.
+### 6b. Reconcile payroll — gross-ups
+- When a reimbursement is approved, the script auto-emails Leanna; she **replies in the
+  same thread with the grossed-up amount** for that one reimbursement.
+- A daily automated job reads her replies, matches each to its request (by the requester
+  and amount in the original email in the thread), records the **actual gross-up** and a
+  **paid date**, and DMs Operations a summary of what it applied and anything it flagged.
+- **Review the summary.** Resolve flagged items by hand (e.g., a reply with more than one
+  number, or two same-amount requests) by entering the gross-up on the correct row's
+  **Actual Gross-Up** column.
 
 ### 6c. Exceptions
 - **Abandoned/withdrawn request:** set the row's **Status** to `declined` to release the
