@@ -22,8 +22,7 @@ function runGrossUpReplies() {
 }
 
 function ingestGrossUpReplies_() {
-  // Threads for our payroll emails (our sent message + Leanna's replies).
-  var threads = GmailApp.search('subject:"Flex Fund Reimbursement" newer_than:365d');
+  var threads = GmailApp.search('from:' + CONFIG.PAYROLL_EMAIL + ' subject:"Flex Fund Reimbursement" newer_than:365d');
 
   var props = PropertiesService.getScriptProperties();
   var processed = {};
@@ -36,50 +35,54 @@ function ingestGrossUpReplies_() {
   for (var t = 0; t < threads.length; t++) {
     var msgs = threads[t].getMessages();
 
-    // The request details live in the original email we sent (the message
-    // whose body contains the "Submitted by:" template line).
-    var who = '', baseAmt = 0;
-    for (var k = 0; k < msgs.length; k++) {
-      var ob = msgs[k].getPlainBody();
-      if (ob.indexOf('Submitted by:') !== -1) {
-        who = matchField_(ob, /Submitted by:\s*([^\s<>]+@[^\s<>]+)/i) || who;
-        var amt = parseAmount_(matchField_(ob, /Reimbursement amount \(USD\):\s*\$?([0-9.,]+)/i));
-        if (amt > 0) baseAmt = amt;
-        break;
-      }
-    }
-
-    // Process Leanna's replies in this thread.
     for (var m = 0; m < msgs.length; m++) {
       var msg = msgs[m];
-      if (msg.getFrom().toLowerCase().indexOf(CONFIG.PAYROLL_EMAIL.toLowerCase()) === -1) continue;
+      if (msg.getFrom().toLowerCase().indexOf(CONFIG.PAYROLL_EMAIL.toLowerCase()) === -1) continue;  // only Leanna's
       var id = msg.getId();
       if (processed[id]) continue;
 
       processed[id] = new Date().toISOString();
       changed = true;
 
-      var grossed = singleAmount_(newReplyText_(msg.getPlainBody()));
+      // Each of Leanna's replies quotes the original request email, so we read
+      // the request identity and the grossed-up amount from this one message.
+      var body = msg.getPlainBody();
+      var who = matchField_(body, /Submitted by:\s*([^\s<>]+@[^\s<>]+)/i);
+      var baseAmt = parseAmount_(matchField_(body, /Reimbursement amount \(USD\):\s*\$?([0-9.,]+)/i));
+      var grossed = grossUpFromReply_(body);
 
       if (!who || !(baseAmt > 0)) {
         summary.push(':warning: A reply from Leanna couldn’t be tied to a request (couldn’t read the original email) — please record by hand.');
         continue;
       }
       if (grossed === null) {
-        summary.push(':warning: ' + formatName_(who) + ' ($' + baseAmt.toFixed(2) + '): couldn’t read a single grossed-up amount in the reply — please record by hand.');
+        summary.push(':warning: ' + formatName_(who) + ' ($' + baseAmt.toFixed(2) + '): couldn’t read the grossed-up amount in the reply — please record by hand.');
         continue;
       }
 
-      var req = pickRequest_(requests, who, baseAmt);
-      if (!req) {
-        summary.push(':warning: ' + formatName_(who) + ' ($' + baseAmt.toFixed(2) + '): no matching open request, or already recorded — please check.');
+      // Find the request: same requester + amount.
+      var key = who.toLowerCase();
+      var same = requests.filter(function(r) { return r.email === key && Math.abs(r.amount - baseAmt) < 0.01; });
+      var open = same.filter(function(r) { return !r.done; });
+
+      if (open.length === 0 && same.length > 0) {
+        summary.push(':warning: ' + formatName_(who) + ' ($' + baseAmt.toFixed(2) + '): already recorded — likely a *duplicate* payroll email; please verify this reimbursement wasn’t paid twice.');
+        continue;
+      }
+      if (open.length > 1) {
+        summary.push(':warning: ' + formatName_(who) + ' ($' + baseAmt.toFixed(2) + '): more than one matching request — please record by hand.');
+        continue;
+      }
+      if (open.length === 0) {
+        summary.push(':warning: ' + formatName_(who) + ' ($' + baseAmt.toFixed(2) + '): no matching request found — please check.');
         continue;
       }
       if (grossed + 0.01 < baseAmt) {
-        summary.push(':warning: ' + formatName_(who) + ': grossed-up $' + grossed.toFixed(2) + ' is less than the $' + baseAmt.toFixed(2) + ' request — please check row ' + req.rowIndex + '.');
+        summary.push(':warning: ' + formatName_(who) + ': grossed-up $' + grossed.toFixed(2) + ' is less than the $' + baseAmt.toFixed(2) + ' request — please check row ' + open[0].rowIndex + '.');
         continue;
       }
 
+      var req = open[0];
       var actualGrossUp = round2_(grossed - baseAmt);
       var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.FORM_RESPONSES_SHEET);
       sheet.getRange(req.rowIndex, CONFIG.FORM_COL.ACTUAL_GROSS_UP).setValue(actualGrossUp);
@@ -124,13 +127,13 @@ function getRequestsForMatch_() {
   return rows;
 }
 
-/** The single not-yet-recorded request matching this requester + amount, or null. */
-function pickRequest_(requests, email, baseAmt) {
-  var key = email.toString().trim().toLowerCase();
-  var matches = requests.filter(function(r) {
-    return !r.done && r.email === key && Math.abs(r.amount - baseAmt) < 0.01;
-  });
-  return matches.length === 1 ? matches[0] : null;
+/** Read the grossed-up amount from Leanna's reply. Anchors on her standard
+ *  phrasing ("the grossed up amount is X"), which appears only in her reply,
+ *  never in the quoted original. Falls back to a single bare amount. */
+function grossUpFromReply_(body) {
+  var m = body.match(/grossed[-\s]?up\s+amount\s+is\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  if (m) return parseAmount_(m[1]);
+  return singleAmount_(newReplyText_(body));
 }
 
 /** The portion of an email body above the quoted original (i.e. Leanna's new text). */
