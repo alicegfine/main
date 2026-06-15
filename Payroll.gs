@@ -138,7 +138,14 @@ function grossUpFromReply_(body) {
 
 /** The portion of an email body above the quoted original (i.e. Leanna's new text). */
 function newReplyText_(body) {
-  var markers = [body.search(/\nOn .+wrote:/i), body.indexOf('Hi Leanna'), body.search(/\n>/)];
+  var markers = [
+    body.search(/\nOn .+wrote:/i),
+    body.indexOf('Hi Leanna'),
+    body.indexOf('Could you please add'),
+    body.indexOf('Submitted by:'),
+    body.indexOf('Reimbursement amount'),
+    body.search(/\n>/)
+  ];
   var cut = -1;
   for (var i = 0; i < markers.length; i++) {
     if (markers[i] > 0 && (cut === -1 || markers[i] < cut)) cut = markers[i];
