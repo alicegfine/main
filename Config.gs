@@ -71,11 +71,12 @@ var CONFIG = {
   },
 
   // --- Gross-Up ---
-  // Up-front estimate of the marginal tax rate used to reserve budget at
-  // submission time. Set conservatively (a bit high) so people don't slip
-  // over budget — observed actual gross-ups run ~33–41%. The ACTUAL gross-up
-  // from payroll later overrides this per request.
-  GROSS_UP_TAX_RATE: 0.40,
+  // Up-front estimate used to reserve budget at submission time. The ACTUAL
+  // gross-up comes back from payroll (Leanna's reply) and overrides this per
+  // request. Observed actuals are mostly ~7.65% (FICA only) up to ~19% for
+  // higher earners, so 15% is a slightly-conservative placeholder.
+  // Lower = more accurate; higher = more cushion against over-budget.
+  GROSS_UP_TAX_RATE: 0.15,
 
   // --- Allocations (full annual, per person, before proration) ---
   // Proration for FTE% and partial years is read from the Math sheet's
