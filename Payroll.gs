@@ -127,13 +127,16 @@ function getRequestsForMatch_() {
   return rows;
 }
 
-/** Read the grossed-up amount from Leanna's reply. Anchors on her standard
- *  phrasing ("the grossed up amount is X"), which appears only in her reply,
- *  never in the quoted original. Falls back to a single bare amount. */
+/** Read the grossed-up amount from Leanna's reply. Works on her new text only
+ *  (above the quoted original) so it never grabs an amount from a prior quoted
+ *  reply. Handles her phrasing variations — "the grossed up amount is X", "the
+ *  Gross up amount for this one is X", etc. — then falls back to a single bare
+ *  amount. */
 function grossUpFromReply_(body) {
-  var m = body.match(/grossed[-\s]?up\s+amount\s+is\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+  var text = newReplyText_(body);
+  var m = text.match(/gross(?:ed)?[-\s]?up\s+amount\b[\s\S]{0,40}?\bis\b\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
   if (m) return parseAmount_(m[1]);
-  return singleAmount_(newReplyText_(body));
+  return singleAmount_(text);
 }
 
 /** The portion of an email body above the quoted original (i.e. Leanna's new text). */
