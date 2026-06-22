@@ -21,9 +21,11 @@ let state = {
   scenarios: [],
   activeId: null,
   spacing: "normal",
+  report: "spread",
   compare: { on: false, ids: [] },
 };
 let zoom = null; // null => fit-to-width on next render
+let rosterFilter = ""; // roster search text
 
 const activeScenario = () => state.scenarios.find((s) => s.id === state.activeId) || state.scenarios[0];
 const currentOrg = () => state.scenarios[0]; // first scenario is "the current org"
@@ -42,8 +44,9 @@ function load() {
     if (!raw) return false;
     const parsed = JSON.parse(raw);
     if (!parsed.scenarios || !parsed.scenarios.length) return false;
-    state = { compare: { on: false, ids: [] }, spacing: "normal", ...parsed };
+    state = { compare: { on: false, ids: [] }, spacing: "normal", report: "spread", ...parsed };
     state.compare = state.compare || { on: false, ids: [] };
+    state.report = state.report || "spread";
     if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
       state.activeId = state.scenarios[0].id;
     }
@@ -185,6 +188,28 @@ function deleteScenario(id) {
 }
 
 // ---------------- roster editor ----------------
+// A label for a person, used in the manager picker and search.
+function personLabel(p) {
+  if (!p) return "";
+  return p.name ? `${p.name}${p.title ? " · " + p.title : ""}` : p.title || "(untitled role)";
+}
+
+// Map of lower-cased label -> id for resolving manager-picker typing back to a person.
+let labelToId = new Map();
+
+function rebuildManagerCandidates(people) {
+  labelToId = new Map();
+  const dl = $("#managerCandidates");
+  dl.innerHTML = "";
+  for (const p of people) {
+    const label = personLabel(p);
+    labelToId.set(label.toLowerCase(), p.id);
+    const opt = document.createElement("option");
+    opt.value = label;
+    dl.appendChild(opt);
+  }
+}
+
 function managerOptions(people, selfId, selectedId) {
   const frag = document.createDocumentFragment();
   const top = document.createElement("option");
@@ -207,6 +232,9 @@ function renderRail() {
   const s = activeScenario();
   $("#scenarioName").value = s.name;
   $("#spacingSelect").value = state.spacing;
+  $("#reportStyle").value = state.report;
+  const search = $("#rosterSearch");
+  if (search && search.value !== rosterFilter) search.value = rosterFilter;
   $("#rosterCount").textContent = `${s.people.length} ${s.people.length === 1 ? "person" : "people"}`;
 
   const isCurrent = s.id === currentOrg().id;
@@ -216,6 +244,7 @@ function renderRail() {
   $("#resetToCurrent").style.display = isCurrent ? "none" : "";
 
   renderBulk();
+  rebuildManagerCandidates(s.people);
 
   const list = $("#peopleList");
   list.innerHTML = "";
@@ -229,7 +258,20 @@ function renderRail() {
     return;
   }
 
-  for (const person of s.people) {
+  const q = rosterFilter.trim().toLowerCase();
+  const shown = q
+    ? s.people.filter((p) => `${p.name} ${p.title}`.toLowerCase().includes(q))
+    : s.people;
+
+  if (q && shown.length === 0) {
+    const none = document.createElement("div");
+    none.className = "empty-roster";
+    none.textContent = `No one matches “${rosterFilter}”.`;
+    list.appendChild(none);
+    return;
+  }
+
+  for (const person of shown) {
     list.appendChild(personCard(person, s));
   }
 }
@@ -278,17 +320,35 @@ function personCard(person, scenario) {
 
   const meta = document.createElement("div");
   meta.className = "meta";
-  const mgr = document.createElement("select");
-  mgr.title = "Reports to";
-  mgr.appendChild(managerOptions(scenario.people, person.id, person.managerId));
+  const mgr = document.createElement("input");
+  mgr.type = "text";
+  mgr.className = "mgr-input";
+  mgr.setAttribute("list", "managerCandidates");
+  mgr.placeholder = "Reports to (top of chart)";
+  mgr.title = "Reports to — start typing a name";
+  const mgrPerson = person.managerId ? scenario.people.find((p) => p.id === person.managerId) : null;
+  mgr.value = personLabel(mgrPerson);
   mgr.addEventListener("change", () => {
-    const newMgr = mgr.value || null;
-    if (wouldCreateCycle(scenario.people, person.id, newMgr)) {
-      toast("That would create a reporting loop.", true);
-      mgr.value = person.managerId || "";
+    const v = mgr.value.trim();
+    if (v === "") {
+      person.managerId = null;
+      save();
+      renderRail();
+      renderCanvas();
       return;
     }
-    person.managerId = newMgr;
+    const id = labelToId.get(v.toLowerCase());
+    if (!id) {
+      toast("No matching person — pick a name from the list.", true);
+      mgr.value = personLabel(scenario.people.find((p) => p.id === person.managerId));
+      return;
+    }
+    if (wouldCreateCycle(scenario.people, person.id, id)) {
+      toast("That would create a reporting loop.", true);
+      mgr.value = personLabel(scenario.people.find((p) => p.id === person.managerId));
+      return;
+    }
+    person.managerId = id;
     save();
     renderRail();
     renderCanvas();
@@ -315,7 +375,10 @@ function addPerson() {
   const s = activeScenario();
   const top = s.people.find((p) => !p.managerId);
   const p = newPerson({ title: "New role", managerId: top ? top.id : null, proposed: !isCurrentActive() });
-  s.people.push(p);
+  s.people.unshift(p); // add at the top, right under the button
+  rosterFilter = ""; // clear any filter so the new card is visible
+  const search = $("#rosterSearch");
+  if (search) search.value = "";
   save();
   renderRail();
   renderCanvas();
@@ -384,7 +447,7 @@ function applyBulk() {
 function buildChartFrame(people, opts) {
   const frame = document.createElement("div");
   frame.className = "chart-frame";
-  const { svg } = renderOrgSvg(people, { spacing: state.spacing, branding: brandingForRender(), ...opts });
+  const { svg } = renderOrgSvg(people, { spacing: state.spacing, report: state.report, branding: brandingForRender(), ...opts });
   // node click -> highlight roster card (single view only)
   svg.addEventListener("click", (e) => {
     const g = e.target.closest("[data-id]");
@@ -561,11 +624,60 @@ function exportCsv() {
 
 const slug = (s) => (s || "org-chart").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "org-chart";
 
+// ---------------- save / open project ----------------
+function saveProject() {
+  const data = {
+    app: "orgdraft",
+    version: 1,
+    savedAt: new Date().toISOString(),
+    scenarios: state.scenarios,
+    spacing: state.spacing,
+    report: state.report,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "orgdraft-project.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast("Saved a project file — keep it as a backup or send it to a colleague.");
+}
+
+function openProject(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    let parsed;
+    try {
+      parsed = JSON.parse(String(reader.result));
+    } catch (e) {
+      toast("That doesn’t look like a saved project file.", true);
+      return;
+    }
+    if (!parsed || !Array.isArray(parsed.scenarios) || !parsed.scenarios.length) {
+      toast("No scenarios found in that file.", true);
+      return;
+    }
+    if (!confirm("Open this file? It replaces what’s currently on screen (your work autosaves, but save a file first if unsure).")) return;
+    state.scenarios = parsed.scenarios;
+    state.spacing = parsed.spacing || "normal";
+    state.report = parsed.report || "spread";
+    state.activeId = state.scenarios[0].id;
+    state.compare = { on: false, ids: [] };
+    rosterFilter = "";
+    zoom = null;
+    save();
+    renderAll();
+    toast(`Opened ${state.scenarios.length} scenario${state.scenarios.length > 1 ? "s" : ""}.`);
+  };
+  reader.onerror = () => toast("Couldn’t read that file.", true);
+  reader.readAsText(file);
+}
+
 // ---------------- export image ----------------
 function exportSvgForActive() {
   // Render a fresh, natural-size SVG (independent of on-screen zoom).
   const s = activeScenario();
-  return renderOrgSvg(s.people, { spacing: state.spacing, branding: brandingForRender() }).svg;
+  return renderOrgSvg(s.people, { spacing: state.spacing, report: state.report, branding: brandingForRender() }).svg;
 }
 
 async function handleExport(kind) {
@@ -632,6 +744,24 @@ function wire() {
     zoom = null;
     save();
     renderCanvas();
+  });
+  $("#reportStyle").addEventListener("change", (e) => {
+    state.report = e.target.value;
+    zoom = null;
+    save();
+    renderCanvas();
+  });
+
+  $("#rosterSearch").addEventListener("input", (e) => {
+    rosterFilter = e.target.value;
+    renderRail();
+  });
+
+  $("#saveProject").addEventListener("click", saveProject);
+  $("#openProjectBtn").addEventListener("click", () => $("#openProjectInput").click());
+  $("#openProjectInput").addEventListener("change", (e) => {
+    if (e.target.files[0]) openProject(e.target.files[0]);
+    e.target.value = "";
   });
 
   $("#bulkApply").addEventListener("click", applyBulk);

@@ -62,9 +62,9 @@ function truncate(s, max) {
   return s.slice(0, Math.max(0, max - 1)).trimEnd() + "…";
 }
 
-// Build the connector path: parent down to a bus line, across, and down to each child.
+// Build connector paths. Parents are grouped; "bus" parents drop to a shared
+// horizontal bus, "stack" parents run a vertical spine with stubs to each child.
 function connectorPath(links) {
-  // Group by parent so each parent draws one clean bus.
   const byParent = new Map();
   for (const l of links) {
     if (!byParent.has(l.from)) byParent.set(l.from, []);
@@ -72,17 +72,19 @@ function connectorPath(links) {
   }
   let d = "";
   for (const group of byParent.values()) {
-    const { px, pBottom, busY } = group[0];
-    const childXs = group.map((g) => g.cx);
-    const minX = Math.min(px, ...childXs);
-    const maxX = Math.max(px, ...childXs);
-    // stem from parent to bus
-    d += `M ${px} ${pBottom} L ${px} ${busY} `;
-    // horizontal bus
-    d += `M ${minX} ${busY} L ${maxX} ${busY} `;
-    // drop to each child
-    for (const g of group) {
-      d += `M ${g.cx} ${busY} L ${g.cx} ${g.cTop} `;
+    if (group[0].type === "stack") {
+      const { spineX, spineTop } = group[0];
+      const bottom = Math.max(...group.map((g) => g.stubY));
+      d += `M ${spineX} ${spineTop} L ${spineX} ${bottom} `;
+      for (const g of group) d += `M ${spineX} ${g.stubY} L ${g.childLeft} ${g.stubY} `;
+    } else {
+      const { px, pBottom, busY } = group[0];
+      const childXs = group.map((g) => g.cx);
+      const minX = Math.min(px, ...childXs);
+      const maxX = Math.max(px, ...childXs);
+      d += `M ${px} ${pBottom} L ${px} ${busY} `;
+      d += `M ${minX} ${busY} L ${maxX} ${busY} `;
+      for (const g of group) d += `M ${g.cx} ${busY} L ${g.cx} ${g.cTop} `;
     }
   }
   return d.trim();

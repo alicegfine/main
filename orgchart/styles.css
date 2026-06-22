@@ -299,6 +299,20 @@ input[type="text"]:focus, select:focus {
 .person-card .row input[type="text"] { flex: 1; }
 .person-card .meta { display: flex; gap: 6px; align-items: center; }
 .person-card .meta select { flex: 1; font-size: 12px; padding: 5px 7px; }
+.person-card .meta .mgr-input { flex: 1; font-size: 12px; padding: 5px 7px; min-width: 0; }
+
+.roster-search {
+  width: 100%;
+  font-family: var(--body);
+  font-size: 13px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+  margin-bottom: 10px;
+}
+.roster-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .icon-toggle {
   border: 1px solid var(--line-strong);
   background: var(--panel);

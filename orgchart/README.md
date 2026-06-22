@@ -18,6 +18,13 @@ entirely in the browser. Staff data never leaves the machine.
   "Managing Director" the directors report into and the chart **reflows automatically**.
 - **Reassign reports in bulk** — pick a manager, tick several people, and move them all
   at once (e.g. point every director at a new Managing Director).
+- **Layout styles** — "Spread" (classic wide tree) or "Stacked", which lists each
+  manager's reports in a vertical column — much narrower and taller for flat orgs.
+- **Find a person** — search box to jump to anyone in a large roster; the "Reports to"
+  picker is a type-ahead so you don't scroll a list of everyone.
+- **Save / Open project** — export the whole project (all scenarios) to a `.json` file
+  as a backup or to hand to a colleague; open it to pick up where you left off. Day to
+  day, work also autosaves in the browser automatically.
 - **Branding** — accent/proposed colors, an optional export title, and a logo are set
   once in `src/brand.js` and applied to the chart and every export.
 - **Export** — PNG (2× for crisp slides), editable SVG (open in PowerPoint / Figma /

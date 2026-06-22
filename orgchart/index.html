@@ -52,6 +52,8 @@
             <button class="btn btn-small btn-ghost" id="exportCsvBtn">Export CSV</button>
           </div>
           <input type="file" id="csvInput" accept=".csv,text/csv" hidden />
+          <input type="search" id="rosterSearch" class="roster-search" placeholder="Find a person…" />
+          <datalist id="managerCandidates"></datalist>
           <div class="people-list" id="peopleList"></div>
         </section>
 
@@ -82,6 +84,13 @@
         <section class="rail-section">
           <div class="rail-head"><h2>Layout</h2></div>
           <label class="field">
+            <span>Report style</span>
+            <select id="reportStyle">
+              <option value="spread" selected>Spread (wide)</option>
+              <option value="stacked">Stacked (tall)</option>
+            </select>
+          </label>
+          <label class="field">
             <span>Spacing</span>
             <select id="spacingSelect">
               <option value="compact">Compact</option>
@@ -92,6 +101,12 @@
         </section>
 
         <footer class="rail-foot">
+          <p class="rail-hint">Your work autosaves in this browser. Save a file to back it up or share it.</p>
+          <div class="rail-toolbar">
+            <button class="btn btn-small" id="saveProject">Save file</button>
+            <button class="btn btn-small btn-ghost" id="openProjectBtn">Open file</button>
+          </div>
+          <input type="file" id="openProjectInput" accept=".json,application/json" hidden />
           <button class="btn btn-small btn-ghost danger" id="startFresh">Clear everything</button>
         </footer>
       </aside>
