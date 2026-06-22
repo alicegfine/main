@@ -18,8 +18,8 @@ entirely in the browser. Staff data never leaves the machine.
   "Managing Director" the directors report into and the chart **reflows automatically**.
 - **Reassign reports in bulk** — pick a manager, tick several people, and move them all
   at once (e.g. point every director at a new Managing Director).
-- **Branding** — set accent + proposed colors, an optional title, and a logo. These
-  apply to the chart and every export, and are saved with your work.
+- **Branding** — accent/proposed colors, an optional export title, and a logo are set
+  once in `src/brand.js` and applied to the chart and every export.
 - **Export** — PNG (2× for crisp slides), editable SVG (open in PowerPoint / Figma /
   Illustrator to hand-tweak), or copy the image straight to the clipboard.
 - **Autosaves** to the browser, so work survives a refresh.
@@ -36,8 +36,10 @@ entirely in the browser. Staff data never leaves the machine.
 5. To restructure quickly, use **Reassign reports**: pick the new manager, tick the
    people who should report to them, and click *Reassign selected*.
 6. **Compare** to see versions next to each other.
-7. Set colors / title / logo under **Branding** so charts match your deck.
-8. **Export ▾** → PNG for the deck, or SVG if you want to nudge boxes by hand.
+7. **Export ▾** → PNG for the deck, or SVG if you want to nudge boxes by hand.
+
+Brand colors, the export title, and the logo are configured in `src/brand.js`
+(not in the app UI) — see that file's comments.
 
 ### CSV format
 
@@ -96,7 +98,10 @@ orgchart/
   index.html        # app shell
   styles.css        # all styling
   sample-staff.csv  # example roster
+  server.js         # tiny static server for Node hosting (Railway)
+  package.json      # start script for Railway
   src/
+    brand.js        # brand colors / title / logo (edit to match your org)
     csv.js          # CSV import / export
     model.js        # data model, scenarios, forest building, cycle checks
     layout.js       # tidy top-down tree layout (pure geometry)
