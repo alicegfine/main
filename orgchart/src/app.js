@@ -16,11 +16,13 @@ const STORE_KEY = "orgdraft.v1";
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------- state ----------------
+const DEFAULT_BRANDING = { accent: "#2c6e68", proposed: "#b07419", title: "", logo: null };
 let state = {
   scenarios: [],
   activeId: null,
   spacing: "normal",
   compare: { on: false, ids: [] },
+  branding: { ...DEFAULT_BRANDING },
 };
 let zoom = null; // null => fit-to-width on next render
 
@@ -43,6 +45,7 @@ function load() {
     if (!parsed.scenarios || !parsed.scenarios.length) return false;
     state = { compare: { on: false, ids: [] }, spacing: "normal", ...parsed };
     state.compare = state.compare || { on: false, ids: [] };
+    state.branding = { ...DEFAULT_BRANDING, ...(parsed.branding || {}) };
     if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
       state.activeId = state.scenarios[0].id;
     }
@@ -214,6 +217,9 @@ function renderRail() {
     : "A what-if copy. Edits here don’t touch your current org.";
   $("#resetToCurrent").style.display = isCurrent ? "none" : "";
 
+  renderBulk();
+  syncBrandingControls();
+
   const list = $("#peopleList");
   list.innerHTML = "";
 
@@ -326,11 +332,93 @@ function addPerson() {
 
 const isCurrentActive = () => activeScenario().id === currentOrg().id;
 
+// ---------------- bulk reassign ----------------
+function renderBulk() {
+  const s = activeScenario();
+  const mgrSel = $("#bulkManager");
+  const prev = mgrSel.value;
+  mgrSel.innerHTML = "";
+  mgrSel.appendChild(managerOptions(s.people, null, prev || null));
+
+  const list = $("#bulkList");
+  list.innerHTML = "";
+  if (s.people.length === 0) {
+    list.innerHTML = '<div class="bulk-empty">No people yet.</div>';
+    return;
+  }
+  for (const p of s.people) {
+    const label = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = p.id;
+    const text = document.createElement("span");
+    text.innerHTML = `${p.name || "(unfilled)"}${p.title ? ` <span class="bl-title">· ${p.title}</span>` : ""}`;
+    label.append(cb, text);
+    list.appendChild(label);
+  }
+}
+
+function applyBulk() {
+  const s = activeScenario();
+  const targetId = $("#bulkManager").value || null;
+  const checked = [...$("#bulkList").querySelectorAll("input:checked")].map((c) => c.value);
+  if (checked.length === 0) {
+    toast("Tick the people you want to move first.", true);
+    return;
+  }
+  let moved = 0;
+  let skipped = 0;
+  for (const id of checked) {
+    if (id === targetId) { skipped++; continue; }
+    if (wouldCreateCycle(s.people, id, targetId)) { skipped++; continue; }
+    const person = s.people.find((p) => p.id === id);
+    if (person) { person.managerId = targetId; moved++; }
+  }
+  save();
+  renderRail();
+  renderCanvas();
+  renderTabs();
+  const mgr = targetId ? s.people.find((p) => p.id === targetId) : null;
+  const where = mgr ? mgr.name || mgr.title || "that role" : "the top";
+  toast(`Moved ${moved} to report to ${where}${skipped ? ` (${skipped} skipped to avoid a loop)` : ""}.`);
+}
+
+// ---------------- branding ----------------
+function syncBrandingControls() {
+  $("#brandAccent").value = state.branding.accent;
+  $("#brandProposed").value = state.branding.proposed;
+  $("#brandTitle").value = state.branding.title || "";
+  const has = !!state.branding.logo;
+  $("#logoClear").hidden = !has;
+  $("#logoName").textContent = has ? state.branding.logo.name || "logo set" : "";
+}
+
+function loadLogo(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataURL = String(reader.result);
+    const img = new Image();
+    img.onload = () => {
+      const h = 40;
+      const w = img.naturalWidth && img.naturalHeight ? Math.round((img.naturalWidth / img.naturalHeight) * h) : h;
+      state.branding.logo = { dataURL, w: Math.min(w, 220), h, name: file.name };
+      save();
+      renderRail();
+      renderCanvas();
+      toast("Logo added — it’ll appear on exports.");
+    };
+    img.onerror = () => toast("Couldn’t read that image.", true);
+    img.src = dataURL;
+  };
+  reader.onerror = () => toast("Couldn’t read that file.", true);
+  reader.readAsDataURL(file);
+}
+
 // ---------------- canvas ----------------
 function buildChartFrame(people, opts) {
   const frame = document.createElement("div");
   frame.className = "chart-frame";
-  const { svg } = renderOrgSvg(people, { spacing: state.spacing, ...opts });
+  const { svg } = renderOrgSvg(people, { spacing: state.spacing, branding: state.branding, ...opts });
   // node click -> highlight roster card (single view only)
   svg.addEventListener("click", (e) => {
     const g = e.target.closest("[data-id]");
@@ -511,7 +599,7 @@ const slug = (s) => (s || "org-chart").toLowerCase().replace(/[^a-z0-9]+/g, "-")
 function exportSvgForActive() {
   // Render a fresh, natural-size SVG (independent of on-screen zoom).
   const s = activeScenario();
-  return renderOrgSvg(s.people, { spacing: state.spacing }).svg;
+  return renderOrgSvg(s.people, { spacing: state.spacing, branding: state.branding }).svg;
 }
 
 async function handleExport(kind) {
@@ -577,6 +665,37 @@ function wire() {
     state.spacing = e.target.value;
     zoom = null;
     save();
+    renderCanvas();
+  });
+
+  $("#bulkApply").addEventListener("click", applyBulk);
+
+  $("#brandAccent").addEventListener("input", (e) => {
+    state.branding.accent = e.target.value;
+    save();
+    renderCanvas();
+  });
+  $("#brandProposed").addEventListener("input", (e) => {
+    state.branding.proposed = e.target.value;
+    save();
+    renderCanvas();
+  });
+  $("#brandTitle").addEventListener("input", (e) => {
+    state.branding.title = e.target.value;
+    zoom = null;
+    save();
+    renderCanvas();
+  });
+  $("#logoBtn").addEventListener("click", () => $("#logoInput").click());
+  $("#logoInput").addEventListener("change", (e) => {
+    if (e.target.files[0]) loadLogo(e.target.files[0]);
+    e.target.value = "";
+  });
+  $("#logoClear").addEventListener("click", () => {
+    state.branding.logo = null;
+    zoom = null;
+    save();
+    renderRail();
     renderCanvas();
   });
 

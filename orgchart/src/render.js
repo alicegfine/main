@@ -2,7 +2,7 @@
 // All visual attributes are inlined (not CSS classes) so the SVG exports faithfully
 // as a standalone file and rasterizes to PNG with no external dependencies.
 
-import { layoutOrg } from "./layout.js";
+import { layoutOrg, MARGIN } from "./layout.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -23,6 +23,31 @@ export const THEME = {
   link: "#A7B4BD",
   canvas: "#FFFFFF",
 };
+
+// --- color helpers so brand colors derive their own soft tints ---
+function hexToRgb(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec((hex || "").trim());
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : null;
+}
+function mixWithWhite(hex, weight) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return "#FFFFFF";
+  const mix = rgb.map((c) => Math.round(c + (255 - c) * weight));
+  return "#" + mix.map((c) => c.toString(16).padStart(2, "0")).join("");
+}
+
+// Build a chart theme from brand colors (accent + proposed). Soft fills are derived.
+export function themeFromBranding(branding = {}) {
+  const accent = branding.accent || THEME.accent;
+  const proposed = branding.proposed || THEME.ochre;
+  return {
+    ...THEME,
+    accent,
+    ochre: proposed,
+    proposedStroke: proposed,
+    proposedFill: mixWithWhite(proposed, 0.9),
+  };
+}
 
 function el(tag, attrs = {}, parent) {
   const n = document.createElementNS(SVG_NS, tag);
@@ -177,23 +202,85 @@ function drawNode(g, node, theme, margin) {
   }
 }
 
-// Returns an <svg> element. opts: { spacing, theme }
+// Draw an optional branding header (logo + title) at the top of the chart.
+// Returns the header height so the chart can be shifted down by that amount.
+function drawHeader(svg, branding, theme, width) {
+  const title = (branding.title || "").trim();
+  const logo = branding.logo; // { dataURL, w, h } scaled to ~40px tall, or null
+  if (!title && !logo) return 0;
+
+  const padX = MARGIN;
+  const logoH = 40;
+  const headerH = 76;
+  let cursorX = padX;
+
+  const g = el("g", {}, svg);
+  if (logo && logo.dataURL) {
+    const img = el(
+      "image",
+      {
+        x: padX,
+        y: (headerH - logoH) / 2,
+        height: logoH,
+        width: logo.w || logoH,
+        preserveAspectRatio: "xMinYMid meet",
+      },
+      g
+    );
+    img.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", logo.dataURL);
+    img.setAttribute("href", logo.dataURL);
+    cursorX += (logo.w || logoH) + 16;
+  }
+  if (title) {
+    const t = el(
+      "text",
+      {
+        x: cursorX,
+        y: headerH / 2 + 6,
+        "font-family": NODE_FONT,
+        "font-size": 19,
+        "font-weight": 700,
+        fill: theme.ink,
+      },
+      g
+    );
+    t.textContent = title;
+  }
+  // hairline divider under the header
+  el(
+    "line",
+    { x1: padX, y1: headerH, x2: width - padX, y2: headerH, stroke: theme.nodeStroke, "stroke-width": 1 },
+    g
+  );
+  return headerH + 12;
+}
+
+// Returns an <svg> element. opts: { spacing, theme, branding }
 export function renderOrgSvg(people, opts = {}) {
-  const theme = opts.theme || THEME;
+  const branding = opts.branding || {};
+  const theme = opts.theme || (opts.branding ? themeFromBranding(branding) : THEME);
   const lay = layoutOrg(people, opts);
 
+  const totalW = lay.width;
   const svg = el("svg", {
     xmlns: SVG_NS,
-    width: lay.width,
-    height: lay.height,
-    viewBox: `0 0 ${lay.width} ${lay.height}`,
+    width: totalW,
+    height: lay.height, // updated below once header height is known
     "font-family": NODE_FONT,
   });
-  // white background so PNG/SVG drops onto any slide cleanly
-  el("rect", { x: 0, y: 0, width: lay.width, height: lay.height, fill: theme.canvas }, svg);
+  const bg = el("rect", { x: 0, y: 0, width: totalW, height: lay.height, fill: theme.canvas }, svg);
+
+  const headerH = drawHeader(svg, branding, theme, totalW);
+  const totalH = lay.height + headerH;
+  svg.setAttribute("height", totalH);
+  svg.setAttribute("viewBox", `0 0 ${totalW} ${totalH}`);
+  bg.setAttribute("height", totalH);
+
+  // shift the whole chart below the header
+  const content = el("g", headerH ? { transform: `translate(0,${headerH})` } : {}, svg);
 
   // connectors first (under the cards)
-  const linksG = el("g", {}, svg);
+  const linksG = el("g", {}, content);
   el(
     "path",
     {
@@ -206,7 +293,7 @@ export function renderOrgSvg(people, opts = {}) {
     linksG
   );
 
-  const nodesG = el("g", {}, svg);
+  const nodesG = el("g", {}, content);
   for (const node of lay.nodes) drawNode(nodesG, node, theme, lay.margin);
 
   return { svg, layout: lay };

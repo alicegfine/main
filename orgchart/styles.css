@@ -327,6 +327,49 @@ input[type="text"]:focus, select:focus {
 }
 .icon-del:hover { color: var(--danger); background: rgba(162, 59, 46, 0.08); }
 
+/* bulk reassign */
+.bulk-list {
+  max-height: 168px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bulk-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  padding: 4px 5px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.bulk-list label:hover { background: var(--panel-2); }
+.bulk-list .bl-title { color: var(--muted); font-size: 11px; }
+.bulk-empty { color: var(--faint); font-size: 12px; padding: 8px; text-align: center; }
+
+/* branding */
+.brand-colors { display: flex; gap: 18px; margin-bottom: 12px; }
+.color-field { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text); }
+.color-field input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+.color-field input[type="color"]::-webkit-color-swatch-wrapper { padding: 3px; }
+.color-field input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+.logo-row { display: flex; align-items: center; gap: 8px; }
+.logo-name { font-family: var(--mono); font-size: 10.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .empty-roster {
   text-align: center;
   color: var(--muted);

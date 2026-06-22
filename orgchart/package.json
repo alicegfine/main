@@ -1,0 +1,13 @@
+{
+  "name": "orgdraft",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Web app for drafting, comparing, and exporting board-ready org charts.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

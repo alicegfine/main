@@ -16,6 +16,10 @@ entirely in the browser. Staff data never leaves the machine.
 - **Compare** — view scenarios side by side with a diff readout (`+1 new · 3 moved`).
 - **Proposed roles** — mark a role as not-yet-hired (shown as a dashed box). Add a
   "Managing Director" the directors report into and the chart **reflows automatically**.
+- **Reassign reports in bulk** — pick a manager, tick several people, and move them all
+  at once (e.g. point every director at a new Managing Director).
+- **Branding** — set accent + proposed colors, an optional title, and a logo. These
+  apply to the chart and every export, and are saved with your work.
 - **Export** — PNG (2× for crisp slides), editable SVG (open in PowerPoint / Figma /
   Illustrator to hand-tweak), or copy the image straight to the clipboard.
 - **Autosaves** to the browser, so work survives a refresh.
@@ -29,8 +33,11 @@ entirely in the browser. Staff data never leaves the machine.
 4. To draft an unfilled role: **+ Add person**, leave the name blank, give it a title,
    set who it reports to, and click the **◇** toggle to mark it *Proposed*. Point the
    relevant people at it and the layout reflows.
-5. **Compare** to see versions next to each other.
-6. **Export ▾** → PNG for the deck, or SVG if you want to nudge boxes by hand.
+5. To restructure quickly, use **Reassign reports**: pick the new manager, tick the
+   people who should report to them, and click *Reassign selected*.
+6. **Compare** to see versions next to each other.
+7. Set colors / title / logo under **Branding** so charts match your deck.
+8. **Export ▾** → PNG for the deck, or SVG if you want to nudge boxes by hand.
 
 ### CSV format
 
@@ -59,9 +66,28 @@ python3 -m http.server 8000      # then open http://localhost:8000
 # or: npx http-server -p 8000
 ```
 
-Hosting: drop the `orgchart/` folder on any static host — Netlify, Vercel,
-GitHub Pages, S3/CloudFront, or an internal share that serves static files.
-There's nothing to build and no server code.
+### Deploy to Railway
+
+This folder ships with a tiny zero-dependency Node server (`server.js`) and a
+`package.json` whose `start` script runs it, binding to Railway's `$PORT`.
+
+1. In Railway: **New Project → Deploy from GitHub repo**, pick this repo and branch.
+2. Open the service → **Settings → Root Directory** and set it to `orgchart`
+   (this repo's root holds unrelated files; the app lives in `orgchart/`).
+3. Railway auto-detects Node, runs `npm start`, and serves the app. No build step,
+   no env vars needed.
+4. **Settings → Networking → Generate Domain** to get a public URL.
+
+To redeploy, push to the branch — Railway rebuilds automatically.
+
+(If you'd rather not set a root directory, you can instead move the `orgchart/`
+contents to the repo root, or point any other static host at this folder.)
+
+### Other static hosts
+
+It's also just static files, so you can drop the `orgchart/` folder on Netlify,
+Vercel, GitHub Pages, or S3/CloudFront. (Those don't need `server.js` — it's only
+there for Railway-style Node hosting.)
 
 ## Project layout
 
