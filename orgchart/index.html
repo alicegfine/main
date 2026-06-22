@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OrgDraft — board-ready org charts</title>
+    <meta name="description" content="Draft, compare, and export org charts for the board." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">OrgDraft</span>
+        <span class="brand-sub">org charts for the board</span>
+      </div>
+
+      <nav class="scenario-tabs" id="scenarioTabs" aria-label="Scenarios"></nav>
+
+      <div class="topbar-actions">
+        <button class="btn btn-ghost" id="compareToggle" aria-pressed="false">Compare</button>
+        <div class="menu" id="exportMenu">
+          <button class="btn btn-primary" id="exportBtn" aria-haspopup="true" aria-expanded="false">
+            Export ▾
+          </button>
+          <div class="menu-panel" id="exportPanel" role="menu" hidden>
+            <button class="menu-item" data-export="png" role="menuitem">PNG image <span>for slides</span></button>
+            <button class="menu-item" data-export="svg" role="menuitem">SVG vector <span>to hand-tweak</span></button>
+            <button class="menu-item" data-export="copy" role="menuitem">Copy image <span>paste into a slide</span></button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="rail" id="rail">
+        <section class="rail-section">
+          <div class="rail-head">
+            <h2>Roster</h2>
+            <span class="counter" id="rosterCount">0 people</span>
+          </div>
+          <p class="rail-hint" id="scenarioHint"></p>
+          <div class="rail-toolbar">
+            <button class="btn btn-small" id="addPersonBtn">+ Add person</button>
+            <button class="btn btn-small btn-ghost" id="importBtn">Import CSV</button>
+            <button class="btn btn-small btn-ghost" id="exportCsvBtn">Export CSV</button>
+          </div>
+          <input type="file" id="csvInput" accept=".csv,text/csv" hidden />
+          <div class="people-list" id="peopleList"></div>
+        </section>
+
+        <section class="rail-section">
+          <div class="rail-head"><h2>This scenario</h2></div>
+          <label class="field">
+            <span>Name</span>
+            <input type="text" id="scenarioName" />
+          </label>
+          <div class="rail-toolbar">
+            <button class="btn btn-small btn-ghost" id="duplicateScenario">Duplicate</button>
+            <button class="btn btn-small btn-ghost" id="deleteScenario">Delete</button>
+            <button class="btn btn-small btn-ghost" id="resetToCurrent">Reset to current</button>
+          </div>
+        </section>
+
+        <section class="rail-section">
+          <div class="rail-head"><h2>Layout</h2></div>
+          <label class="field">
+            <span>Spacing</span>
+            <select id="spacingSelect">
+              <option value="compact">Compact</option>
+              <option value="normal" selected>Normal</option>
+              <option value="airy">Airy</option>
+            </select>
+          </label>
+        </section>
+
+        <footer class="rail-foot">
+          <button class="btn btn-small btn-ghost danger" id="startFresh">Clear everything</button>
+        </footer>
+      </aside>
+
+      <section class="canvas-wrap">
+        <div class="canvas-toolbar">
+          <div class="canvas-title" id="canvasTitle">Current org</div>
+          <div class="summary" id="summary"></div>
+          <div class="zoom" id="zoomControls">
+            <button class="btn btn-icon" id="zoomOut" title="Zoom out">−</button>
+            <span class="zoom-level" id="zoomLevel">100%</span>
+            <button class="btn btn-icon" id="zoomIn" title="Zoom in">+</button>
+            <button class="btn btn-small btn-ghost" id="fitBtn">Fit</button>
+          </div>
+        </div>
+
+        <div class="compare-bar" id="compareBar" hidden></div>
+
+        <div class="canvas-scroll" id="canvasScroll">
+          <div class="canvas-stage" id="stage"></div>
+        </div>
+
+        <div class="legend">
+          <span class="legend-item"><span class="swatch swatch-current"></span>Current role</span>
+          <span class="legend-item"><span class="swatch swatch-proposed"></span>Proposed / not yet hired</span>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
