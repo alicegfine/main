@@ -11,7 +11,7 @@ import {
 } from "./model.js";
 import { renderOrgSvg } from "./render.js";
 import { downloadPng, downloadSvg, copyPngToClipboard } from "./exporter.js";
-import { brandingForRender } from "./brand.js";
+import { BRAND, brandingForRender } from "./brand.js";
 
 const STORE_KEY = "orgdraft.v1";
 const $ = (sel) => document.querySelector(sel);
@@ -693,7 +693,20 @@ function wire() {
   });
 }
 
+// Expose brand colors to CSS so chrome (e.g. the legend) matches the chart.
+function applyBrandVars() {
+  const root = document.documentElement.style;
+  root.setProperty("--brand-accent", BRAND.accent);
+  root.setProperty("--brand-proposed", BRAND.proposed);
+  const rgb = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(BRAND.proposed || "");
+  if (rgb) {
+    const soft = [1, 2, 3].map((i) => Math.round(parseInt(rgb[i], 16) + (255 - parseInt(rgb[i], 16)) * 0.88));
+    root.setProperty("--brand-proposed-soft", `rgb(${soft.join(",")})`);
+  }
+}
+
 // ---------------- boot ----------------
+applyBrandVars();
 if (!load()) seed();
 wire();
 renderAll();

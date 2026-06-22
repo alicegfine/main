@@ -12,8 +12,8 @@
 //              logoW/logoH set its drawn size in px (keep the logo's aspect ratio).
 
 export const BRAND = {
-  accent: "#2c6e68",
-  proposed: "#b07419",
+  accent: "#04103f",
+  proposed: "#057eb6",
   title: "",
   logo: null,
   logoW: 120,

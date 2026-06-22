@@ -461,8 +461,8 @@ input[type="text"]:focus, select:focus {
 }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .swatch { width: 13px; height: 13px; border-radius: 3px; }
-.swatch-current { background: #fff; border: 1.5px solid var(--accent); }
-.swatch-proposed { background: var(--ochre-soft); border: 1.5px dashed var(--ochre); }
+.swatch-current { background: #fff; border: 1.5px solid var(--brand-accent, var(--accent)); }
+.swatch-proposed { background: var(--brand-proposed-soft, var(--ochre-soft)); border: 1.5px dashed var(--brand-proposed, var(--ochre)); }
 
 /* ---------- toast ---------- */
 .toast {
