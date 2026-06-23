@@ -9,7 +9,7 @@ import {
   summarize,
   diffAgainst,
 } from "./model.js";
-import { renderOrgSvg } from "./render.js";
+import { renderOrgSvg, themeFromBranding } from "./render.js";
 import { downloadPng, downloadSvg, copyPngToClipboard } from "./exporter.js";
 import { BRAND, brandingForRender } from "./brand.js";
 
@@ -21,7 +21,7 @@ let state = {
   scenarios: [],
   activeId: null,
   spacing: "normal",
-  report: "spread",
+  report: "tree",
   compare: { on: false, ids: [] },
 };
 let zoom = null; // null => fit-to-width on next render
@@ -44,9 +44,11 @@ function load() {
     if (!raw) return false;
     const parsed = JSON.parse(raw);
     if (!parsed.scenarios || !parsed.scenarios.length) return false;
-    state = { compare: { on: false, ids: [] }, spacing: "normal", report: "spread", ...parsed };
+    state = { compare: { on: false, ids: [] }, spacing: "normal", report: "tree", ...parsed };
     state.compare = state.compare || { on: false, ids: [] };
-    state.report = state.report || "spread";
+    // map older layout values to the current ones
+    const reportMap = { spread: "tree", stacked: "indented" };
+    state.report = reportMap[state.report] || state.report || "tree";
     if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
       state.activeId = state.scenarios[0].id;
     }
@@ -660,7 +662,7 @@ function openProject(file) {
     if (!confirm("Open this file? It replaces what’s currently on screen (your work autosaves, but save a file first if unsure).")) return;
     state.scenarios = parsed.scenarios;
     state.spacing = parsed.spacing || "normal";
-    state.report = parsed.report || "spread";
+    state.report = { spread: "tree", stacked: "indented" }[parsed.report] || parsed.report || "tree";
     state.activeId = state.scenarios[0].id;
     state.compare = { on: false, ids: [] };
     rosterFilter = "";
@@ -823,16 +825,13 @@ function wire() {
   });
 }
 
-// Expose brand colors to CSS so chrome (e.g. the legend) matches the chart.
+// Expose brand + level colors to CSS so the legend matches the chart.
 function applyBrandVars() {
   const root = document.documentElement.style;
   root.setProperty("--brand-accent", BRAND.accent);
   root.setProperty("--brand-proposed", BRAND.proposed);
-  const rgb = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(BRAND.proposed || "");
-  if (rgb) {
-    const soft = [1, 2, 3].map((i) => Math.round(parseInt(rgb[i], 16) + (255 - parseInt(rgb[i], 16)) * 0.88));
-    root.setProperty("--brand-proposed-soft", `rgb(${soft.join(",")})`);
-  }
+  const theme = themeFromBranding(brandingForRender());
+  theme.levels.forEach((c, i) => root.setProperty(`--lvl${i}`, c));
 }
 
 // ---------------- boot ----------------

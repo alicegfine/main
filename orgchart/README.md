@@ -18,8 +18,9 @@ entirely in the browser. Staff data never leaves the machine.
   "Managing Director" the directors report into and the chart **reflows automatically**.
 - **Reassign reports in bulk** — pick a manager, tick several people, and move them all
   at once (e.g. point every director at a new Managing Director).
-- **Layout styles** — "Spread" (classic wide tree) or "Stacked", which lists each
-  manager's reports in a vertical column — much narrower and taller for flat orgs.
+- **Layout styles** — "Tree" (classic top-down) or "Indented" (a compact outline,
+  one row per person) for broad/flat orgs. Each card has a header band colored by
+  level (exec → director → team) so seniority reads at a glance.
 - **Find a person** — search box to jump to anyone in a large roster; the "Reports to"
   picker is a type-ahead so you don't scroll a list of everyone.
 - **Save / Open project** — export the whole project (all scenarios) to a `.json` file

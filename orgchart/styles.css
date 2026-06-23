@@ -474,9 +474,10 @@ input[type="text"]:focus, select:focus {
   backdrop-filter: blur(4px);
 }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.legend-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); }
+.legend-sep { width: 1px; height: 14px; background: var(--line); }
 .swatch { width: 13px; height: 13px; border-radius: 3px; }
-.swatch-current { background: #fff; border: 1.5px solid var(--brand-accent, var(--accent)); }
-.swatch-proposed { background: var(--brand-proposed-soft, var(--ochre-soft)); border: 1.5px dashed var(--brand-proposed, var(--ochre)); }
+.swatch-proposed { background: #fff; border: 1.5px dashed var(--brand-proposed, var(--accent)); }
 
 /* ---------- toast ---------- */
 .toast {

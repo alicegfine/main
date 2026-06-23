@@ -86,8 +86,8 @@
           <label class="field">
             <span>Report style</span>
             <select id="reportStyle">
-              <option value="spread" selected>Spread (wide)</option>
-              <option value="stacked">Stacked (tall)</option>
+              <option value="tree" selected>Tree (top-down)</option>
+              <option value="indented">Indented (compact)</option>
             </select>
           </label>
           <label class="field">
@@ -130,8 +130,12 @@
         </div>
 
         <div class="legend">
-          <span class="legend-item"><span class="swatch swatch-current"></span>Current role</span>
-          <span class="legend-item"><span class="swatch swatch-proposed"></span>Proposed / not yet hired</span>
+          <span class="legend-label">Level</span>
+          <span class="legend-item"><span class="swatch" style="background: var(--lvl0)"></span>Exec</span>
+          <span class="legend-item"><span class="swatch" style="background: var(--lvl1)"></span>Director</span>
+          <span class="legend-item"><span class="swatch" style="background: var(--lvl2)"></span>Team</span>
+          <span class="legend-sep"></span>
+          <span class="legend-item"><span class="swatch swatch-proposed"></span>Proposed</span>
         </div>
       </section>
     </main>

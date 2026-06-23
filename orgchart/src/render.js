@@ -1,30 +1,24 @@
-// Renders a laid-out org into an SVG element.
+// Renders a laid-out org into an SVG element (modern card style).
 // All visual attributes are inlined (not CSS classes) so the SVG exports faithfully
 // as a standalone file and rasterizes to PNG with no external dependencies.
 
 import { layoutOrg, MARGIN } from "./layout.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-
-// Node text uses a neutral system sans on purpose: guarantees identical preview
-// and export with zero web-font loading (no blank text in slides).
 const NODE_FONT =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
 export const THEME = {
   ink: "#16212B",
   muted: "#5A6B78",
-  accent: "#2C6E68",
-  ochre: "#B07419",
-  nodeFill: "#FFFFFF",
-  nodeStroke: "#C7D0D8",
-  proposedFill: "#FCF6EA",
-  proposedStroke: "#B07419",
-  link: "#A7B4BD",
+  accent: "#04103f",
+  link: "#9AAAB6",
   canvas: "#FFFFFF",
+  cardBorder: "#E4E9EF",
+  // header band color by depth (exec -> director -> team -> deeper). White text on all.
+  levels: ["#04103f", "#274b73", "#3f6c9c", "#6285a8"],
 };
 
-// --- color helpers so brand colors derive their own soft tints ---
 function hexToRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec((hex || "").trim());
   return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : null;
@@ -36,17 +30,15 @@ function mixWithWhite(hex, weight) {
   return "#" + mix.map((c) => c.toString(16).padStart(2, "0")).join("");
 }
 
-// Build a chart theme from brand colors (accent + proposed). Soft fills are derived.
 export function themeFromBranding(branding = {}) {
   const accent = branding.accent || THEME.accent;
-  const proposed = branding.proposed || THEME.ochre;
-  return {
-    ...THEME,
-    accent,
-    ochre: proposed,
-    proposedStroke: proposed,
-    proposedFill: mixWithWhite(proposed, 0.9),
-  };
+  const levels = [accent, mixWithWhite(accent, 0.28), mixWithWhite(accent, 0.46), mixWithWhite(accent, 0.6)];
+  return { ...THEME, accent, proposed: branding.proposed || "#057eb6", levels };
+}
+
+export function levelColor(theme, depth) {
+  const l = theme.levels || THEME.levels;
+  return l[Math.min(depth, l.length - 1)];
 }
 
 function el(tag, attrs = {}, parent) {
@@ -62,8 +54,16 @@ function truncate(s, max) {
   return s.slice(0, Math.max(0, max - 1)).trimEnd() + "…";
 }
 
-// Build connector paths. Parents are grouped; "bus" parents drop to a shared
-// horizontal bus, "stack" parents run a vertical spine with stubs to each child.
+// Rounded rectangle path with independent top/bottom radii (for the header band).
+function roundRectPath(x, y, w, h, rTop, rBot) {
+  return (
+    `M ${x + rTop} ${y} H ${x + w - rTop} Q ${x + w} ${y} ${x + w} ${y + rTop} ` +
+    `V ${y + h - rBot} Q ${x + w} ${y + h} ${x + w - rBot} ${y + h} ` +
+    `H ${x + rBot} Q ${x} ${y + h} ${x} ${y + h - rBot} ` +
+    `V ${y + rTop} Q ${x} ${y} ${x + rTop} ${y} Z`
+  );
+}
+
 function connectorPath(links) {
   const byParent = new Map();
   for (const l of links) {
@@ -72,16 +72,16 @@ function connectorPath(links) {
   }
   let d = "";
   for (const group of byParent.values()) {
-    if (group[0].type === "stack") {
+    if (group[0].type === "indent") {
       const { spineX, spineTop } = group[0];
       const bottom = Math.max(...group.map((g) => g.stubY));
       d += `M ${spineX} ${spineTop} L ${spineX} ${bottom} `;
       for (const g of group) d += `M ${spineX} ${g.stubY} L ${g.childLeft} ${g.stubY} `;
     } else {
       const { px, pBottom, busY } = group[0];
-      const childXs = group.map((g) => g.cx);
-      const minX = Math.min(px, ...childXs);
-      const maxX = Math.max(px, ...childXs);
+      const xs = group.map((g) => g.cx);
+      const minX = Math.min(px, ...xs);
+      const maxX = Math.max(px, ...xs);
       d += `M ${px} ${pBottom} L ${px} ${busY} `;
       d += `M ${minX} ${busY} L ${maxX} ${busY} `;
       for (const g of group) d += `M ${g.cx} ${busY} L ${g.cx} ${g.cTop} `;
@@ -95,181 +95,137 @@ function drawNode(g, node, theme, margin) {
   const proposed = !!p.proposed;
   const x = node.x + margin;
   const y = node.y + margin;
+  const w = node.w;
+  const h = node.h;
+  const r = 11;
+  const bandH = Math.round(h * 0.42);
+  const lvl = levelColor(theme, node.depth || 0);
   const grp = el("g", { transform: `translate(${x},${y})`, "data-id": node.id, class: "node-hit" }, g);
 
   // card
-  el(
+  const card = el(
     "rect",
     {
       x: 0,
       y: 0,
-      width: node.w,
-      height: node.h,
-      rx: 9,
-      ry: 9,
-      fill: proposed ? theme.proposedFill : theme.nodeFill,
-      stroke: proposed ? theme.proposedStroke : theme.nodeStroke,
-      "stroke-width": proposed ? 1.6 : 1.2,
+      width: w,
+      height: h,
+      rx: r,
+      ry: r,
+      fill: proposed ? mixWithWhite(lvl, 0.93) : "#FFFFFF",
+      stroke: proposed ? theme.proposed : theme.cardBorder,
+      "stroke-width": proposed ? 1.6 : 1,
       "stroke-dasharray": proposed ? "5 4" : "0",
     },
     grp
   );
-  // accent spine on the left edge for identity
-  el(
-    "rect",
-    {
-      x: 0,
-      y: 0,
-      width: 4,
-      height: node.h,
-      rx: 2,
-      ry: 2,
-      fill: proposed ? theme.ochre : theme.accent,
-    },
-    grp
-  );
+  if (!proposed) card.setAttribute("filter", "url(#cardShadow)");
 
-  const padL = 16;
-  const maxChars = Math.floor((node.w - padL - 14) / 7.2);
-  const primaryText = p.name ? p.name : p.title || "Untitled role";
-  const secondaryText = p.name ? p.title : proposed ? "Proposed role" : "";
+  // header band (level color), rounded top corners only
+  el("path", { d: roundRectPath(0, 0, w, bandH, r, 2), fill: lvl, opacity: proposed ? 0.85 : 1 }, grp);
 
-  const t1 = el(
+  const padL = 13;
+  const maxChars = Math.floor((w - padL - 12) / 6.6);
+
+  // role/title sits in the band (white)
+  const role = el(
     "text",
     {
       x: padL,
-      y: secondaryText ? node.h / 2 - 4 : node.h / 2 + 5,
+      y: bandH / 2 + 4,
       "font-family": NODE_FONT,
-      "font-size": 14,
+      "font-size": 11,
       "font-weight": 600,
+      "letter-spacing": "0.01em",
+      fill: "#FFFFFF",
+    },
+    grp
+  );
+  role.textContent = truncate(p.title || (proposed ? "Proposed role" : "Role"), maxChars);
+
+  // name sits in the body (dark)
+  const name = el(
+    "text",
+    {
+      x: padL,
+      y: bandH + (h - bandH) / 2 + 5,
+      "font-family": NODE_FONT,
+      "font-size": 14.5,
+      "font-weight": 700,
       fill: theme.ink,
     },
     grp
   );
-  t1.textContent = truncate(primaryText, maxChars);
-
-  if (secondaryText) {
-    const t2 = el(
-      "text",
-      {
-        x: padL,
-        y: node.h / 2 + 14,
-        "font-family": NODE_FONT,
-        "font-size": 12,
-        "font-weight": 400,
-        fill: theme.muted,
-      },
-      grp
-    );
-    t2.textContent = truncate(secondaryText, maxChars + 3);
+  if (p.name) {
+    name.textContent = truncate(p.name, maxChars);
+  } else {
+    name.setAttribute("fill", theme.muted);
+    name.setAttribute("font-weight", "500");
+    name.setAttribute("font-style", "italic");
+    name.textContent = "Open seat";
   }
 
-  // "Proposed" pill in the top-right corner
+  // proposed pill in the band, top-right
   if (proposed) {
-    const pillW = 64;
-    el(
-      "rect",
-      {
-        x: node.w - pillW - 8,
-        y: 8,
-        width: pillW,
-        height: 16,
-        rx: 8,
-        ry: 8,
-        fill: theme.ochre,
-        opacity: 0.12,
-      },
-      grp
-    );
+    const pillW = 60;
+    el("rect", { x: w - pillW - 8, y: 6, width: pillW, height: 15, rx: 7.5, ry: 7.5, fill: "#FFFFFF", opacity: 0.22 }, grp);
     const pt = el(
       "text",
       {
-        x: node.w - pillW / 2 - 8,
-        y: 19.5,
+        x: w - pillW / 2 - 8,
+        y: 16.5,
         "font-family": NODE_FONT,
-        "font-size": 9.5,
+        "font-size": 9,
         "font-weight": 700,
         "letter-spacing": "0.06em",
         "text-anchor": "middle",
-        fill: theme.ochre,
+        fill: "#FFFFFF",
       },
       grp
     );
     pt.textContent = "PROPOSED";
   }
 
-  if (p.note) {
-    const title = el("title", {}, grp);
-    title.textContent = p.note;
-  }
+  if (p.note) el("title", {}, grp).textContent = p.note;
 }
 
-// Draw an optional branding header (logo + title) at the top of the chart.
-// Returns the header height so the chart can be shifted down by that amount.
 function drawHeader(svg, branding, theme, width) {
   const title = (branding.title || "").trim();
-  const logo = branding.logo; // { dataURL, w, h } scaled to ~40px tall, or null
+  const logo = branding.logo;
   if (!title && !logo) return 0;
-
   const padX = MARGIN;
   const logoH = 40;
   const headerH = 76;
   let cursorX = padX;
-
   const g = el("g", {}, svg);
   if (logo && logo.dataURL) {
-    const img = el(
-      "image",
-      {
-        x: padX,
-        y: (headerH - logoH) / 2,
-        height: logoH,
-        width: logo.w || logoH,
-        preserveAspectRatio: "xMinYMid meet",
-      },
-      g
-    );
+    const img = el("image", { x: padX, y: (headerH - logoH) / 2, height: logoH, width: logo.w || logoH, preserveAspectRatio: "xMinYMid meet" }, g);
     img.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", logo.dataURL);
     img.setAttribute("href", logo.dataURL);
     cursorX += (logo.w || logoH) + 16;
   }
   if (title) {
-    const t = el(
-      "text",
-      {
-        x: cursorX,
-        y: headerH / 2 + 6,
-        "font-family": NODE_FONT,
-        "font-size": 19,
-        "font-weight": 700,
-        fill: theme.ink,
-      },
-      g
-    );
+    const t = el("text", { x: cursorX, y: headerH / 2 + 6, "font-family": NODE_FONT, "font-size": 19, "font-weight": 700, fill: theme.ink }, g);
     t.textContent = title;
   }
-  // hairline divider under the header
-  el(
-    "line",
-    { x1: padX, y1: headerH, x2: width - padX, y2: headerH, stroke: theme.nodeStroke, "stroke-width": 1 },
-    g
-  );
+  el("line", { x1: padX, y1: headerH, x2: width - padX, y2: headerH, stroke: theme.cardBorder, "stroke-width": 1 }, g);
   return headerH + 12;
 }
 
-// Returns an <svg> element. opts: { spacing, theme, branding }
+// Returns an <svg> element. opts: { spacing, report, theme, branding }
 export function renderOrgSvg(people, opts = {}) {
   const branding = opts.branding || {};
   const theme = opts.theme || (opts.branding ? themeFromBranding(branding) : THEME);
   const lay = layoutOrg(people, opts);
 
   const totalW = lay.width;
-  const svg = el("svg", {
-    xmlns: SVG_NS,
-    width: totalW,
-    height: lay.height, // updated below once header height is known
-    "font-family": NODE_FONT,
-  });
+  const svg = el("svg", { xmlns: SVG_NS, width: totalW, height: lay.height, "font-family": NODE_FONT });
+
+  // soft drop shadow for cards
+  const defs = el("defs", {}, svg);
+  const filter = el("filter", { id: "cardShadow", x: "-20%", y: "-20%", width: "140%", height: "150%" }, defs);
+  el("feDropShadow", { dx: 0, dy: 1.5, stdDeviation: 3, "flood-color": "#0b1f3a", "flood-opacity": "0.16" }, filter);
+
   const bg = el("rect", { x: 0, y: 0, width: totalW, height: lay.height, fill: theme.canvas }, svg);
 
   const headerH = drawHeader(svg, branding, theme, totalW);
@@ -278,22 +234,9 @@ export function renderOrgSvg(people, opts = {}) {
   svg.setAttribute("viewBox", `0 0 ${totalW} ${totalH}`);
   bg.setAttribute("height", totalH);
 
-  // shift the whole chart below the header
   const content = el("g", headerH ? { transform: `translate(0,${headerH})` } : {}, svg);
 
-  // connectors first (under the cards)
-  const linksG = el("g", {}, content);
-  el(
-    "path",
-    {
-      d: connectorPath(lay.links),
-      fill: "none",
-      stroke: theme.link,
-      "stroke-width": 1.5,
-      "stroke-linecap": "round",
-    },
-    linksG
-  );
+  el("path", { d: connectorPath(lay.links), fill: "none", stroke: theme.link, "stroke-width": 1.6, "stroke-linecap": "round", "stroke-linejoin": "round" }, content);
 
   const nodesG = el("g", {}, content);
   for (const node of lay.nodes) drawNode(nodesG, node, theme, lay.margin);
