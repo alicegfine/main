@@ -59,10 +59,10 @@ var RECEIPTS_FOLDER_NAME = 'Flex Fund Receipts';
 
 /**
  * Web-callable: submit a new Flex Fund request from the web app.
- * Receives the HTML form element, so the receipt file input arrives as a
- * Blob. The submitter's identity comes from their Google session, never
- * the client. Form fields: date, description, amount, category, receipt
- * (file), explanation.
+ * Receives a plain object: { date, description, amount, category, explanation,
+ * receiptData (base64), receiptName, receiptType }. The receipt is sent as
+ * base64 text (more reliable than passing a form/file element). The submitter's
+ * identity comes from their Google session, never the client.
  */
 function submitFlexFundRequest(form) {
   var email = (Session.getActiveUser().getEmail() || '').trim().toLowerCase();
@@ -92,13 +92,14 @@ function submitFlexFundRequest(form) {
     return { ok: false, error: 'No Flex Fund allocation found for ' + email + '. Please contact the ops team.' };
   }
 
-  // --- Policy: a receipt is required ---
-  var blob = form.receipt;
-  if (!(blob && typeof blob === 'object' && blob.getBytes && blob.getBytes().length > 0)) {
+  // --- Policy: a receipt is required (sent as base64 from the browser) ---
+  if (!form.receiptData) {
     return { ok: false, error: 'A receipt is required. Please attach a photo or PDF of your receipt and submit again.' };
   }
   var receipt = '';
   try {
+    var bytes = Utilities.base64Decode(form.receiptData);
+    var blob = Utilities.newBlob(bytes, form.receiptType || 'application/octet-stream', form.receiptName || 'receipt');
     receipt = saveReceipt_(blob, email, date);
   } catch (recErr) {
     Logger.log('Receipt save failed: ' + recErr.toString());

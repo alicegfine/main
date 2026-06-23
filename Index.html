@@ -191,7 +191,7 @@
         document.getElementById('balances').innerHTML = html;
         document.getElementById('balances').classList.remove('hidden');
         document.getElementById('balanceFootnote').textContent =
-          'Work-life balances include an estimated 40% tax gross-up; the exact amount is set by payroll. ' +
+          'Work-life balances include an estimated tax gross-up; the exact amount is set by payroll. ' +
           'Professional development funds may be topped up by your work-life balance. Balances reset January 1.';
       }
 
@@ -221,28 +221,52 @@
       // --- Submit ---
       document.getElementById('requestForm').addEventListener('submit', function(ev) {
         ev.preventDefault();
-        var formEl = this;  // pass the whole form so the receipt file uploads
         var btn = document.getElementById('submitBtn');
         var result = document.getElementById('result');
         result.classList.add('hidden');
-
         btn.disabled = true;
         btn.textContent = 'Submitting…';
 
-        google.script.run
-          .withSuccessHandler(function(resp) {
-            btn.disabled = false;
-            btn.textContent = 'Submit request';
-            showResult(resp);
-          })
-          .withFailureHandler(function(err) {
-            btn.disabled = false;
-            btn.textContent = 'Submit request';
-            result.className = 'note error';
-            result.textContent = 'Submission failed: ' + err.message;
-            result.classList.remove('hidden');
-          })
-          .submitFlexFundRequest(formEl);
+        function fail(msg) {
+          btn.disabled = false;
+          btn.textContent = 'Submit request';
+          result.className = 'note error';
+          result.textContent = msg;
+          result.classList.remove('hidden');
+        }
+
+        function send(receiptData, receiptName, receiptType) {
+          var data = {
+            date: document.getElementById('date').value,
+            description: document.getElementById('description').value,
+            amount: document.getElementById('amount').value,
+            category: document.getElementById('category').value,
+            explanation: document.getElementById('explanation').value,
+            receiptData: receiptData || '',
+            receiptName: receiptName || '',
+            receiptType: receiptType || ''
+          };
+          google.script.run
+            .withSuccessHandler(function(resp) {
+              btn.disabled = false;
+              btn.textContent = 'Submit request';
+              showResult(resp);
+            })
+            .withFailureHandler(function(err) {
+              fail('Submission failed: ' + ((err && err.message) ? err.message : 'please try again or contact ops.'));
+            })
+            .submitFlexFundRequest(data);
+        }
+
+        var file = document.getElementById('receipt').files[0];
+        if (!file) { fail('A receipt is required. Please attach a photo or PDF.'); return; }
+
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          send(e.target.result.split(',')[1], file.name, file.type);  // strip the data: prefix
+        };
+        reader.onerror = function() { fail('Could not read the receipt file. Please try again.'); };
+        reader.readAsDataURL(file);
       });
 
       function showResult(resp) {
