@@ -236,10 +236,13 @@ export function renderOrgSvg(people, opts = {}) {
 
   const content = el("g", headerH ? { transform: `translate(0,${headerH})` } : {}, svg);
 
-  el("path", { d: connectorPath(lay.links), fill: "none", stroke: theme.link, "stroke-width": 1.6, "stroke-linecap": "round", "stroke-linejoin": "round" }, content);
+  // Connectors AND nodes share one origin (the margin offset) so lines always meet boxes.
+  const plot = el("g", { transform: `translate(${lay.margin},${lay.margin})` }, content);
 
-  const nodesG = el("g", {}, content);
-  for (const node of lay.nodes) drawNode(nodesG, node, theme, lay.margin);
+  el("path", { d: connectorPath(lay.links), fill: "none", stroke: theme.link, "stroke-width": 1.6, "stroke-linecap": "round", "stroke-linejoin": "round" }, plot);
+
+  const nodesG = el("g", {}, plot);
+  for (const node of lay.nodes) drawNode(nodesG, node, theme, 0);
 
   return { svg, layout: lay };
 }
