@@ -311,6 +311,15 @@ input[type="text"]:focus, select:focus {
   cursor: pointer;
   user-select: none;
 }
+.person-card .cat-row { display: flex; align-items: center; gap: 8px; }
+.person-card .cat-row > span {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+.person-card .cat-row select { flex: 1; font-size: 12px; padding: 5px 7px; }
 .person-card .mgr-flag input { accent-color: var(--accent); cursor: pointer; }
 .person-card .mgr-flag.locked { cursor: default; color: var(--faint); }
 .person-card .mgr-flag.locked input { cursor: default; }

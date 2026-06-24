@@ -9,7 +9,7 @@ import {
   summarize,
   diffAgainst,
 } from "./model.js";
-import { renderOrgSvg, themeFromBranding } from "./render.js";
+import { renderOrgSvg, themeFromBranding, CATEGORIES } from "./render.js";
 import { downloadPng, downloadSvg, copyPngToClipboard } from "./exporter.js";
 import { BRAND, brandingForRender } from "./brand.js";
 
@@ -188,11 +188,15 @@ Sam Whitfield,Program Officer,Reuben Hart,
 Nadia Cole,Policy Analyst,Lena Strand,
 Marcus Bell,Finance & Grants Lead,Theo Park,`;
   const people = peopleFromCsv(csv).people;
+  // Demo categories so the sample shows the color scheme (real rosters are set by hand).
+  const demoCategory = (t) =>
+    /Executive Director/.test(t) ? "executive" : /^Director of/.test(t) ? "director" : /Senior|Lead/.test(t) ? "manager" : "ic";
+  for (const p of people) p.category = demoCategory(p.title);
   const base = newScenario("Current org", people);
 
   // A second scenario illustrating the "what if we hired a Managing Director" idea.
   const variantPeople = clonePeople(people);
-  const md = newPerson({ name: "", title: "Managing Director", proposed: true });
+  const md = newPerson({ name: "", title: "Managing Director", proposed: true, category: "director" });
   const ed = variantPeople.find((p) => p.title === "Executive Director");
   md.managerId = ed.id;
   variantPeople.push(md);
@@ -529,6 +533,27 @@ function personCard(person, scenario) {
   });
   titleRow.append(title);
 
+  // Category drives the card color. Chosen by hand here (never auto-assigned).
+  const catRow = document.createElement("label");
+  catRow.className = "cat-row";
+  const catLabel = document.createElement("span");
+  catLabel.textContent = "Category";
+  const cat = document.createElement("select");
+  cat.className = "cat-select";
+  for (const c of CATEGORIES) {
+    const o = document.createElement("option");
+    o.value = c.key;
+    o.textContent = c.label;
+    if ((person.category || "ic") === c.key) o.selected = true;
+    cat.appendChild(o);
+  }
+  cat.addEventListener("change", () => {
+    person.category = cat.value;
+    save();
+    renderCanvas();
+  });
+  catRow.append(catLabel, cat);
+
   const meta = document.createElement("div");
   meta.className = "meta";
   const mgr = createManagerCombo(person, scenario);
@@ -570,7 +595,7 @@ function personCard(person, scenario) {
   });
   mgrRow.append(mgrCb, mgrText);
 
-  card.append(nameRow, titleRow, meta, mgrRow);
+  card.append(nameRow, titleRow, catRow, meta, mgrRow);
   return card;
 }
 

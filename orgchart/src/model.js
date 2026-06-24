@@ -16,6 +16,7 @@ export function newPerson(partial = {}) {
     managerId: partial.managerId ?? null,
     proposed: !!partial.proposed,
     isManager: !!partial.isManager,
+    category: partial.category || "ic",
     note: partial.note || "",
   };
 }

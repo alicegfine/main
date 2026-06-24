@@ -41,6 +41,22 @@ export function levelColor(theme, depth) {
   return l[Math.min(depth, l.length - 1)];
 }
 
+// The four manually-assigned role categories, darkest (executive) to lightest (IC),
+// reusing the theme's level palette. Order here drives the legend and pickers.
+export const CATEGORIES = [
+  { key: "executive", label: "Executive" },
+  { key: "director", label: "Director" },
+  { key: "manager", label: "Manager" },
+  { key: "ic", label: "IC" },
+];
+const CATEGORY_INDEX = { executive: 0, director: 1, manager: 2, ic: 3 };
+
+export function categoryColor(theme, category) {
+  const l = theme.levels || THEME.levels;
+  const idx = CATEGORY_INDEX[category] ?? CATEGORY_INDEX.ic;
+  return l[Math.min(idx, l.length - 1)];
+}
+
 function el(tag, attrs = {}, parent) {
   const n = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
@@ -134,7 +150,7 @@ function drawNode(g, node, theme, margin) {
   const h = node.h;
   const r = 11;
   const cx = w / 2;
-  const lvl = levelColor(theme, node.depth || 0);
+  const lvl = categoryColor(theme, p.category);
   const grp = el("g", { transform: `translate(${x},${y})`, "data-id": node.id, class: "node-hit" }, g);
 
   // card
