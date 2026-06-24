@@ -204,14 +204,14 @@ body {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 6px;
-  min-width: 210px;
+  min-width: 256px;
   z-index: 40;
 }
 .menu-item {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 88px 1fr; /* fixed label column so descriptions align */
   align-items: baseline;
-  gap: 12px;
+  column-gap: 12px;
   width: 100%;
   text-align: left;
   border: none;
@@ -224,7 +224,7 @@ body {
   color: var(--text);
   cursor: pointer;
 }
-.menu-item span { font-family: var(--mono); font-size: 10.5px; color: var(--faint); font-weight: 400; }
+.menu-item span { font-family: var(--mono); font-size: 10.5px; color: var(--faint); font-weight: 400; white-space: nowrap; }
 .menu-item:hover { background: var(--accent-soft); }
 
 /* ---------- workspace ---------- */
