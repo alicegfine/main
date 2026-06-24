@@ -129,6 +129,17 @@ function layoutTopDown(roots, kidsOf, byId, sp, gridLeaves) {
 export function layoutOrg(people, opts = {}) {
   const sp = SPACING[opts.spacing] || SPACING.normal;
   const { roots, childrenOf, byId, issues } = buildForest(people);
+
+  // Optional stable left-to-right ordering: sort every sibling group by a caller-
+  // supplied rank (e.g. position in the current org) so scenarios stay aligned.
+  // Unranked people keep their existing relative order and fall in after ranked ones.
+  if (opts.order) {
+    const rank = (id) => (opts.order.has(id) ? opts.order.get(id) : Number.MAX_SAFE_INTEGER);
+    const cmp = (a, b) => rank(a) - rank(b); // stable sort keeps ties in insertion order
+    roots.sort(cmp);
+    for (const arr of childrenOf.values()) arr.sort(cmp);
+  }
+
   const kidsOf = (id, placed) => (childrenOf.get(id) || []).filter((k) => k !== id && !placed.has(k));
 
   const { nodes, links } = layoutTopDown(roots, kidsOf, byId, sp, opts.report !== "tree");

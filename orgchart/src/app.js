@@ -32,6 +32,21 @@ let rosterFilter = ""; // roster search text
 const activeScenario = () => state.scenarios.find((s) => s.id === state.activeId) || state.scenarios[0];
 const currentOrg = () => state.scenarios[0]; // first scenario is "the current org"
 
+// Left-to-right ordering anchor: rank each person by their position in the current
+// org so every scenario draws siblings in the same order. People not in the current
+// org (e.g. a proposed new role) aren't ranked and fall in after the ones that are.
+function baselineOrder() {
+  const m = new Map();
+  const base = currentOrg();
+  if (base) base.people.forEach((p, i) => m.set(p.id, i));
+  return m;
+}
+
+// Shared options for every chart render/export, so they all order siblings the same.
+function chartOpts(extra) {
+  return { spacing: state.spacing, report: state.report, branding: brandingForRender(), order: baselineOrder(), ...extra };
+}
+
 function saveLocal() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
@@ -635,7 +650,7 @@ function applyBulk() {
 function buildChartFrame(people, opts) {
   const frame = document.createElement("div");
   frame.className = "chart-frame";
-  const { svg } = renderOrgSvg(people, { spacing: state.spacing, report: state.report, branding: brandingForRender(), ...opts });
+  const { svg } = renderOrgSvg(people, chartOpts(opts));
   // node click -> highlight roster card (single view only)
   svg.addEventListener("click", (e) => {
     const g = e.target.closest("[data-id]");
@@ -865,7 +880,7 @@ function openProject(file) {
 function exportSvgForActive() {
   // Render a fresh, natural-size SVG (independent of on-screen zoom).
   const s = activeScenario();
-  return renderOrgSvg(s.people, { spacing: state.spacing, report: state.report, branding: brandingForRender() }).svg;
+  return renderOrgSvg(s.people, chartOpts()).svg;
 }
 
 async function handleExport(kind) {
