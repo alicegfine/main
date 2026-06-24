@@ -9,8 +9,8 @@ entirely in the browser. Staff data never leaves the machine.
 
 ## What it does
 
-- **Load staff from a CSV** — columns `Name, Title, Reports To` (manager by name).
-  Also edit everyone directly in the app.
+- **Build the roster in the app** — add people, set titles, reporting lines, and a
+  role category for each, all from the roster editor.
 - **Scenarios** — keep several versions of the org in one place and switch between
   them with tabs. No juggling browser tabs.
 - **Compare** — view scenarios side by side with a diff readout (`+1 new · 3 moved`).
@@ -39,8 +39,8 @@ entirely in the browser. Staff data never leaves the machine.
 
 ## Using it
 
-1. **Import CSV** (or start from the sample that loads on first run).
-2. Edit names, titles, and reporting lines in the left rail. The chart updates live.
+1. Start from the sample that loads on first run, or **Clear everything** to begin fresh.
+2. Click **Edit people** to add names, titles, categories, and reporting lines. The chart updates live.
 3. To try a what-if: click **+** to duplicate the current org into a new scenario,
    then edit freely — the original is untouched. Use **Reset to current** to start over.
 4. To draft an unfilled role: **+ Add person**, leave the name blank, give it a title,
@@ -53,20 +53,6 @@ entirely in the browser. Staff data never leaves the machine.
 
 Brand colors, the export title, and the logo are configured in `src/brand.js`
 (not in the app UI) — see that file's comments.
-
-### CSV format
-
-| Column      | Required | Notes                                            |
-| ----------- | -------- | ------------------------------------------------ |
-| Name        | yes      | Leave blank for an unfilled/proposed role        |
-| Title       | —        | Role / job title                                 |
-| Reports To  | —        | The **Name** of the manager; blank = top of chart |
-| Proposed    | —        | `yes` / `true` / `x` to flag a not-yet-hired role |
-| Note        | —        | Free text, shown on hover                        |
-
-Headers are matched loosely (e.g. `Manager`, `Supervisor`, `Role` all work). A file
-with no recognizable header is read positionally as Name, Title, Reports To.
-See `sample-staff.csv`.
 
 ## Running / hosting
 
@@ -127,12 +113,10 @@ there for Railway-style Node hosting.)
 orgchart/
   index.html        # app shell
   styles.css        # all styling
-  sample-staff.csv  # example roster
   server.js         # tiny static server for Node hosting (Railway)
   package.json      # start script for Railway
   src/
     brand.js        # brand colors / title / logo (edit to match your org)
-    csv.js          # CSV import / export
     model.js        # data model, scenarios, forest building, cycle checks
     layout.js       # tidy top-down tree layout (pure geometry)
     render.js       # draws a scenario to SVG (inline styles -> faithful export)

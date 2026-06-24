@@ -1,5 +1,4 @@
 // OrgDraft controller: state, persistence, and all UI wiring.
-import { peopleFromCsv, peopleToCsv } from "./csv.js";
 import {
   newPerson,
   newScenario,
@@ -178,20 +177,26 @@ function load() {
 
 // A small, realistic seed so the first run shows what the tool does.
 function seed() {
-  const csv = `Name,Title,Reports To,Proposed
-Dr. Maya Okonkwo,Executive Director,,
-Reuben Hart,Director of Programs,Dr. Maya Okonkwo,
-Lena Strand,Director of Policy,Dr. Maya Okonkwo,
-Theo Park,Director of Operations,Dr. Maya Okonkwo,
-Priya Anand,Senior Program Officer,Reuben Hart,
-Sam Whitfield,Program Officer,Reuben Hart,
-Nadia Cole,Policy Analyst,Lena Strand,
-Marcus Bell,Finance & Grants Lead,Theo Park,`;
-  const people = peopleFromCsv(csv).people;
-  // Demo categories so the sample shows the color scheme (real rosters are set by hand).
-  const demoCategory = (t) =>
-    /Executive Director/.test(t) ? "executive" : /^Director of/.test(t) ? "director" : /Senior|Lead/.test(t) ? "manager" : "ic";
-  for (const p of people) p.category = demoCategory(p.title);
+  // [name, title, manager-name (or null), category]
+  const def = [
+    ["Dr. Maya Okonkwo", "Executive Director", null, "executive"],
+    ["Reuben Hart", "Director of Programs", "Dr. Maya Okonkwo", "director"],
+    ["Lena Strand", "Director of Policy", "Dr. Maya Okonkwo", "director"],
+    ["Theo Park", "Director of Operations", "Dr. Maya Okonkwo", "director"],
+    ["Priya Anand", "Senior Program Officer", "Reuben Hart", "manager"],
+    ["Sam Whitfield", "Program Officer", "Reuben Hart", "ic"],
+    ["Nadia Cole", "Policy Analyst", "Lena Strand", "ic"],
+    ["Marcus Bell", "Finance & Grants Lead", "Theo Park", "manager"],
+  ];
+  const byName = new Map();
+  const people = def.map(([name, title, , category]) => {
+    const p = newPerson({ name, title, category });
+    byName.set(name, p);
+    return p;
+  });
+  def.forEach(([, , manager], i) => {
+    if (manager) people[i].managerId = byName.get(manager).id;
+  });
   const base = newScenario("Current org", people);
 
   // A second scenario illustrating the "what if we hired a Managing Director" idea.
@@ -441,7 +446,7 @@ function renderRail() {
 
   const isCurrent = s.id === currentOrg().id;
   $("#scenarioHint").textContent = isCurrent
-    ? "Your live org. Click Edit people to add or change staff, or import a CSV."
+    ? "Your live org. Click Edit people to add or change staff."
     : "A what-if copy. Edits here don’t touch your current org.";
   $("#resetToCurrent").style.display = isCurrent ? "none" : "";
 
@@ -463,7 +468,7 @@ function renderRoster() {
     const empty = document.createElement("div");
     empty.className = "empty-roster";
     empty.style.gridColumn = "1 / -1";
-    empty.innerHTML = "No one here yet.<br />Add a person or import a CSV with <b>Name, Title, Reports To</b>.";
+    empty.innerHTML = "No one here yet.<br />Click <b>+ Add person</b> to start building your org.";
     list.appendChild(empty);
     return;
   }
@@ -819,37 +824,6 @@ function renderCompareBar() {
   }
 }
 
-// ---------------- CSV ----------------
-function importCsv(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    const { people, warnings } = peopleFromCsv(String(reader.result));
-    if (!people.length) {
-      toast(warnings[0] || "No people found in that file.", true);
-      return;
-    }
-    const s = activeScenario();
-    s.people = people;
-    zoom = null;
-    save();
-    renderAll();
-    if (warnings.length) toast(`Imported ${people.length}. Heads up: ${warnings[0]}`);
-    else toast(`Imported ${people.length} people.`);
-  };
-  reader.onerror = () => toast("Couldn't read that file.", true);
-  reader.readAsText(file);
-}
-
-function exportCsv() {
-  const s = activeScenario();
-  const blob = new Blob([peopleToCsv(s.people)], { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `${slug(s.name)}.csv`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-
 const slug = (s) => (s || "org-chart").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "org-chart";
 
 // ---------------- save / open project ----------------
@@ -951,13 +925,6 @@ function wire() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !$("#rosterModal").hidden) closeRosterModal();
   });
-  $("#importBtn").addEventListener("click", () => $("#csvInput").click());
-  $("#csvInput").addEventListener("change", (e) => {
-    if (e.target.files[0]) importCsv(e.target.files[0]);
-    e.target.value = "";
-  });
-  $("#exportCsvBtn").addEventListener("click", exportCsv);
-
   $("#scenarioName").addEventListener("input", (e) => {
     activeScenario().name = e.target.value;
     save();
