@@ -312,6 +312,8 @@ input[type="text"]:focus, select:focus {
   user-select: none;
 }
 .person-card .mgr-flag input { accent-color: var(--accent); cursor: pointer; }
+.person-card .mgr-flag.locked { cursor: default; color: var(--faint); }
+.person-card .mgr-flag.locked input { cursor: default; }
 
 .roster-search {
   width: 100%;

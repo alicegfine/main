@@ -17,10 +17,12 @@ const STORE_KEY = "orgdraft.v1";
 const $ = (sel) => document.querySelector(sel);
 
 // ---------------- state ----------------
+// The chart layout is fixed to a slide-fit grid of compact cards (the layout
+// controls were removed), so these never change at runtime.
 let state = {
   scenarios: [],
   activeId: null,
-  spacing: "normal",
+  spacing: "compact",
   report: "grid",
   compare: { on: false, ids: [] },
 };
@@ -55,8 +57,8 @@ function snapshot() {
 function applyData(data) {
   if (!data || !Array.isArray(data.scenarios) || !data.scenarios.length) return false;
   state.scenarios = data.scenarios;
-  state.spacing = data.spacing || "normal";
-  state.report = { spread: "tree", stacked: "grid", indented: "grid", compact: "grid" }[data.report] || data.report || "grid";
+  state.spacing = "compact"; // layout is fixed
+  state.report = "grid";
   if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
     state.activeId = state.scenarios[0].id;
   }
@@ -146,11 +148,10 @@ function load() {
     if (!raw) return false;
     const parsed = JSON.parse(raw);
     if (!parsed.scenarios || !parsed.scenarios.length) return false;
-    state = { compare: { on: false, ids: [] }, spacing: "normal", report: "grid", ...parsed };
+    state = { compare: { on: false, ids: [] }, ...parsed };
     state.compare = state.compare || { on: false, ids: [] };
-    // map older layout values to the current ones
-    const reportMap = { spread: "tree", stacked: "grid", indented: "grid", compact: "grid" };
-    state.report = reportMap[state.report] || state.report || "tree";
+    state.spacing = "compact"; // layout is fixed
+    state.report = "grid";
     if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
       state.activeId = state.scenarios[0].id;
     }
@@ -308,13 +309,17 @@ function firstNameKey(p) {
 const byFirstName = (a, b) => firstNameKey(a).localeCompare(firstNameKey(b));
 const sortedPeople = (people) => [...people].sort(byFirstName);
 
-// Who may appear in a "Reports to" / "New manager" picker: people explicitly flagged
-// as managers, plus anyone who already has at least one direct report. Falls back to
-// everyone only when nothing is flagged yet (so a brand-new org isn't unusable).
+// True when at least one other person reports to `id`.
+function hasDirectReports(people, id) {
+  return people.some((p) => p.managerId === id);
+}
+
+// Who may appear in a "Reports to" / "New manager" picker: people who already have a
+// direct report, plus anyone explicitly flagged as a manager. This is exactly the set
+// whose "Manager" box is ticked in the roster, so the two always agree.
 function managerCandidates(people) {
   const hasReport = new Set(people.filter((p) => p.managerId).map((p) => p.managerId));
-  const candidates = people.filter((p) => p.isManager || hasReport.has(p.id));
-  return candidates.length ? candidates : people;
+  return people.filter((p) => p.isManager || hasReport.has(p.id));
 }
 
 // A "reports to" combobox: shows the full, scrollable candidate list on click and
@@ -367,6 +372,8 @@ function createManagerCombo(person, scenario) {
     person.managerId = id || null;
     save();
     close(true);
+    renderRoster(); // the new manager now "has reports" -> tick their box & list them
+    renderBulk();
     renderCanvas();
   }
   function openPanel() {
@@ -411,8 +418,6 @@ function managerOptions(people, selfId, selectedId) {
 function renderRail() {
   const s = activeScenario();
   $("#scenarioName").value = s.name;
-  $("#spacingSelect").value = state.spacing;
-  $("#reportStyle").value = state.report;
   $("#rosterCount").textContent = `${s.people.length} ${s.people.length === 1 ? "person" : "people"}`;
 
   const isCurrent = s.id === currentOrg().id;
@@ -528,16 +533,24 @@ function personCard(person, scenario) {
 
   // Manager flag: marks this person as someone reports can be pointed at, which is
   // what populates the "Reports to" picker (so it doesn't list the whole org).
+  // Anyone who already has direct reports is a manager by definition — their box is
+  // ticked and locked; you can only toggle people who don't yet have reports.
+  const hasReports = hasDirectReports(scenario.people, person.id);
   const mgrRow = document.createElement("label");
-  mgrRow.className = "mgr-flag";
+  mgrRow.className = "mgr-flag" + (hasReports ? " locked" : "");
   const mgrCb = document.createElement("input");
   mgrCb.type = "checkbox";
-  mgrCb.checked = !!person.isManager;
+  mgrCb.checked = hasReports || !!person.isManager;
+  mgrCb.disabled = hasReports;
   const mgrText = document.createElement("span");
   mgrText.textContent = "Manager (appears in “Reports to”)";
+  mgrRow.title = hasReports
+    ? "Already has direct reports, so always a manager."
+    : "Tick to list this person in the “Reports to” picker.";
   mgrCb.addEventListener("change", () => {
     person.isManager = mgrCb.checked;
     save();
+    renderRoster(); // re-render so picker membership stays in sync
     renderBulk(); // refresh the "New manager" dropdown
   });
   mgrRow.append(mgrCb, mgrText);
@@ -834,8 +847,8 @@ function openProject(file) {
     }
     if (!confirm("Open this file? It replaces what’s currently on screen (your work autosaves, but save a file first if unsure).")) return;
     state.scenarios = parsed.scenarios;
-    state.spacing = parsed.spacing || "normal";
-    state.report = { spread: "tree", stacked: "grid", indented: "grid", compact: "grid" }[parsed.report] || parsed.report || "grid";
+    state.spacing = "compact"; // layout is fixed
+    state.report = "grid";
     state.activeId = state.scenarios[0].id;
     state.compare = { on: false, ids: [] };
     rosterFilter = "";
@@ -920,19 +933,6 @@ function wire() {
     save();
     renderAll();
     toast("Reset to match the current org.");
-  });
-
-  $("#spacingSelect").addEventListener("change", (e) => {
-    state.spacing = e.target.value;
-    zoom = null;
-    save();
-    renderCanvas();
-  });
-  $("#reportStyle").addEventListener("change", (e) => {
-    state.report = e.target.value;
-    zoom = null;
-    save();
-    renderCanvas();
   });
 
   $("#rosterSearch").addEventListener("input", (e) => {

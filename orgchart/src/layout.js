@@ -9,14 +9,15 @@
 import { buildForest } from "./model.js";
 
 // Cards are portrait (taller than wide): a thicker header band holds the wrapped
-// title, and the body stacks first name over last name.
+// title, and the body stacks first name over last name. The app fixes the layout to
+// "compact"; the other presets are kept for completeness but aren't selectable.
 export const SPACING = {
   normal: { nodeW: 140, nodeH: 148, hGap: 26, vGap: 46, rootGap: 42, gridVGap: 44, gridRowGap: 26 },
-  compact: { nodeW: 124, nodeH: 130, hGap: 18, vGap: 34, rootGap: 30, gridVGap: 32, gridRowGap: 18 },
+  compact: { nodeW: 116, nodeH: 134, hGap: 14, vGap: 26, rootGap: 24, gridVGap: 26, gridRowGap: 14 },
   airy: { nodeW: 156, nodeH: 168, hGap: 36, vGap: 64, rootGap: 60, gridVGap: 60, gridRowGap: 34 },
 };
 
-export const MARGIN = 36;
+export const MARGIN = 24;
 
 function bounds(nodes, sp) {
   let maxRight = 0;

@@ -157,34 +157,36 @@ function drawNode(g, node, theme, margin) {
   if (!proposed) card.setAttribute("filter", "url(#cardShadow)");
 
   // header band (level color), rounded top corners only — holds the role, which wraps
-  // onto up to two lines so the band can be a chunky title bar.
-  const titleMax = Math.floor((w - 16) / 6.0);
+  // onto up to two lines so the band can be a chunky title bar. The band hugs its text
+  // (1 or 2 lines), but names are positioned off a FIXED reference height below, so a
+  // row of cards keeps its names on the same baseline regardless of title length.
+  const BAND_REF = 40; // height a two-line title would need; the name anchor
+  const titleMax = Math.floor((w - 14) / 6.4);
   const titleLines = wrapLines(p.title || (proposed ? "Proposed role" : "Role"), titleMax, 2);
-  const bandH = titleLines.length > 1 ? 46 : 32;
+  const bandH = titleLines.length > 1 ? BAND_REF : 28;
   el("path", { d: roundRectPath(0, 0, w, bandH, r, 2), fill: lvl, opacity: proposed ? 0.9 : 1 }, grp);
-  const titleStartY = titleLines.length > 1 ? bandH / 2 - 3 : bandH / 2 + 4;
+  const titleStartY = titleLines.length > 1 ? bandH / 2 - 4 : bandH / 2 + 4;
   titleLines.forEach((ln, i) => {
     const role = el(
       "text",
-      { x: cx, y: titleStartY + i * 13, "font-family": NODE_FONT, "font-size": 10.5, "font-weight": 600, "letter-spacing": "0.02em", "text-anchor": "middle", fill: "#FFFFFF" },
+      { x: cx, y: titleStartY + i * 14, "font-family": NODE_FONT, "font-size": 12, "font-weight": 600, "letter-spacing": "0.01em", "text-anchor": "middle", fill: "#FFFFFF" },
       grp
     );
     role.textContent = ln;
   });
 
-  // body: first name on its own line, last name beneath it. Leave room for the
-  // proposed pill at the bottom when present.
-  const nameMax = Math.floor((w - 14) / 7.2);
-  const bodyTop = bandH;
-  const bodyBottom = proposed ? h - 26 : h;
-  const bodyMid = (bodyTop + bodyBottom) / 2;
+  // body: first name on its own line, last name beneath it. Centered in the region
+  // between the fixed band reference and the card bottom (minus the proposed pill), so
+  // names line up across cards even when their title bands differ in height.
+  const nameMax = Math.floor((w - 12) / 8.6);
+  const bodyMid = (BAND_REF + (proposed ? h - 26 : h)) / 2;
   if (p.name) {
     const lines = splitName(p.name).map((ln) => truncate(ln, nameMax));
-    const startY = lines.length === 2 ? bodyMid - 2 : bodyMid + 5;
+    const startY = lines.length === 2 ? bodyMid - 4 : bodyMid + 5;
     lines.forEach((ln, i) => {
       const t = el(
         "text",
-        { x: cx, y: startY + i * 18, "font-family": NODE_FONT, "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: theme.ink },
+        { x: cx, y: startY + i * 18, "font-family": NODE_FONT, "font-size": 16, "font-weight": 700, "text-anchor": "middle", fill: theme.ink },
         grp
       );
       t.textContent = ln;
@@ -192,7 +194,7 @@ function drawNode(g, node, theme, margin) {
   } else {
     const t = el(
       "text",
-      { x: cx, y: bodyMid + 5, "font-family": NODE_FONT, "font-size": 12.5, "font-weight": 500, "font-style": "italic", "text-anchor": "middle", fill: theme.muted },
+      { x: cx, y: bodyMid + 5, "font-family": NODE_FONT, "font-size": 14, "font-weight": 500, "font-style": "italic", "text-anchor": "middle", fill: theme.muted },
       grp
     );
     t.textContent = "Open seat";
