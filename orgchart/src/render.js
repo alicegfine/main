@@ -160,11 +160,12 @@ function drawNode(g, node, theme, margin) {
   // onto up to two lines so the band can be a chunky title bar. The band hugs its text
   // (1 or 2 lines), but names are positioned off a FIXED reference height below, so a
   // row of cards keeps its names on the same baseline regardless of title length.
-  const BAND_REF = 40; // height a two-line title would need; the name anchor
+  const BAND_REF = 40; // every band is this tall, so all cards look identical
   const titleMax = Math.floor((w - 14) / 6.4);
   const titleLines = wrapLines(p.title || (proposed ? "Proposed role" : "Role"), titleMax, 2);
-  const bandH = titleLines.length > 1 ? BAND_REF : 28;
+  const bandH = BAND_REF;
   el("path", { d: roundRectPath(0, 0, w, bandH, r, 2), fill: lvl, opacity: proposed ? 0.9 : 1 }, grp);
+  // Center the title in the band whether it's one line or two.
   const titleStartY = titleLines.length > 1 ? bandH / 2 - 4 : bandH / 2 + 4;
   titleLines.forEach((ln, i) => {
     const role = el(
