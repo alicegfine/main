@@ -47,14 +47,11 @@
           </div>
           <p class="rail-hint" id="scenarioHint"></p>
           <div class="rail-toolbar">
-            <button class="btn btn-small" id="addPersonBtn">+ Add person</button>
+            <button class="btn btn-small" id="editPeopleBtn">Edit people</button>
             <button class="btn btn-small btn-ghost" id="importBtn">Import CSV</button>
             <button class="btn btn-small btn-ghost" id="exportCsvBtn">Export CSV</button>
           </div>
           <input type="file" id="csvInput" accept=".csv,text/csv" hidden />
-          <input type="search" id="rosterSearch" class="roster-search" placeholder="Find a person…" />
-          <datalist id="managerCandidates"></datalist>
-          <div class="people-list" id="peopleList"></div>
         </section>
 
         <section class="rail-section">
@@ -141,6 +138,18 @@
     </main>
 
     <div class="toast" id="toast" hidden></div>
+
+    <div class="modal-overlay" id="rosterModal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-label="Edit roster">
+        <div class="modal-head">
+          <h2 id="modalTitle">Roster</h2>
+          <input type="search" id="rosterSearch" class="roster-search" placeholder="Search name or title…" />
+          <button class="btn btn-small" id="modalAddPerson">+ Add person</button>
+          <button class="modal-close" id="rosterModalClose" aria-label="Close">×</button>
+        </div>
+        <div class="modal-body" id="modalPeopleList"></div>
+      </div>
+    </div>
 
     <script type="module" src="./src/app.js"></script>
   </body>

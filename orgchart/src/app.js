@@ -298,20 +298,77 @@ function personLabel(p) {
   return p.name ? `${p.name}${p.title ? " · " + p.title : ""}` : p.title || "(untitled role)";
 }
 
-// Map of lower-cased label -> id for resolving manager-picker typing back to a person.
-let labelToId = new Map();
+// A "reports to" combobox: shows the full, scrollable candidate list on click and
+// filters as you type. Picking an option sets the manager; "Top of chart" clears it.
+function createManagerCombo(person, scenario) {
+  const wrap = document.createElement("div");
+  wrap.className = "combo";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "combo-input";
+  input.placeholder = "Reports to (top of chart)";
+  const panel = document.createElement("div");
+  panel.className = "combo-panel";
+  panel.hidden = true;
+  wrap.append(input, panel);
 
-function rebuildManagerCandidates(people) {
-  labelToId = new Map();
-  const dl = $("#managerCandidates");
-  dl.innerHTML = "";
-  for (const p of people) {
-    const label = personLabel(p);
-    labelToId.set(label.toLowerCase(), p.id);
-    const opt = document.createElement("option");
-    opt.value = label;
-    dl.appendChild(opt);
+  const labelFor = () => personLabel(scenario.people.find((p) => p.id === person.managerId));
+  input.value = labelFor();
+  let open = false;
+
+  function build(filter) {
+    panel.innerHTML = "";
+    const f = (filter || "").trim().toLowerCase();
+    const items = [{ id: null, label: "— Top of chart —", top: true }];
+    for (const p of scenario.people) {
+      if (p.id === person.id) continue;
+      if (wouldCreateCycle(scenario.people, person.id, p.id)) continue; // can't report to a report
+      items.push({ id: p.id, label: personLabel(p) });
+    }
+    const shown = f ? items.filter((it) => it.label.toLowerCase().includes(f)) : items;
+    if (!shown.length) {
+      const e = document.createElement("div");
+      e.className = "combo-empty";
+      e.textContent = "No matches";
+      panel.appendChild(e);
+      return;
+    }
+    for (const it of shown) {
+      const row = document.createElement("div");
+      row.className = "combo-opt" + (it.top ? " top" : "") + (it.id === person.managerId ? " sel" : "");
+      row.textContent = it.label;
+      row.addEventListener("mousedown", (e) => {
+        e.preventDefault(); // keep focus; fires before blur
+        choose(it.id);
+      });
+      panel.appendChild(row);
+    }
   }
+  function choose(id) {
+    person.managerId = id || null;
+    save();
+    close(true);
+    renderCanvas();
+  }
+  function openPanel() {
+    open = true;
+    input.value = ""; // empty filter => the whole list shows
+    build("");
+    panel.hidden = false;
+  }
+  function close(picked) {
+    open = false;
+    panel.hidden = true;
+    input.value = labelFor();
+  }
+  input.addEventListener("focus", openPanel);
+  input.addEventListener("click", () => { if (!open) openPanel(); });
+  input.addEventListener("input", () => build(input.value));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && open) { e.stopPropagation(); input.blur(); }
+  });
+  input.addEventListener("blur", () => setTimeout(() => { if (open) close(false); }, 120));
+  return wrap;
 }
 
 function managerOptions(people, selfId, selectedId) {
@@ -337,47 +394,56 @@ function renderRail() {
   $("#scenarioName").value = s.name;
   $("#spacingSelect").value = state.spacing;
   $("#reportStyle").value = state.report;
-  const search = $("#rosterSearch");
-  if (search && search.value !== rosterFilter) search.value = rosterFilter;
   $("#rosterCount").textContent = `${s.people.length} ${s.people.length === 1 ? "person" : "people"}`;
 
   const isCurrent = s.id === currentOrg().id;
   $("#scenarioHint").textContent = isCurrent
-    ? "This is your live org. Import a CSV to load real staff, or edit below."
+    ? "Your live org. Click Edit people to add or change staff, or import a CSV."
     : "A what-if copy. Edits here don’t touch your current org.";
   $("#resetToCurrent").style.display = isCurrent ? "none" : "";
 
   renderBulk();
-  rebuildManagerCandidates(s.people);
+  renderRoster();
+}
 
-  const list = $("#peopleList");
+// Fills the roster modal's list (search + scrollable grid of editable cards).
+function renderRoster() {
+  const s = activeScenario();
+  const list = $("#modalPeopleList");
+  if (!list) return;
+  const search = $("#rosterSearch");
+  if (search && search.value !== rosterFilter) search.value = rosterFilter;
+  $("#modalTitle").textContent = `Roster — ${s.people.length} ${s.people.length === 1 ? "person" : "people"}`;
   list.innerHTML = "";
 
   if (s.people.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-roster";
-    empty.innerHTML =
-      "No one here yet.<br />Add a person or import a CSV with <b>Name, Title, Reports To</b>.";
+    empty.style.gridColumn = "1 / -1";
+    empty.innerHTML = "No one here yet.<br />Add a person or import a CSV with <b>Name, Title, Reports To</b>.";
     list.appendChild(empty);
     return;
   }
 
   const q = rosterFilter.trim().toLowerCase();
-  const shown = q
-    ? s.people.filter((p) => `${p.name} ${p.title}`.toLowerCase().includes(q))
-    : s.people;
-
+  const shown = q ? s.people.filter((p) => `${p.name} ${p.title}`.toLowerCase().includes(q)) : s.people;
   if (q && shown.length === 0) {
     const none = document.createElement("div");
     none.className = "empty-roster";
+    none.style.gridColumn = "1 / -1";
     none.textContent = `No one matches “${rosterFilter}”.`;
     list.appendChild(none);
     return;
   }
+  for (const person of shown) list.appendChild(personCard(person, s));
+}
 
-  for (const person of shown) {
-    list.appendChild(personCard(person, s));
-  }
+function openRosterModal() {
+  $("#rosterModal").hidden = false;
+  renderRoster();
+}
+function closeRosterModal() {
+  $("#rosterModal").hidden = true;
 }
 
 function personCard(person, scenario) {
@@ -403,7 +469,8 @@ function personCard(person, scenario) {
   del.addEventListener("click", () => {
     scenario.people = removePerson(scenario.people, person.id);
     save();
-    renderRail();
+    renderRoster();
+    renderBulk();
     renderCanvas();
     renderTabs();
   });
@@ -424,39 +491,7 @@ function personCard(person, scenario) {
 
   const meta = document.createElement("div");
   meta.className = "meta";
-  const mgr = document.createElement("input");
-  mgr.type = "text";
-  mgr.className = "mgr-input";
-  mgr.setAttribute("list", "managerCandidates");
-  mgr.placeholder = "Reports to (top of chart)";
-  mgr.title = "Reports to — start typing a name";
-  const mgrPerson = person.managerId ? scenario.people.find((p) => p.id === person.managerId) : null;
-  mgr.value = personLabel(mgrPerson);
-  mgr.addEventListener("change", () => {
-    const v = mgr.value.trim();
-    if (v === "") {
-      person.managerId = null;
-      save();
-      renderRail();
-      renderCanvas();
-      return;
-    }
-    const id = labelToId.get(v.toLowerCase());
-    if (!id) {
-      toast("No matching person — pick a name from the list.", true);
-      mgr.value = personLabel(scenario.people.find((p) => p.id === person.managerId));
-      return;
-    }
-    if (wouldCreateCycle(scenario.people, person.id, id)) {
-      toast("That would create a reporting loop.", true);
-      mgr.value = personLabel(scenario.people.find((p) => p.id === person.managerId));
-      return;
-    }
-    person.managerId = id;
-    save();
-    renderRail();
-    renderCanvas();
-  });
+  const mgr = createManagerCombo(person, scenario);
   const prop = document.createElement("button");
   prop.className = "icon-toggle";
   prop.innerHTML = "◇";
@@ -465,7 +500,7 @@ function personCard(person, scenario) {
   prop.addEventListener("click", () => {
     person.proposed = !person.proposed;
     save();
-    renderRail();
+    renderRoster();
     renderCanvas();
     renderTabs();
   });
@@ -479,15 +514,15 @@ function addPerson() {
   const s = activeScenario();
   const top = s.people.find((p) => !p.managerId);
   const p = newPerson({ title: "New role", managerId: top ? top.id : null, proposed: !isCurrentActive() });
-  s.people.unshift(p); // add at the top, right under the button
+  s.people.unshift(p); // add at the top of the list
   rosterFilter = ""; // clear any filter so the new card is visible
-  const search = $("#rosterSearch");
-  if (search) search.value = "";
+  if ($("#rosterModal").hidden) openRosterModal();
   save();
-  renderRail();
+  renderRoster();
+  renderBulk();
   renderCanvas();
   renderTabs();
-  const card = document.querySelector(`.person-card[data-id="${p.id}"]`);
+  const card = document.querySelector(`#modalPeopleList .person-card[data-id="${p.id}"]`);
   if (card) {
     card.scrollIntoView({ block: "nearest" });
     card.querySelector('input[type="text"]').focus();
@@ -818,7 +853,15 @@ function renderAll() {
 
 // ---------------- wiring ----------------
 function wire() {
-  $("#addPersonBtn").addEventListener("click", addPerson);
+  $("#editPeopleBtn").addEventListener("click", openRosterModal);
+  $("#modalAddPerson").addEventListener("click", addPerson);
+  $("#rosterModalClose").addEventListener("click", closeRosterModal);
+  $("#rosterModal").addEventListener("mousedown", (e) => {
+    if (e.target.id === "rosterModal") closeRosterModal(); // click on backdrop
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !$("#rosterModal").hidden) closeRosterModal();
+  });
   $("#importBtn").addEventListener("click", () => $("#csvInput").click());
   $("#csvInput").addEventListener("change", (e) => {
     if (e.target.files[0]) importCsv(e.target.files[0]);
@@ -858,7 +901,7 @@ function wire() {
 
   $("#rosterSearch").addEventListener("input", (e) => {
     rosterFilter = e.target.value;
-    renderRail();
+    renderRoster();
   });
 
   $("#saveProject").addEventListener("click", saveProject);
