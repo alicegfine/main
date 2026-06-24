@@ -1,16 +1,17 @@
 // Org-chart layout. Two modes:
-//   "tree"    - classic top-down: every level spreads horizontally (best for small orgs).
-//   "compact" - top-down, but a manager whose reports are all individuals stacks them
-//               in a vertical column beneath itself. Keeps the chart close to slide
-//               proportions (landscape) instead of one very wide row.
+//   "tree" - classic top-down: every level spreads in a single horizontal row.
+//   "grid" - top-down, but a manager whose reports are all individuals arranges them
+//            in a compact two-row "brick": a top row, then the rest tucked into the
+//            gaps below, lines dropping between the upper boxes. Keeps the chart from
+//            becoming one very wide row.
 // Pure geometry: takes a people list, returns node boxes + connector geometry.
 
 import { buildForest } from "./model.js";
 
 export const SPACING = {
-  normal: { nodeW: 162, nodeH: 86, hGap: 26, vGap: 46, rootGap: 40, stackIndent: 30, stackVGap: 22, stackGap: 12, spineInset: 16 },
-  compact: { nodeW: 146, nodeH: 76, hGap: 18, vGap: 34, rootGap: 30, stackIndent: 24, stackVGap: 16, stackGap: 9, spineInset: 13 },
-  airy: { nodeW: 178, nodeH: 98, hGap: 36, vGap: 64, rootGap: 60, stackIndent: 38, stackVGap: 30, stackGap: 16, spineInset: 20 },
+  normal: { nodeW: 162, nodeH: 86, hGap: 26, vGap: 46, rootGap: 42, gridVGap: 44, gridRowGap: 26 },
+  compact: { nodeW: 146, nodeH: 76, hGap: 18, vGap: 34, rootGap: 30, gridVGap: 32, gridRowGap: 18 },
+  airy: { nodeW: 178, nodeH: 98, hGap: 36, vGap: 64, rootGap: 60, gridVGap: 60, gridRowGap: 34 },
 };
 
 export const MARGIN = 36;
@@ -28,14 +29,14 @@ function bounds(nodes, sp) {
   };
 }
 
-// stackLeaves=false -> pure top-down tree; true -> all-leaf report groups stack vertically.
-function layoutTopDown(roots, kidsOf, byId, sp, stackLeaves) {
+function layoutTopDown(roots, kidsOf, byId, sp, gridLeaves) {
   const nodes = [];
   const placed = new Set();
+  const step = sp.nodeW + sp.hGap;
 
   function measure(id, depth) {
     placed.add(id);
-    const node = { id, person: byId.get(id), depth, w: sp.nodeW, h: sp.nodeH, x: 0, y: 0, kids: [], stacked: false };
+    const node = { id, person: byId.get(id), depth, w: sp.nodeW, h: sp.nodeH, x: 0, y: 0, kids: [], grid: null };
     nodes.push(node);
     node.kids = kidsOf(id, placed).map((k) => measure(k, depth + 1));
 
@@ -44,14 +45,20 @@ function layoutTopDown(roots, kidsOf, byId, sp, stackLeaves) {
       node.subH = sp.nodeH;
       return node;
     }
+    const n = node.kids.length;
     const allLeaves = node.kids.every((k) => k.kids.length === 0);
-    if (stackLeaves && allLeaves) {
-      node.stacked = true;
-      const stackH = node.kids.reduce((a, k) => a + k.h, 0) + (node.kids.length - 1) * sp.stackGap;
-      node.subW = sp.stackIndent + sp.nodeW;
-      node.subH = sp.nodeH + sp.stackVGap + stackH;
+    if (gridLeaves && allLeaves) {
+      // cols chosen so the second row has at most (cols-1) boxes -> each fits a top-row gap
+      const cols = n <= 1 ? 1 : Math.ceil((n + 1) / 2);
+      const r1 = Math.min(n, cols);
+      const r2 = n - r1;
+      const rows = r2 > 0 ? 2 : 1;
+      const blockW = (r1 - 1) * step + sp.nodeW;
+      node.grid = { cols, r1, r2, blockW };
+      node.subW = Math.max(sp.nodeW, blockW);
+      node.subH = sp.nodeH + sp.gridVGap + rows * sp.nodeH + (rows - 1) * sp.gridRowGap;
     } else {
-      const totalW = node.kids.reduce((a, k) => a + k.subW, 0) + (node.kids.length - 1) * sp.hGap;
+      const totalW = node.kids.reduce((a, k) => a + k.subW, 0) + (n - 1) * sp.hGap;
       node.subW = Math.max(sp.nodeW, totalW);
       node.subH = sp.nodeH + sp.vGap + Math.max(...node.kids.map((k) => k.subH));
     }
@@ -64,12 +71,21 @@ function layoutTopDown(roots, kidsOf, byId, sp, stackLeaves) {
       node.x = x + (node.subW - sp.nodeW) / 2;
       return;
     }
-    if (node.stacked) {
-      node.x = x;
-      let cy = y + sp.nodeH + sp.stackVGap;
-      for (const k of node.kids) {
-        assign(k, x + sp.stackIndent, cy);
-        cy += k.h + sp.stackGap;
+    if (node.grid) {
+      const { r1, r2, blockW } = node.grid;
+      const blockLeft = x + (node.subW - blockW) / 2;
+      node.x = blockLeft + (blockW - sp.nodeW) / 2;
+      const blockTop = y + sp.nodeH + sp.gridVGap;
+      for (let i = 0; i < r1; i++) {
+        const k = node.kids[i];
+        k.x = blockLeft + i * step;
+        k.y = blockTop;
+      }
+      const startGap = Math.floor((r1 - 1 - r2) / 2);
+      for (let j = 0; j < r2; j++) {
+        const k = node.kids[r1 + j];
+        k.x = blockLeft + (startGap + j) * step + step / 2;
+        k.y = blockTop + sp.nodeH + sp.gridRowGap;
       }
     } else {
       let cx = x;
@@ -91,22 +107,17 @@ function layoutTopDown(roots, kidsOf, byId, sp, stackLeaves) {
     originX += root.subW + sp.rootGap;
   }
 
+  // Connectors: one bus per parent. The grid's second-row boxes just have a longer
+  // drop that falls cleanly in the gaps between the top-row boxes.
   const links = [];
   for (const parent of nodes) {
     if (!parent.kids.length) continue;
-    if (parent.stacked) {
-      const spineX = parent.x + sp.spineInset;
-      const spineTop = parent.y + parent.h;
-      for (const k of parent.kids) {
-        links.push({ type: "indent", from: parent.id, to: k.id, spineX, spineTop, stubY: k.y + k.h / 2, childLeft: k.x });
-      }
-    } else {
-      const px = parent.x + parent.w / 2;
-      const pBottom = parent.y + parent.h;
-      const busY = pBottom + sp.vGap / 2;
-      for (const k of parent.kids) {
-        links.push({ type: "bus", from: parent.id, to: k.id, px, pBottom, busY, cx: k.x + k.w / 2, cTop: k.y });
-      }
+    const px = parent.x + parent.w / 2;
+    const pBottom = parent.y + parent.h;
+    const gap = parent.grid ? sp.gridVGap : sp.vGap;
+    const busY = pBottom + gap / 2;
+    for (const k of parent.kids) {
+      links.push({ type: "bus", from: parent.id, to: k.id, px, pBottom, busY, cx: k.x + k.w / 2, cTop: k.y });
     }
   }
   return { nodes, links };
@@ -117,7 +128,7 @@ export function layoutOrg(people, opts = {}) {
   const { roots, childrenOf, byId, issues } = buildForest(people);
   const kidsOf = (id, placed) => (childrenOf.get(id) || []).filter((k) => k !== id && !placed.has(k));
 
-  const { nodes, links } = layoutTopDown(roots, kidsOf, byId, sp, opts.report === "compact");
+  const { nodes, links } = layoutTopDown(roots, kidsOf, byId, sp, opts.report !== "tree");
 
   return { nodes, links, ...bounds(nodes, sp), margin: MARGIN, spacing: sp, issues };
 }
