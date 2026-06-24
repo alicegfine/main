@@ -25,8 +25,12 @@ entirely in the browser. Staff data never leaves the machine.
 - **Find a person** — search box to jump to anyone in a large roster; the "Reports to"
   picker is a type-ahead so you don't scroll a list of everyone.
 - **Save / Open project** — export the whole project (all scenarios) to a `.json` file
-  as a backup or to hand to a colleague; open it to pick up where you left off. Day to
-  day, work also autosaves in the browser automatically.
+  as a backup or to hand to a colleague; open it to pick up where you left off.
+- **Shared version (when hosted with the included server)** — the org is stored on the
+  server, so everyone who opens the URL sees and edits one live copy. Changes made by
+  one person show up for the others within ~15 seconds; simultaneous edits are guarded
+  with a "someone else just saved — reload?" prompt. If the backend isn't reachable
+  (e.g. a plain static host), it falls back to saving in the browser automatically.
 - **Branding** — accent/proposed colors, an optional export title, and a logo are set
   once in `src/brand.js` and applied to the chart and every export.
 - **Export** — PNG (2× for crisp slides), editable SVG (open in PowerPoint / Figma /
@@ -90,6 +94,23 @@ This folder ships with a tiny zero-dependency Node server (`server.js`) and a
 4. **Settings → Networking → Generate Domain** to get a public URL.
 
 To redeploy, push to the branch — Railway rebuilds automatically.
+
+#### Make the shared org durable (Railway Volume)
+
+The shared org is stored in a JSON file on the server (`/api/org`). By default that
+file lives next to the app and is wiped on every redeploy. To keep it across deploys,
+attach a Volume and point the app at it:
+
+1. Service → **Variables**: add `DATA_FILE` = `/data/org.json`.
+2. Service → **Settings → Volumes** (or **+ Create → Volume**): mount path `/data`.
+3. Redeploy. The org now persists across redeploys and restarts.
+
+First-time data: the first browser that opens the URL **with an org already in it**
+publishes that org as the shared copy. So whoever has the current roster should open
+the URL once before sharing it around — see the note below.
+
+Access: there's no login. Anyone with the URL can view and edit, so treat the link as
+shared-but-private. (A passcode could be added if needed.)
 
 (If you'd rather not set a root directory, you can instead move the `orgchart/`
 contents to the repo root, or point any other static host at this folder.)

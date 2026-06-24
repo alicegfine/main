@@ -30,12 +30,114 @@ let rosterFilter = ""; // roster search text
 const activeScenario = () => state.scenarios.find((s) => s.id === state.activeId) || state.scenarios[0];
 const currentOrg = () => state.scenarios[0]; // first scenario is "the current org"
 
-function save() {
+function saveLocal() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(state));
   } catch (e) {
     /* storage may be unavailable; the app still works in-memory */
   }
+}
+
+function save() {
+  saveLocal();
+  scheduleRemotePush();
+}
+
+// ---------------- shared server state ----------------
+// When the backend is reachable, the org lives at the URL and everyone edits one copy.
+const remote = { available: false, rev: 0, dirty: false, pushing: false, pushTimer: null };
+
+function snapshot() {
+  return { scenarios: state.scenarios, spacing: state.spacing, report: state.report };
+}
+
+// Apply a data payload (from server or file) into state, keeping a valid active tab.
+function applyData(data) {
+  if (!data || !Array.isArray(data.scenarios) || !data.scenarios.length) return false;
+  state.scenarios = data.scenarios;
+  state.spacing = data.spacing || "normal";
+  state.report = { spread: "tree", stacked: "grid", indented: "grid", compact: "grid" }[data.report] || data.report || "grid";
+  if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
+    state.activeId = state.scenarios[0].id;
+  }
+  state.compare.ids = state.compare.ids.filter((id) => state.scenarios.some((s) => s.id === id));
+  return true;
+}
+
+async function remoteGet() {
+  try {
+    const res = await fetch("/api/org", { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json(); // { rev, data }
+  } catch (e) {
+    return null; // backend not available (e.g. plain static host)
+  }
+}
+
+function scheduleRemotePush() {
+  if (!remote.available) return;
+  remote.dirty = true;
+  clearTimeout(remote.pushTimer);
+  remote.pushTimer = setTimeout(remotePush, 800);
+}
+
+async function remotePush() {
+  if (!remote.available || remote.pushing) return;
+  remote.pushing = true;
+  try {
+    const res = await fetch("/api/org", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rev: remote.rev, data: snapshot() }),
+    });
+    if (res.status === 200) {
+      const j = await res.json();
+      remote.rev = j.rev;
+      remote.dirty = false;
+    } else if (res.status === 409) {
+      const j = await res.json();
+      remote.pushing = false;
+      handleConflict(j);
+      return;
+    }
+  } catch (e) {
+    /* offline; local cache holds the change and the next save retries */
+  }
+  remote.pushing = false;
+}
+
+function handleConflict(serverState) {
+  const adopt = confirm(
+    "Someone else just saved changes to this org.\n\n" +
+      "OK = load their version (your last unsaved tweak is dropped)\n" +
+      "Cancel = keep yours and overwrite theirs on your next change"
+  );
+  if (adopt) {
+    applyData(serverState.data);
+    remote.rev = serverState.rev;
+    remote.dirty = false;
+    saveLocal();
+    renderAll();
+    toast("Loaded the latest shared version.");
+  } else {
+    remote.rev = serverState.rev; // re-base so our next push wins
+    scheduleRemotePush();
+  }
+}
+
+function startPolling() {
+  if (!remote.available) return;
+  setInterval(async () => {
+    if (remote.dirty || remote.pushing) return; // don't clobber in-progress local edits
+    const got = await remoteGet();
+    if (got && got.rev > remote.rev && got.data) {
+      applyData(got.data);
+      remote.rev = got.rev;
+      saveLocal();
+      renderAll();
+      toast("Updated with the latest changes.");
+    }
+  }, 15000);
 }
 
 function load() {
@@ -85,7 +187,7 @@ Marcus Bell,Finance & Grants Lead,Theo Park,`;
 
   state.scenarios = [base, variant];
   state.activeId = base.id;
-  save();
+  saveLocal(); // never auto-publish the sample to the shared version
 }
 
 // ---------------- toast ----------------
@@ -835,7 +937,35 @@ function applyBrandVars() {
 }
 
 // ---------------- boot ----------------
-applyBrandVars();
-if (!load()) seed();
-wire();
-renderAll();
+async function boot() {
+  applyBrandVars();
+  const got = await remoteGet();
+
+  if (got === null) {
+    // No backend reachable -> local-only mode (still fully usable).
+    remote.available = false;
+    if (!load()) seed();
+  } else {
+    remote.available = true;
+    remote.rev = got.rev || 0;
+    if (got.data && Array.isArray(got.data.scenarios) && got.data.scenarios.length) {
+      // A shared version exists -> everyone loads it.
+      applyData(got.data);
+      saveLocal();
+    } else if (load()) {
+      // Server is empty but THIS browser already has data -> promote it to the
+      // shared version (this is how your existing org seeds the URL on first open).
+      await remotePush();
+    } else {
+      // Brand-new everywhere: show the sample locally but DON'T push it, so a real
+      // roster from another browser can claim the shared slot instead.
+      seed();
+    }
+  }
+
+  wire();
+  renderAll();
+  startPolling();
+}
+
+boot();
