@@ -540,6 +540,10 @@ input[type="text"]:focus, select:focus {
 .canvas-scroll {
   flex: 1;
   overflow: auto;
+  /* Always reserve the scrollbar gutter so the fit-to-width math measures the same
+     container width whether or not the vertical scrollbar is showing (otherwise the
+     zoom % flickers by ~1% between renders). */
+  scrollbar-gutter: stable;
   background-color: var(--ground);
   background-image:
     linear-gradient(rgba(44, 110, 104, 0.045) 1px, transparent 1px),
