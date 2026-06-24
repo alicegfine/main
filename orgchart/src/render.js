@@ -54,22 +54,39 @@ function truncate(s, max) {
   return s.slice(0, Math.max(0, max - 1)).trimEnd() + "…";
 }
 
-// Wrap a name onto at most two lines that each fit `max` characters.
-function wrapName(name, max) {
-  name = (name || "").trim();
-  if (!name) return [];
-  if (name.length <= max) return [name];
-  const words = name.split(/\s+/);
-  let line1 = "";
-  let i = 0;
-  for (; i < words.length; i++) {
-    const next = line1 ? line1 + " " + words[i] : words[i];
-    if (next.length > max && line1) break;
-    line1 = next;
+// Greedy word-wrap onto at most `maxLines` lines that each fit `max` characters.
+// Any overflow past the last line is truncated with an ellipsis.
+function wrapLines(text, max, maxLines = 2) {
+  text = (text || "").trim();
+  if (!text) return [];
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? line + " " + word : word;
+    if (next.length > max && line) {
+      lines.push(line);
+      line = word;
+      if (lines.length === maxLines - 1) break;
+    } else {
+      line = next;
+    }
   }
-  const rest = words.slice(i).join(" ");
-  if (!rest) return [truncate(line1, max)];
-  return [truncate(line1, max), truncate(rest, max)];
+  const usedWords = lines.join(" ").split(/\s+/).filter(Boolean).length;
+  const rest = words.slice(usedWords).join(" ");
+  if (rest) lines.push(truncate(rest, max));
+  else if (line) lines.push(truncate(line, max));
+  return lines.slice(0, maxLines);
+}
+
+// Split a name into first name (line 1) and the rest (line 2). Single-token names
+// stay on one line.
+function splitName(name) {
+  const n = (name || "").trim();
+  if (!n) return [];
+  const parts = n.split(/\s+/);
+  if (parts.length === 1) return [parts[0]];
+  return [parts[0], parts.slice(1).join(" ")];
 }
 
 // Rounded rectangle path with independent top/bottom radii (for the header band).
@@ -116,7 +133,6 @@ function drawNode(g, node, theme, margin) {
   const w = node.w;
   const h = node.h;
   const r = 11;
-  const bandH = 24;
   const cx = w / 2;
   const lvl = levelColor(theme, node.depth || 0);
   const grp = el("g", { transform: `translate(${x},${y})`, "data-id": node.id, class: "node-hit" }, g);
@@ -140,22 +156,31 @@ function drawNode(g, node, theme, margin) {
   );
   if (!proposed) card.setAttribute("filter", "url(#cardShadow)");
 
-  // header band (level color), rounded top corners only — holds the role
+  // header band (level color), rounded top corners only — holds the role, which wraps
+  // onto up to two lines so the band can be a chunky title bar.
+  const titleMax = Math.floor((w - 16) / 6.0);
+  const titleLines = wrapLines(p.title || (proposed ? "Proposed role" : "Role"), titleMax, 2);
+  const bandH = titleLines.length > 1 ? 46 : 32;
   el("path", { d: roundRectPath(0, 0, w, bandH, r, 2), fill: lvl, opacity: proposed ? 0.9 : 1 }, grp);
-  const maxChars = Math.floor((w - 18) / 6.4);
-  const role = el(
-    "text",
-    { x: cx, y: bandH / 2 + 4, "font-family": NODE_FONT, "font-size": 10.5, "font-weight": 600, "letter-spacing": "0.02em", "text-anchor": "middle", fill: "#FFFFFF" },
-    grp
-  );
-  role.textContent = truncate(p.title || (proposed ? "Proposed role" : "Role"), maxChars);
+  const titleStartY = titleLines.length > 1 ? bandH / 2 - 3 : bandH / 2 + 4;
+  titleLines.forEach((ln, i) => {
+    const role = el(
+      "text",
+      { x: cx, y: titleStartY + i * 13, "font-family": NODE_FONT, "font-size": 10.5, "font-weight": 600, "letter-spacing": "0.02em", "text-anchor": "middle", fill: "#FFFFFF" },
+      grp
+    );
+    role.textContent = ln;
+  });
 
-  // name in the body, wrapped to up to two centered lines
-  const nameMax = Math.floor((w - 16) / 7.2);
-  const bodyMid = bandH + (h - bandH) / 2;
+  // body: first name on its own line, last name beneath it. Leave room for the
+  // proposed pill at the bottom when present.
+  const nameMax = Math.floor((w - 14) / 7.2);
+  const bodyTop = bandH;
+  const bodyBottom = proposed ? h - 26 : h;
+  const bodyMid = (bodyTop + bodyBottom) / 2;
   if (p.name) {
-    const lines = wrapName(p.name, nameMax);
-    const startY = lines.length === 2 ? bodyMid - 6 : bodyMid + 5;
+    const lines = splitName(p.name).map((ln) => truncate(ln, nameMax));
+    const startY = lines.length === 2 ? bodyMid - 2 : bodyMid + 5;
     lines.forEach((ln, i) => {
       const t = el(
         "text",
@@ -173,13 +198,13 @@ function drawNode(g, node, theme, margin) {
     t.textContent = "Open seat";
   }
 
-  // proposed pill, centered just under the band
+  // proposed pill, centered near the bottom
   if (proposed) {
     const pillW = 62;
-    el("rect", { x: cx - pillW / 2, y: bandH + 6, width: pillW, height: 15, rx: 7.5, ry: 7.5, fill: theme.proposed, opacity: 0.14 }, grp);
+    el("rect", { x: cx - pillW / 2, y: h - 22, width: pillW, height: 15, rx: 7.5, ry: 7.5, fill: theme.proposed, opacity: 0.14 }, grp);
     const pt = el(
       "text",
-      { x: cx, y: bandH + 16.5, "font-family": NODE_FONT, "font-size": 9, "font-weight": 700, "letter-spacing": "0.06em", "text-anchor": "middle", fill: theme.proposed },
+      { x: cx, y: h - 11.5, "font-family": NODE_FONT, "font-size": 9, "font-weight": 700, "letter-spacing": "0.06em", "text-anchor": "middle", fill: theme.proposed },
       grp
     );
     pt.textContent = "PROPOSED";

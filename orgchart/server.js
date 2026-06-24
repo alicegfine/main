@@ -136,8 +136,31 @@ const server = createServer(async (req, res) => {
     });
     res.end(bodyBuf);
   } catch (err) {
-    res.writeHead(500, { "Content-Type": "text/plain" }).end("Server error");
+    console.error("Request failed:", req.method, req.url, err);
+    // Only send a response if we haven't already started one — otherwise writeHead
+    // throws ("headers already sent") and that error escapes as an unhandled rejection.
+    if (!res.headersSent) {
+      res.writeHead(500, { "Content-Type": "text/plain" }).end("Server error");
+    } else {
+      res.end();
+    }
   }
+});
+
+// A dropped/aborted client socket emits 'error' on the request; if nothing listens,
+// Node treats it as uncaught and kills the process. Swallow it — it's not our bug.
+server.on("clientError", (err, socket) => {
+  if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
+});
+
+// Last-resort safety net: keep one bad request (or a transient disk error during a
+// save) from taking the whole server down. This is the most common reason a deploy
+// reports "successful" and then the app shows up as "crashed" minutes later.
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
 });
 
 server.listen(PORT, "0.0.0.0", () => {

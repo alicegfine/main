@@ -302,6 +302,16 @@ input[type="text"]:focus, select:focus {
 .person-card .meta { display: flex; gap: 6px; align-items: center; }
 .person-card .meta select { flex: 1; font-size: 12px; padding: 5px 7px; }
 .person-card .meta .mgr-input { flex: 1; font-size: 12px; padding: 5px 7px; min-width: 0; }
+.person-card .mgr-flag {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+.person-card .mgr-flag input { accent-color: var(--accent); cursor: pointer; }
 
 .roster-search {
   width: 100%;

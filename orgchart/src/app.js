@@ -298,6 +298,25 @@ function personLabel(p) {
   return p.name ? `${p.name}${p.title ? " · " + p.title : ""}` : p.title || "(untitled role)";
 }
 
+// Sort key: first name, case-insensitive. Open seats (no name) fall back to their
+// title; anything with neither sinks to the bottom.
+function firstNameKey(p) {
+  const name = (p.name || "").trim();
+  const first = name ? name.split(/\s+/)[0] : "";
+  return (first || p.title || "￿").toLowerCase();
+}
+const byFirstName = (a, b) => firstNameKey(a).localeCompare(firstNameKey(b));
+const sortedPeople = (people) => [...people].sort(byFirstName);
+
+// Who may appear in a "Reports to" / "New manager" picker: people explicitly flagged
+// as managers, plus anyone who already has at least one direct report. Falls back to
+// everyone only when nothing is flagged yet (so a brand-new org isn't unusable).
+function managerCandidates(people) {
+  const hasReport = new Set(people.filter((p) => p.managerId).map((p) => p.managerId));
+  const candidates = people.filter((p) => p.isManager || hasReport.has(p.id));
+  return candidates.length ? candidates : people;
+}
+
 // A "reports to" combobox: shows the full, scrollable candidate list on click and
 // filters as you type. Picking an option sets the manager; "Top of chart" clears it.
 function createManagerCombo(person, scenario) {
@@ -320,7 +339,7 @@ function createManagerCombo(person, scenario) {
     panel.innerHTML = "";
     const f = (filter || "").trim().toLowerCase();
     const items = [{ id: null, label: "— Top of chart —", top: true }];
-    for (const p of scenario.people) {
+    for (const p of sortedPeople(managerCandidates(scenario.people))) {
       if (p.id === person.id) continue;
       if (wouldCreateCycle(scenario.people, person.id, p.id)) continue; // can't report to a report
       items.push({ id: p.id, label: personLabel(p) });
@@ -378,7 +397,7 @@ function managerOptions(people, selfId, selectedId) {
   top.textContent = "— Top of chart —";
   if (!selectedId) top.selected = true;
   frag.appendChild(top);
-  for (const p of people) {
+  for (const p of sortedPeople(managerCandidates(people))) {
     if (p.id === selfId) continue;
     const o = document.createElement("option");
     o.value = p.id;
@@ -426,7 +445,8 @@ function renderRoster() {
   }
 
   const q = rosterFilter.trim().toLowerCase();
-  const shown = q ? s.people.filter((p) => `${p.name} ${p.title}`.toLowerCase().includes(q)) : s.people;
+  const matched = q ? s.people.filter((p) => `${p.name} ${p.title}`.toLowerCase().includes(q)) : s.people;
+  const shown = sortedPeople(matched); // alphabetized by first name
   if (q && shown.length === 0) {
     const none = document.createElement("div");
     none.className = "empty-roster";
@@ -506,7 +526,23 @@ function personCard(person, scenario) {
   });
   meta.append(mgr, prop);
 
-  card.append(nameRow, titleRow, meta);
+  // Manager flag: marks this person as someone reports can be pointed at, which is
+  // what populates the "Reports to" picker (so it doesn't list the whole org).
+  const mgrRow = document.createElement("label");
+  mgrRow.className = "mgr-flag";
+  const mgrCb = document.createElement("input");
+  mgrCb.type = "checkbox";
+  mgrCb.checked = !!person.isManager;
+  const mgrText = document.createElement("span");
+  mgrText.textContent = "Manager (appears in “Reports to”)";
+  mgrCb.addEventListener("change", () => {
+    person.isManager = mgrCb.checked;
+    save();
+    renderBulk(); // refresh the "New manager" dropdown
+  });
+  mgrRow.append(mgrCb, mgrText);
+
+  card.append(nameRow, titleRow, meta, mgrRow);
   return card;
 }
 
@@ -545,7 +581,7 @@ function renderBulk() {
     list.innerHTML = '<div class="bulk-empty">No people yet.</div>';
     return;
   }
-  for (const p of s.people) {
+  for (const p of sortedPeople(s.people)) {
     const label = document.createElement("label");
     const cb = document.createElement("input");
     cb.type = "checkbox";

@@ -8,10 +8,12 @@
 
 import { buildForest } from "./model.js";
 
+// Cards are portrait (taller than wide): a thicker header band holds the wrapped
+// title, and the body stacks first name over last name.
 export const SPACING = {
-  normal: { nodeW: 162, nodeH: 86, hGap: 26, vGap: 46, rootGap: 42, gridVGap: 44, gridRowGap: 26 },
-  compact: { nodeW: 146, nodeH: 76, hGap: 18, vGap: 34, rootGap: 30, gridVGap: 32, gridRowGap: 18 },
-  airy: { nodeW: 178, nodeH: 98, hGap: 36, vGap: 64, rootGap: 60, gridVGap: 60, gridRowGap: 34 },
+  normal: { nodeW: 140, nodeH: 148, hGap: 26, vGap: 46, rootGap: 42, gridVGap: 44, gridRowGap: 26 },
+  compact: { nodeW: 124, nodeH: 130, hGap: 18, vGap: 34, rootGap: 30, gridVGap: 32, gridRowGap: 18 },
+  airy: { nodeW: 156, nodeH: 168, hGap: 36, vGap: 64, rootGap: 60, gridVGap: 60, gridRowGap: 34 },
 };
 
 export const MARGIN = 36;
