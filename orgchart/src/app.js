@@ -21,7 +21,7 @@ let state = {
   scenarios: [],
   activeId: null,
   spacing: "normal",
-  report: "tree",
+  report: "compact",
   compare: { on: false, ids: [] },
 };
 let zoom = null; // null => fit-to-width on next render
@@ -44,10 +44,10 @@ function load() {
     if (!raw) return false;
     const parsed = JSON.parse(raw);
     if (!parsed.scenarios || !parsed.scenarios.length) return false;
-    state = { compare: { on: false, ids: [] }, spacing: "normal", report: "tree", ...parsed };
+    state = { compare: { on: false, ids: [] }, spacing: "normal", report: "compact", ...parsed };
     state.compare = state.compare || { on: false, ids: [] };
     // map older layout values to the current ones
-    const reportMap = { spread: "tree", stacked: "indented" };
+    const reportMap = { spread: "tree", stacked: "compact", indented: "compact" };
     state.report = reportMap[state.report] || state.report || "tree";
     if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
       state.activeId = state.scenarios[0].id;
@@ -662,7 +662,7 @@ function openProject(file) {
     if (!confirm("Open this file? It replaces what’s currently on screen (your work autosaves, but save a file first if unsure).")) return;
     state.scenarios = parsed.scenarios;
     state.spacing = parsed.spacing || "normal";
-    state.report = { spread: "tree", stacked: "indented" }[parsed.report] || parsed.report || "tree";
+    state.report = { spread: "tree", stacked: "compact", indented: "compact" }[parsed.report] || parsed.report || "tree";
     state.activeId = state.scenarios[0].id;
     state.compare = { on: false, ids: [] };
     rosterFilter = "";

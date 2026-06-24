@@ -54,6 +54,24 @@ function truncate(s, max) {
   return s.slice(0, Math.max(0, max - 1)).trimEnd() + "…";
 }
 
+// Wrap a name onto at most two lines that each fit `max` characters.
+function wrapName(name, max) {
+  name = (name || "").trim();
+  if (!name) return [];
+  if (name.length <= max) return [name];
+  const words = name.split(/\s+/);
+  let line1 = "";
+  let i = 0;
+  for (; i < words.length; i++) {
+    const next = line1 ? line1 + " " + words[i] : words[i];
+    if (next.length > max && line1) break;
+    line1 = next;
+  }
+  const rest = words.slice(i).join(" ");
+  if (!rest) return [truncate(line1, max)];
+  return [truncate(line1, max), truncate(rest, max)];
+}
+
 // Rounded rectangle path with independent top/bottom radii (for the header band).
 function roundRectPath(x, y, w, h, rTop, rBot) {
   return (
@@ -98,7 +116,8 @@ function drawNode(g, node, theme, margin) {
   const w = node.w;
   const h = node.h;
   const r = 11;
-  const bandH = Math.round(h * 0.42);
+  const bandH = 24;
+  const cx = w / 2;
   const lvl = levelColor(theme, node.depth || 0);
   const grp = el("g", { transform: `translate(${x},${y})`, "data-id": node.id, class: "node-hit" }, g);
 
@@ -121,66 +140,46 @@ function drawNode(g, node, theme, margin) {
   );
   if (!proposed) card.setAttribute("filter", "url(#cardShadow)");
 
-  // header band (level color), rounded top corners only
-  el("path", { d: roundRectPath(0, 0, w, bandH, r, 2), fill: lvl, opacity: proposed ? 0.85 : 1 }, grp);
-
-  const padL = 13;
-  const maxChars = Math.floor((w - padL - 12) / 6.6);
-
-  // role/title sits in the band (white)
+  // header band (level color), rounded top corners only — holds the role
+  el("path", { d: roundRectPath(0, 0, w, bandH, r, 2), fill: lvl, opacity: proposed ? 0.9 : 1 }, grp);
+  const maxChars = Math.floor((w - 18) / 6.4);
   const role = el(
     "text",
-    {
-      x: padL,
-      y: bandH / 2 + 4,
-      "font-family": NODE_FONT,
-      "font-size": 11,
-      "font-weight": 600,
-      "letter-spacing": "0.01em",
-      fill: "#FFFFFF",
-    },
+    { x: cx, y: bandH / 2 + 4, "font-family": NODE_FONT, "font-size": 10.5, "font-weight": 600, "letter-spacing": "0.02em", "text-anchor": "middle", fill: "#FFFFFF" },
     grp
   );
   role.textContent = truncate(p.title || (proposed ? "Proposed role" : "Role"), maxChars);
 
-  // name sits in the body (dark)
-  const name = el(
-    "text",
-    {
-      x: padL,
-      y: bandH + (h - bandH) / 2 + 5,
-      "font-family": NODE_FONT,
-      "font-size": 14.5,
-      "font-weight": 700,
-      fill: theme.ink,
-    },
-    grp
-  );
+  // name in the body, wrapped to up to two centered lines
+  const nameMax = Math.floor((w - 16) / 7.2);
+  const bodyMid = bandH + (h - bandH) / 2;
   if (p.name) {
-    name.textContent = truncate(p.name, maxChars);
+    const lines = wrapName(p.name, nameMax);
+    const startY = lines.length === 2 ? bodyMid - 6 : bodyMid + 5;
+    lines.forEach((ln, i) => {
+      const t = el(
+        "text",
+        { x: cx, y: startY + i * 18, "font-family": NODE_FONT, "font-size": 14, "font-weight": 700, "text-anchor": "middle", fill: theme.ink },
+        grp
+      );
+      t.textContent = ln;
+    });
   } else {
-    name.setAttribute("fill", theme.muted);
-    name.setAttribute("font-weight", "500");
-    name.setAttribute("font-style", "italic");
-    name.textContent = "Open seat";
+    const t = el(
+      "text",
+      { x: cx, y: bodyMid + 5, "font-family": NODE_FONT, "font-size": 12.5, "font-weight": 500, "font-style": "italic", "text-anchor": "middle", fill: theme.muted },
+      grp
+    );
+    t.textContent = "Open seat";
   }
 
-  // proposed pill in the band, top-right
+  // proposed pill, centered just under the band
   if (proposed) {
-    const pillW = 60;
-    el("rect", { x: w - pillW - 8, y: 6, width: pillW, height: 15, rx: 7.5, ry: 7.5, fill: "#FFFFFF", opacity: 0.22 }, grp);
+    const pillW = 62;
+    el("rect", { x: cx - pillW / 2, y: bandH + 6, width: pillW, height: 15, rx: 7.5, ry: 7.5, fill: theme.proposed, opacity: 0.14 }, grp);
     const pt = el(
       "text",
-      {
-        x: w - pillW / 2 - 8,
-        y: 16.5,
-        "font-family": NODE_FONT,
-        "font-size": 9,
-        "font-weight": 700,
-        "letter-spacing": "0.06em",
-        "text-anchor": "middle",
-        fill: "#FFFFFF",
-      },
+      { x: cx, y: bandH + 16.5, "font-family": NODE_FONT, "font-size": 9, "font-weight": 700, "letter-spacing": "0.06em", "text-anchor": "middle", fill: theme.proposed },
       grp
     );
     pt.textContent = "PROPOSED";
