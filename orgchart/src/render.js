@@ -207,16 +207,16 @@ function drawNode(g, node, theme, margin) {
   // visual weight on the card (bold, slightly larger) and wraps onto up to two lines.
   // The band is a FIXED height so every card looks the same and names share a baseline.
   const BAND_REF = 40;
-  const titleMax = Math.floor((w - 14) / 6.9);
+  const titleMax = Math.floor((w - 14) / 7.8);
   const titleLines = wrapLines(p.title || "Role", titleMax, 2);
   const bandH = BAND_REF;
   el("path", { d: roundRectPath(0, 0, w, bandH, r, 2), fill: bandColor }, grp);
-  // Center the title in the band whether it's one line or two.
-  const titleStartY = titleLines.length > 1 ? bandH / 2 - 4 : bandH / 2 + 4;
+  // The title is the largest text on the card. Center it whether it's one line or two.
+  const titleStartY = titleLines.length > 1 ? bandH / 2 - 4 : bandH / 2 + 5;
   titleLines.forEach((ln, i) => {
     const role = el(
       "text",
-      { x: cx, y: titleStartY + i * 14, "font-family": NODE_FONT, "font-size": 13, "font-weight": 700, "letter-spacing": "0.01em", "text-anchor": "middle", fill: bandText },
+      { x: cx, y: titleStartY + i * 15, "font-family": NODE_FONT, "font-size": 15, "font-weight": 700, "letter-spacing": "0.01em", "text-anchor": "middle", fill: bandText },
       grp
     );
     role.textContent = ln;
@@ -225,15 +225,15 @@ function drawNode(g, node, theme, margin) {
   // body: first name on its own line, last name beneath it. Centered in the region
   // between the fixed band reference and the card bottom (minus the proposed pill), so
   // names line up across cards even when their title bands differ in height.
-  const nameMax = Math.floor((w - 12) / 8.6);
+  const nameMax = Math.floor((w - 12) / 7.0);
   const bodyMid = (BAND_REF + (proposed ? h - 26 : h)) / 2;
   if (p.name) {
     const lines = splitName(p.name).map((ln) => truncate(ln, nameMax));
-    const startY = lines.length === 2 ? bodyMid - 4 : bodyMid + 5;
+    const startY = lines.length === 2 ? bodyMid - 3 : bodyMid + 4;
     lines.forEach((ln, i) => {
       const t = el(
         "text",
-        { x: cx, y: startY + i * 18, "font-family": NODE_FONT, "font-size": 16, "font-weight": 700, "text-anchor": "middle", fill: theme.ink },
+        { x: cx, y: startY + i * 16, "font-family": NODE_FONT, "font-size": 13, "font-weight": 600, "text-anchor": "middle", fill: theme.ink },
         grp
       );
       t.textContent = ln;
@@ -241,7 +241,7 @@ function drawNode(g, node, theme, margin) {
   } else {
     const t = el(
       "text",
-      { x: cx, y: bodyMid + 5, "font-family": NODE_FONT, "font-size": 14, "font-weight": 500, "font-style": "italic", "text-anchor": "middle", fill: theme.muted },
+      { x: cx, y: bodyMid + 4, "font-family": NODE_FONT, "font-size": 12.5, "font-weight": 500, "font-style": "italic", "text-anchor": "middle", fill: theme.muted },
       grp
     );
     t.textContent = "Open seat";
