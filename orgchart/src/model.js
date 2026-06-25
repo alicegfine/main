@@ -15,6 +15,7 @@ export function newPerson(partial = {}) {
     title: partial.title || "",
     managerId: partial.managerId ?? null,
     proposed: !!partial.proposed,
+    hiringStage: partial.hiringStage || "soon",
     isManager: !!partial.isManager,
     category: partial.category || "ic",
     note: partial.note || "",

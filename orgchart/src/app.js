@@ -8,7 +8,7 @@ import {
   summarize,
   diffAgainst,
 } from "./model.js";
-import { renderOrgSvg, themeFromBranding, CATEGORIES } from "./render.js";
+import { renderOrgSvg, themeFromBranding, CATEGORIES, HIRING_STAGES } from "./render.js";
 import { downloadPng, downloadSvg, copyPngToClipboard } from "./exporter.js";
 import { BRAND, brandingForRender } from "./brand.js";
 
@@ -18,11 +18,13 @@ const $ = (sel) => document.querySelector(sel);
 // ---------------- state ----------------
 // The chart layout is fixed to a slide-fit grid of compact cards (the layout
 // controls were removed), so these never change at runtime.
+const DEFAULT_BG = "#ecefff";
 let state = {
   scenarios: [],
   activeId: null,
   spacing: "compact",
   report: "grid",
+  bg: DEFAULT_BG,
   compare: { on: false, ids: [] },
 };
 let zoom = null; // null => fit-to-width on next render
@@ -43,7 +45,7 @@ function baselineOrder() {
 
 // Shared options for every chart render/export, so they all order siblings the same.
 function chartOpts(extra) {
-  return { spacing: state.spacing, report: state.report, branding: brandingForRender(), order: baselineOrder(), ...extra };
+  return { spacing: state.spacing, report: state.report, branding: brandingForRender(), background: state.bg, order: baselineOrder(), ...extra };
 }
 
 function saveLocal() {
@@ -64,7 +66,7 @@ function save() {
 const remote = { available: false, rev: 0, dirty: false, pushing: false, pushTimer: null };
 
 function snapshot() {
-  return { scenarios: state.scenarios, spacing: state.spacing, report: state.report };
+  return { scenarios: state.scenarios, spacing: state.spacing, report: state.report, bg: state.bg };
 }
 
 // Apply a data payload (from server or file) into state, keeping a valid active tab.
@@ -73,6 +75,7 @@ function applyData(data) {
   state.scenarios = data.scenarios;
   state.spacing = "compact"; // layout is fixed
   state.report = "grid";
+  state.bg = data.bg || DEFAULT_BG;
   if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
     state.activeId = state.scenarios[0].id;
   }
@@ -166,6 +169,7 @@ function load() {
     state.compare = state.compare || { on: false, ids: [] };
     state.spacing = "compact"; // layout is fixed
     state.report = "grid";
+    state.bg = state.bg || DEFAULT_BG;
     if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
       state.activeId = state.scenarios[0].id;
     }
@@ -450,6 +454,9 @@ function renderRail() {
     : "A what-if copy. Edits here don’t touch your current org.";
   $("#resetToCurrent").style.display = isCurrent ? "none" : "";
 
+  const bgInput = $("#bgColor");
+  if (bgInput) bgInput.value = state.bg;
+
   renderBulk();
   renderRoster();
 }
@@ -559,22 +566,42 @@ function personCard(person, scenario) {
   });
   catRow.append(catLabel, cat);
 
-  const meta = document.createElement("div");
-  meta.className = "meta";
-  const mgr = createManagerCombo(person, scenario);
-  const prop = document.createElement("button");
-  prop.className = "icon-toggle";
-  prop.innerHTML = "◇";
-  prop.title = "Mark as a proposed / not-yet-hired role";
-  prop.setAttribute("aria-pressed", String(!!person.proposed));
-  prop.addEventListener("click", () => {
-    person.proposed = !person.proposed;
+  // Status: a filled role, or a proposed hire bucketed by how soon it's being hired.
+  const statusRow = document.createElement("label");
+  statusRow.className = "cat-row";
+  const statusLabel = document.createElement("span");
+  statusLabel.textContent = "Status";
+  const status = document.createElement("select");
+  status.className = "cat-select";
+  const filledOpt = document.createElement("option");
+  filledOpt.value = "filled";
+  filledOpt.textContent = "Filled";
+  status.appendChild(filledOpt);
+  for (const s of HIRING_STAGES) {
+    const o = document.createElement("option");
+    o.value = s.key;
+    o.textContent = s.label;
+    status.appendChild(o);
+  }
+  status.value = person.proposed ? person.hiringStage || "soon" : "filled";
+  status.addEventListener("change", () => {
+    if (status.value === "filled") {
+      person.proposed = false;
+    } else {
+      person.proposed = true;
+      person.hiringStage = status.value;
+    }
     save();
     renderRoster();
     renderCanvas();
     renderTabs();
   });
-  meta.append(mgr, prop);
+  statusRow.append(statusLabel, status);
+
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  const mgr = createManagerCombo(person, scenario);
+  meta.append(mgr);
 
   // Manager flag: marks this person as someone reports can be pointed at, which is
   // what populates the "Reports to" picker (so it doesn't list the whole org).
@@ -600,7 +627,7 @@ function personCard(person, scenario) {
   });
   mgrRow.append(mgrCb, mgrText);
 
-  card.append(nameRow, titleRow, catRow, meta, mgrRow);
+  card.append(nameRow, titleRow, catRow, statusRow, meta, mgrRow);
   return card;
 }
 
@@ -835,6 +862,7 @@ function saveProject() {
     scenarios: state.scenarios,
     spacing: state.spacing,
     report: state.report,
+    bg: state.bg,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
@@ -863,6 +891,7 @@ function openProject(file) {
     state.scenarios = parsed.scenarios;
     state.spacing = "compact"; // layout is fixed
     state.report = "grid";
+    state.bg = parsed.bg || DEFAULT_BG;
     state.activeId = state.scenarios[0].id;
     state.compare = { on: false, ids: [] };
     rosterFilter = "";
@@ -925,6 +954,18 @@ function wire() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !$("#rosterModal").hidden) closeRosterModal();
   });
+  $("#bgColor").addEventListener("input", (e) => {
+    state.bg = e.target.value;
+    save();
+    renderCanvas();
+  });
+  $("#bgReset").addEventListener("click", () => {
+    state.bg = DEFAULT_BG;
+    $("#bgColor").value = DEFAULT_BG;
+    save();
+    renderCanvas();
+  });
+
   $("#scenarioName").addEventListener("input", (e) => {
     activeScenario().name = e.target.value;
     save();
@@ -1020,6 +1061,7 @@ function applyBrandVars() {
   root.setProperty("--brand-proposed", BRAND.proposed);
   const theme = themeFromBranding(brandingForRender());
   theme.levels.forEach((c, i) => root.setProperty(`--lvl${i}`, c));
+  for (const s of HIRING_STAGES) root.setProperty(`--hire-${s.key}`, s.color);
 }
 
 // ---------------- boot ----------------

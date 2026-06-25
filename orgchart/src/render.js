@@ -57,6 +57,34 @@ export function categoryColor(theme, category) {
   return l[Math.min(idx, l.length - 1)];
 }
 
+// Proposed (unfilled) roles are colored by how soon they're being hired, mirroring the
+// "hiring now / soon / later" buckets used in board decks.
+export const HIRING_STAGES = [
+  { key: "now", label: "Hiring now", short: "HIRING NOW", color: "#7ed957" },
+  { key: "soon", label: "Hiring soon", short: "HIRING SOON", color: "#ffd400" },
+  { key: "later", label: "Hiring later", short: "HIRING LATER", color: "#ff9f1c" },
+];
+const HIRING_BY_KEY = Object.fromEntries(HIRING_STAGES.map((s) => [s.key, s]));
+export function hiringStage(key) {
+  return HIRING_BY_KEY[key] || HIRING_BY_KEY.soon;
+}
+
+function mixWithBlack(hex, weight) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return "#000000";
+  const mix = rgb.map((c) => Math.round(c * (1 - weight)));
+  return "#" + mix.map((c) => c.toString(16).padStart(2, "0")).join("");
+}
+
+// Black or white text, whichever reads better on the given background.
+function readableText(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return "#FFFFFF";
+  const [r, g, b] = rgb;
+  const perceived = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return perceived > 0.62 ? "#16212B" : "#FFFFFF";
+}
+
 function el(tag, attrs = {}, parent) {
   const n = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
@@ -144,13 +172,16 @@ function connectorPath(links) {
 function drawNode(g, node, theme, margin) {
   const p = node.person || {};
   const proposed = !!p.proposed;
+  const stage = proposed ? hiringStage(p.hiringStage) : null;
+  // Filled roles take their category color; proposed roles take their hiring-stage color.
+  const bandColor = proposed ? stage.color : categoryColor(theme, p.category);
+  const bandText = proposed ? readableText(stage.color) : "#FFFFFF";
   const x = node.x + margin;
   const y = node.y + margin;
   const w = node.w;
   const h = node.h;
   const r = 11;
   const cx = w / 2;
-  const lvl = categoryColor(theme, p.category);
   const grp = el("g", { transform: `translate(${x},${y})`, "data-id": node.id, class: "node-hit" }, g);
 
   // card
@@ -163,8 +194,8 @@ function drawNode(g, node, theme, margin) {
       height: h,
       rx: r,
       ry: r,
-      fill: proposed ? mixWithWhite(lvl, 0.93) : "#FFFFFF",
-      stroke: proposed ? theme.proposed : theme.cardBorder,
+      fill: proposed ? mixWithWhite(bandColor, 0.9) : "#FFFFFF",
+      stroke: proposed ? mixWithBlack(bandColor, 0.12) : theme.cardBorder,
       "stroke-width": proposed ? 1.6 : 1,
       "stroke-dasharray": proposed ? "5 4" : "0",
     },
@@ -172,21 +203,20 @@ function drawNode(g, node, theme, margin) {
   );
   if (!proposed) card.setAttribute("filter", "url(#cardShadow)");
 
-  // header band (level color), rounded top corners only — holds the role, which wraps
-  // onto up to two lines so the band can be a chunky title bar. The band hugs its text
-  // (1 or 2 lines), but names are positioned off a FIXED reference height below, so a
-  // row of cards keeps its names on the same baseline regardless of title length.
-  const BAND_REF = 40; // every band is this tall, so all cards look identical
-  const titleMax = Math.floor((w - 14) / 6.4);
-  const titleLines = wrapLines(p.title || (proposed ? "Proposed role" : "Role"), titleMax, 2);
+  // header band, rounded top corners only — holds the role. The title carries the most
+  // visual weight on the card (bold, slightly larger) and wraps onto up to two lines.
+  // The band is a FIXED height so every card looks the same and names share a baseline.
+  const BAND_REF = 40;
+  const titleMax = Math.floor((w - 14) / 6.9);
+  const titleLines = wrapLines(p.title || "Role", titleMax, 2);
   const bandH = BAND_REF;
-  el("path", { d: roundRectPath(0, 0, w, bandH, r, 2), fill: lvl, opacity: proposed ? 0.9 : 1 }, grp);
+  el("path", { d: roundRectPath(0, 0, w, bandH, r, 2), fill: bandColor }, grp);
   // Center the title in the band whether it's one line or two.
   const titleStartY = titleLines.length > 1 ? bandH / 2 - 4 : bandH / 2 + 4;
   titleLines.forEach((ln, i) => {
     const role = el(
       "text",
-      { x: cx, y: titleStartY + i * 14, "font-family": NODE_FONT, "font-size": 12, "font-weight": 600, "letter-spacing": "0.01em", "text-anchor": "middle", fill: "#FFFFFF" },
+      { x: cx, y: titleStartY + i * 14, "font-family": NODE_FONT, "font-size": 13, "font-weight": 700, "letter-spacing": "0.01em", "text-anchor": "middle", fill: bandText },
       grp
     );
     role.textContent = ln;
@@ -217,16 +247,16 @@ function drawNode(g, node, theme, margin) {
     t.textContent = "Open seat";
   }
 
-  // proposed pill, centered near the bottom
+  // hiring-stage pill, centered near the bottom
   if (proposed) {
-    const pillW = 62;
-    el("rect", { x: cx - pillW / 2, y: h - 22, width: pillW, height: 15, rx: 7.5, ry: 7.5, fill: theme.proposed, opacity: 0.14 }, grp);
+    const pillW = Math.min(w - 8, stage.short.length * 6.2 + 16);
+    el("rect", { x: cx - pillW / 2, y: h - 22, width: pillW, height: 15, rx: 7.5, ry: 7.5, fill: stage.color, opacity: 0.28 }, grp);
     const pt = el(
       "text",
-      { x: cx, y: h - 11.5, "font-family": NODE_FONT, "font-size": 9, "font-weight": 700, "letter-spacing": "0.06em", "text-anchor": "middle", fill: theme.proposed },
+      { x: cx, y: h - 11.5, "font-family": NODE_FONT, "font-size": 9, "font-weight": 700, "letter-spacing": "0.06em", "text-anchor": "middle", fill: mixWithBlack(stage.color, 0.55) },
       grp
     );
-    pt.textContent = "PROPOSED";
+    pt.textContent = stage.short;
   }
 
   if (p.note) el("title", {}, grp).textContent = p.note;
@@ -255,10 +285,11 @@ function drawHeader(svg, branding, theme, width) {
   return headerH + 12;
 }
 
-// Returns an <svg> element. opts: { spacing, report, theme, branding }
+// Returns an <svg> element. opts: { spacing, report, theme, branding, background }
 export function renderOrgSvg(people, opts = {}) {
   const branding = opts.branding || {};
   const theme = opts.theme || (opts.branding ? themeFromBranding(branding) : THEME);
+  const canvas = opts.background || theme.canvas;
   const lay = layoutOrg(people, opts);
 
   const totalW = lay.width;
@@ -269,7 +300,7 @@ export function renderOrgSvg(people, opts = {}) {
   const filter = el("filter", { id: "cardShadow", x: "-20%", y: "-20%", width: "140%", height: "150%" }, defs);
   el("feDropShadow", { dx: 0, dy: 1.5, stdDeviation: 3, "flood-color": "#0b1f3a", "flood-opacity": "0.16" }, filter);
 
-  const bg = el("rect", { x: 0, y: 0, width: totalW, height: lay.height, fill: theme.canvas }, svg);
+  const bg = el("rect", { x: 0, y: 0, width: totalW, height: lay.height, fill: canvas }, svg);
 
   const headerH = drawHeader(svg, branding, theme, totalW);
   const totalH = lay.height + headerH;
