@@ -486,18 +486,15 @@ input[type="text"]:focus, select:focus {
 .bulk-empty { color: var(--faint); font-size: 12px; padding: 8px; text-align: center; }
 
 /* background color control */
-.bg-control { display: flex; align-items: center; gap: 10px; }
-.bg-control input[type="color"] {
-  width: 40px;
+.bg-control { display: flex; align-items: center; gap: 8px; }
+.bg-swatch {
+  width: 28px;
   height: 30px;
-  padding: 2px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
-  background: var(--panel);
-  cursor: pointer;
   flex: none;
 }
-.bg-control .bg-label { font-size: 12px; color: var(--muted); flex: 1; }
+.bg-control .bg-hex { flex: 1; min-width: 0; font-family: var(--mono); text-transform: lowercase; }
 
 .empty-roster {
   text-align: center;

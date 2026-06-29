@@ -36,7 +36,7 @@ function bounds(nodes, sp) {
   };
 }
 
-function layoutTopDown(roots, kidsOf, byId, sp) {
+function layoutTopDown(roots, kidsOf, byId, sp, stack) {
   const nodes = [];
   const placed = new Set();
   const hDepth = sp.horizontalDepth || 1;
@@ -54,8 +54,9 @@ function layoutTopDown(roots, kidsOf, byId, sp) {
     }
     // Stack a team vertically when every report is an individual (a leaf); spread
     // across a row when reports have their own reports. The very top always spreads.
+    // When stacking is off, every level spreads (the classic wide tree).
     const allLeaves = node.kids.every((k) => k.kids.length === 0);
-    node.vertical = depth >= hDepth && allLeaves;
+    node.vertical = stack && depth >= hDepth && allLeaves;
     if (node.vertical) {
       // Reports stacked in an indented vertical list below the parent.
       const childrenH = node.kids.reduce((a, k) => a + k.subH, 0) + (node.kids.length - 1) * sp.stackRowGap;
@@ -144,7 +145,7 @@ export function layoutOrg(people, opts = {}) {
 
   const kidsOf = (id, placed) => (childrenOf.get(id) || []).filter((k) => k !== id && !placed.has(k));
 
-  const { nodes, links } = layoutTopDown(roots, kidsOf, byId, sp);
+  const { nodes, links } = layoutTopDown(roots, kidsOf, byId, sp, opts.stack !== false);
 
   return { nodes, links, ...bounds(nodes, sp), margin: MARGIN, spacing: sp, issues };
 }

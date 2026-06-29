@@ -76,12 +76,22 @@
 
         <section class="rail-section">
           <div class="rail-head"><h2>Appearance</h2></div>
-          <p class="rail-hint">Match your slide background so screenshots and exports drop straight into a deck.</p>
-          <div class="bg-control">
-            <input type="color" id="bgColor" value="#ecefff" aria-label="Chart background color" />
-            <span class="bg-label">Chart background</span>
-            <button class="btn btn-small btn-ghost" id="bgReset">Reset</button>
-          </div>
+          <label class="field">
+            <span>Layout</span>
+            <select id="layoutSelect">
+              <option value="stacked">Stacked teams (slide-fit)</option>
+              <option value="wide">Wide rows</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Chart background</span>
+            <div class="bg-control">
+              <span class="bg-swatch" id="bgSwatch"></span>
+              <input type="text" id="bgColor" class="bg-hex" placeholder="#ecefff" spellcheck="false" autocomplete="off" aria-label="Chart background hex code" />
+              <button class="btn btn-small btn-ghost" id="bgReset">Reset</button>
+            </div>
+          </label>
+          <p class="rail-hint">Enter your slide's hex color so screenshots and exports drop straight into a deck.</p>
         </section>
 
         <footer class="rail-foot">

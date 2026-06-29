@@ -25,6 +25,7 @@ let state = {
   spacing: "compact",
   report: "grid",
   bg: DEFAULT_BG,
+  layout: "stacked", // "stacked" (teams in vertical columns) or "wide" (classic rows)
   compare: { on: false, ids: [] },
 };
 let zoom = null; // null => fit-to-width on next render
@@ -45,7 +46,7 @@ function baselineOrder() {
 
 // Shared options for every chart render/export, so they all order siblings the same.
 function chartOpts(extra) {
-  return { spacing: state.spacing, report: state.report, branding: brandingForRender(), background: state.bg, order: baselineOrder(), ...extra };
+  return { spacing: state.spacing, report: state.report, branding: brandingForRender(), background: state.bg, stack: state.layout !== "wide", order: baselineOrder(), ...extra };
 }
 
 function saveLocal() {
@@ -66,7 +67,7 @@ function save() {
 const remote = { available: false, rev: 0, dirty: false, pushing: false, pushTimer: null };
 
 function snapshot() {
-  return { scenarios: state.scenarios, spacing: state.spacing, report: state.report, bg: state.bg };
+  return { scenarios: state.scenarios, spacing: state.spacing, report: state.report, bg: state.bg, layout: state.layout };
 }
 
 // Apply a data payload (from server or file) into state, keeping a valid active tab.
@@ -76,6 +77,7 @@ function applyData(data) {
   state.spacing = "compact"; // layout is fixed
   state.report = "grid";
   state.bg = data.bg || DEFAULT_BG;
+  state.layout = data.layout === "wide" ? "wide" : "stacked";
   if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
     state.activeId = state.scenarios[0].id;
   }
@@ -170,6 +172,7 @@ function load() {
     state.spacing = "compact"; // layout is fixed
     state.report = "grid";
     state.bg = state.bg || DEFAULT_BG;
+    state.layout = state.layout === "wide" ? "wide" : "stacked";
     if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
       state.activeId = state.scenarios[0].id;
     }
@@ -454,8 +457,12 @@ function renderRail() {
     : "A what-if copy. Edits here don’t touch your current org.";
   $("#resetToCurrent").style.display = isCurrent ? "none" : "";
 
+  const layoutSel = $("#layoutSelect");
+  if (layoutSel) layoutSel.value = state.layout;
   const bgInput = $("#bgColor");
   if (bgInput) bgInput.value = state.bg;
+  const bgSwatch = $("#bgSwatch");
+  if (bgSwatch) bgSwatch.style.background = state.bg;
 
   renderBulk();
   renderRoster();
@@ -863,6 +870,7 @@ function saveProject() {
     spacing: state.spacing,
     report: state.report,
     bg: state.bg,
+    layout: state.layout,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
@@ -892,6 +900,7 @@ function openProject(file) {
     state.spacing = "compact"; // layout is fixed
     state.report = "grid";
     state.bg = parsed.bg || DEFAULT_BG;
+    state.layout = parsed.layout === "wide" ? "wide" : "stacked";
     state.activeId = state.scenarios[0].id;
     state.compare = { on: false, ids: [] };
     rosterFilter = "";
@@ -954,14 +963,32 @@ function wire() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !$("#rosterModal").hidden) closeRosterModal();
   });
-  $("#bgColor").addEventListener("input", (e) => {
-    state.bg = e.target.value;
+  $("#layoutSelect").addEventListener("change", (e) => {
+    state.layout = e.target.value === "wide" ? "wide" : "stacked";
+    zoom = null;
     save();
     renderCanvas();
+  });
+
+  // Background takes a typed hex code (#rgb or #rrggbb); the swatch previews it live.
+  const applyBg = (raw) => {
+    let v = raw.trim();
+    if (v && v[0] !== "#") v = "#" + v;
+    if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)) return false;
+    state.bg = v.toLowerCase();
+    $("#bgSwatch").style.background = state.bg;
+    save();
+    renderCanvas();
+    return true;
+  };
+  $("#bgColor").addEventListener("input", (e) => applyBg(e.target.value));
+  $("#bgColor").addEventListener("blur", (e) => {
+    if (!applyBg(e.target.value)) e.target.value = state.bg; // revert a bad entry
   });
   $("#bgReset").addEventListener("click", () => {
     state.bg = DEFAULT_BG;
     $("#bgColor").value = DEFAULT_BG;
+    $("#bgSwatch").style.background = DEFAULT_BG;
     save();
     renderCanvas();
   });
