@@ -209,7 +209,9 @@ function drawNode(g, node, theme, margin) {
   // The title band is a little under half the card height so the role reads as the
   // headline. (Card height is fixed; only the band/body split changes.)
   const BAND_REF = Math.round(h * 0.44);
-  const titleMax = Math.floor((w - 14) / 8.5);
+  // Budget ~9.4px per char at 17px bold and keep ~8px of breathing room on each side
+  // so centered title text never touches the rounded border.
+  const titleMax = Math.floor((w - 16) / 9.4);
   // Clamp every line (not just the overflow) so a long single word can't spill past
   // the card edge at this larger title size.
   const titleLines = wrapLines(p.title || "Role", titleMax, 2).map((ln) => truncate(ln, titleMax));
