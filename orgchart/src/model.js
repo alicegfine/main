@@ -22,8 +22,8 @@ export function newPerson(partial = {}) {
   };
 }
 
-export function newScenario(name, people = []) {
-  return { id: uid("s"), name: name || "Scenario", people: people.map(newPerson) };
+export function newScenario(name, people = [], layout = "stacked") {
+  return { id: uid("s"), name: name || "Scenario", people: people.map(newPerson), layout };
 }
 
 export function clonePeople(people) {

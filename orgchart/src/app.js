@@ -25,7 +25,6 @@ let state = {
   spacing: "compact",
   report: "grid",
   bg: DEFAULT_BG,
-  layout: "stacked", // "stacked" (teams in vertical columns) or "wide" (classic rows)
   compare: { on: false, ids: [] },
 };
 let zoom = null; // null => fit-to-width on next render
@@ -33,6 +32,16 @@ let rosterFilter = ""; // roster search text
 
 const activeScenario = () => state.scenarios.find((s) => s.id === state.activeId) || state.scenarios[0];
 const currentOrg = () => state.scenarios[0]; // first scenario is "the current org"
+
+// Ensure every scenario has a valid per-scenario layout. `legacy` is an older
+// doc-wide layout value (from before layout moved onto scenarios), used as the
+// fallback so existing docs keep their setting.
+function normalizeLayouts(legacy) {
+  const fallback = legacy === "wide" ? "wide" : "stacked";
+  for (const s of state.scenarios) {
+    if (s.layout !== "wide" && s.layout !== "stacked") s.layout = fallback;
+  }
+}
 
 // Left-to-right ordering anchor: rank each person by their position in the current
 // org so every scenario draws siblings in the same order. People not in the current
@@ -44,9 +53,18 @@ function baselineOrder() {
   return m;
 }
 
-// Shared options for every chart render/export, so they all order siblings the same.
-function chartOpts(extra) {
-  return { spacing: state.spacing, report: state.report, branding: brandingForRender(), background: state.bg, stack: state.layout !== "wide", order: baselineOrder(), ...extra };
+// Shared options for every chart render/export. Layout is per-scenario; everything
+// else (ordering, background) is shared.
+function chartOpts(scenario, extra) {
+  return {
+    spacing: state.spacing,
+    report: state.report,
+    branding: brandingForRender(),
+    background: state.bg,
+    stack: (scenario && scenario.layout) !== "wide",
+    order: baselineOrder(),
+    ...extra,
+  };
 }
 
 function saveLocal() {
@@ -67,7 +85,7 @@ function save() {
 const remote = { available: false, rev: 0, dirty: false, pushing: false, pushTimer: null };
 
 function snapshot() {
-  return { scenarios: state.scenarios, spacing: state.spacing, report: state.report, bg: state.bg, layout: state.layout };
+  return { scenarios: state.scenarios, spacing: state.spacing, report: state.report, bg: state.bg };
 }
 
 // Apply a data payload (from server or file) into state, keeping a valid active tab.
@@ -77,7 +95,7 @@ function applyData(data) {
   state.spacing = "compact"; // layout is fixed
   state.report = "grid";
   state.bg = data.bg || DEFAULT_BG;
-  state.layout = data.layout === "wide" ? "wide" : "stacked";
+  normalizeLayouts(data.layout);
   if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
     state.activeId = state.scenarios[0].id;
   }
@@ -172,7 +190,7 @@ function load() {
     state.spacing = "compact"; // layout is fixed
     state.report = "grid";
     state.bg = state.bg || DEFAULT_BG;
-    state.layout = state.layout === "wide" ? "wide" : "stacked";
+    normalizeLayouts(parsed.layout);
     if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
       state.activeId = state.scenarios[0].id;
     }
@@ -300,7 +318,7 @@ function renameScenario(id) {
 
 function duplicateScenario() {
   const src = activeScenario();
-  const copy = newScenario(`${src.name} (copy)`, src.people);
+  const copy = newScenario(`${src.name} (copy)`, src.people, src.layout);
   state.scenarios.push(copy);
   state.activeId = copy.id;
   zoom = null;
@@ -458,7 +476,7 @@ function renderRail() {
   $("#resetToCurrent").style.display = isCurrent ? "none" : "";
 
   const layoutSel = $("#layoutSelect");
-  if (layoutSel) layoutSel.value = state.layout;
+  if (layoutSel) layoutSel.value = s.layout === "wide" ? "wide" : "stacked";
   const bgInput = $("#bgColor");
   if (bgInput) bgInput.value = state.bg;
   const bgSwatch = $("#bgSwatch");
@@ -711,10 +729,10 @@ function applyBulk() {
 }
 
 // ---------------- canvas ----------------
-function buildChartFrame(people, opts) {
+function buildChartFrame(scenario, opts) {
   const frame = document.createElement("div");
   frame.className = "chart-frame";
-  const { svg } = renderOrgSvg(people, chartOpts(opts));
+  const { svg } = renderOrgSvg(scenario.people, chartOpts(scenario, opts));
   // node click -> highlight roster card (single view only)
   svg.addEventListener("click", (e) => {
     const g = e.target.closest("[data-id]");
@@ -764,7 +782,7 @@ function renderCanvas() {
     return;
   }
 
-  const { frame, svg } = buildChartFrame(s.people);
+  const { frame, svg } = buildChartFrame(s);
   lastSvg = svg;
   stage.appendChild(frame);
   applyZoom(svg);
@@ -799,7 +817,7 @@ function renderCompare(stage) {
     col.appendChild(head);
 
     if (s.people.length) {
-      const { frame, svg } = buildChartFrame(s.people);
+      const { frame, svg } = buildChartFrame(s);
       const natW = Number(svg.getAttribute("width"));
       const scale = Math.min(1, COL_W / natW);
       svg.style.width = natW * scale + "px";
@@ -870,7 +888,6 @@ function saveProject() {
     spacing: state.spacing,
     report: state.report,
     bg: state.bg,
-    layout: state.layout,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
@@ -900,7 +917,7 @@ function openProject(file) {
     state.spacing = "compact"; // layout is fixed
     state.report = "grid";
     state.bg = parsed.bg || DEFAULT_BG;
-    state.layout = parsed.layout === "wide" ? "wide" : "stacked";
+    normalizeLayouts(parsed.layout);
     state.activeId = state.scenarios[0].id;
     state.compare = { on: false, ids: [] };
     rosterFilter = "";
@@ -917,7 +934,7 @@ function openProject(file) {
 function exportSvgForActive() {
   // Render a fresh, natural-size SVG (independent of on-screen zoom).
   const s = activeScenario();
-  return renderOrgSvg(s.people, chartOpts()).svg;
+  return renderOrgSvg(s.people, chartOpts(s)).svg;
 }
 
 async function handleExport(kind) {
@@ -964,7 +981,7 @@ function wire() {
     if (e.key === "Escape" && !$("#rosterModal").hidden) closeRosterModal();
   });
   $("#layoutSelect").addEventListener("change", (e) => {
-    state.layout = e.target.value === "wide" ? "wide" : "stacked";
+    activeScenario().layout = e.target.value === "wide" ? "wide" : "stacked";
     zoom = null;
     save();
     renderCanvas();
