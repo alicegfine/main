@@ -1,9 +1,7 @@
-// Org-chart layout. Two modes:
-//   "tree" - classic top-down: every level spreads in a single horizontal row.
-//   "grid" - top-down, but a manager whose reports are all individuals arranges them
-//            in a compact two-row "brick": a top row, then the rest tucked into the
-//            gaps below, lines dropping between the upper boxes. Keeps the chart from
-//            becoming one very wide row.
+// Org-chart layout ("hybrid"): the top `horizontalDepth` levels spread across a row
+// (so the leadership structure reads at a glance), and every level below that stacks
+// its reports in a vertical, indented list with elbow connectors — keeping the chart
+// narrow instead of one very wide row.
 // Pure geometry: takes a people list, returns node boxes + connector geometry.
 
 import { buildForest } from "./model.js";
@@ -11,10 +9,15 @@ import { buildForest } from "./model.js";
 // Cards are portrait (taller than wide): a thicker header band holds the wrapped
 // title, and the body stacks first name over last name. The app fixes the layout to
 // "compact"; the other presets are kept for completeness but aren't selectable.
+//   horizontalDepth - how many top levels spread horizontally before stacking begins.
+//   indent          - how far each stacked child sits right of its parent.
+//   stackTopGap     - vertical gap from a parent to its first stacked child.
+//   stackRowGap     - vertical gap between stacked siblings.
+//   spineX          - x offset of the vertical connector spine inside the parent.
 export const SPACING = {
-  normal: { nodeW: 140, nodeH: 148, hGap: 26, vGap: 46, rootGap: 42, gridVGap: 44, gridRowGap: 26 },
-  compact: { nodeW: 116, nodeH: 134, hGap: 14, vGap: 26, rootGap: 24, gridVGap: 26, gridRowGap: 14 },
-  airy: { nodeW: 156, nodeH: 168, hGap: 36, vGap: 64, rootGap: 60, gridVGap: 60, gridRowGap: 34 },
+  normal: { nodeW: 140, nodeH: 148, hGap: 26, vGap: 46, rootGap: 42, horizontalDepth: 2, indent: 34, stackTopGap: 16, stackRowGap: 14, spineX: 20 },
+  compact: { nodeW: 116, nodeH: 134, hGap: 14, vGap: 26, rootGap: 24, horizontalDepth: 2, indent: 30, stackTopGap: 14, stackRowGap: 12, spineX: 18 },
+  airy: { nodeW: 156, nodeH: 168, hGap: 36, vGap: 64, rootGap: 60, horizontalDepth: 2, indent: 40, stackTopGap: 20, stackRowGap: 18, spineX: 22 },
 };
 
 export const MARGIN = 24;
@@ -32,14 +35,14 @@ function bounds(nodes, sp) {
   };
 }
 
-function layoutTopDown(roots, kidsOf, byId, sp, gridLeaves) {
+function layoutTopDown(roots, kidsOf, byId, sp) {
   const nodes = [];
   const placed = new Set();
-  const step = sp.nodeW + sp.hGap;
+  const hDepth = sp.horizontalDepth || 1;
 
   function measure(id, depth) {
     placed.add(id);
-    const node = { id, person: byId.get(id), depth, w: sp.nodeW, h: sp.nodeH, x: 0, y: 0, kids: [], grid: null };
+    const node = { id, person: byId.get(id), depth, w: sp.nodeW, h: sp.nodeH, x: 0, y: 0, kids: [], vertical: false };
     nodes.push(node);
     node.kids = kidsOf(id, placed).map((k) => measure(k, depth + 1));
 
@@ -48,19 +51,15 @@ function layoutTopDown(roots, kidsOf, byId, sp, gridLeaves) {
       node.subH = sp.nodeH;
       return node;
     }
-    const n = node.kids.length;
-    const allLeaves = node.kids.every((k) => k.kids.length === 0);
-    if (gridLeaves && allLeaves) {
-      // cols chosen so the second row has at most (cols-1) boxes -> each fits a top-row gap
-      const cols = n <= 1 ? 1 : Math.ceil((n + 1) / 2);
-      const r1 = Math.min(n, cols);
-      const r2 = n - r1;
-      const rows = r2 > 0 ? 2 : 1;
-      const blockW = (r1 - 1) * step + sp.nodeW;
-      node.grid = { cols, r1, r2, blockW };
-      node.subW = Math.max(sp.nodeW, blockW);
-      node.subH = sp.nodeH + sp.gridVGap + rows * sp.nodeH + (rows - 1) * sp.gridRowGap;
+    node.vertical = depth >= hDepth;
+    if (node.vertical) {
+      // Reports stacked in an indented vertical list below the parent.
+      const childrenH = node.kids.reduce((a, k) => a + k.subH, 0) + (node.kids.length - 1) * sp.stackRowGap;
+      node.subH = sp.nodeH + sp.stackTopGap + childrenH;
+      node.subW = Math.max(sp.nodeW, sp.indent + Math.max(...node.kids.map((k) => k.subW)));
     } else {
+      // Reports spread across a horizontal row.
+      const n = node.kids.length;
       const totalW = node.kids.reduce((a, k) => a + k.subW, 0) + (n - 1) * sp.hGap;
       node.subW = Math.max(sp.nodeW, totalW);
       node.subH = sp.nodeH + sp.vGap + Math.max(...node.kids.map((k) => k.subH));
@@ -71,24 +70,16 @@ function layoutTopDown(roots, kidsOf, byId, sp, gridLeaves) {
   function assign(node, x, y) {
     node.y = y;
     if (node.kids.length === 0) {
-      node.x = x + (node.subW - sp.nodeW) / 2;
+      node.x = x;
       return;
     }
-    if (node.grid) {
-      const { r1, r2, blockW } = node.grid;
-      const blockLeft = x + (node.subW - blockW) / 2;
-      node.x = blockLeft + (blockW - sp.nodeW) / 2;
-      const blockTop = y + sp.nodeH + sp.gridVGap;
-      for (let i = 0; i < r1; i++) {
-        const k = node.kids[i];
-        k.x = blockLeft + i * step;
-        k.y = blockTop;
-      }
-      const startGap = Math.floor((r1 - 1 - r2) / 2);
-      for (let j = 0; j < r2; j++) {
-        const k = node.kids[r1 + j];
-        k.x = blockLeft + (startGap + j) * step + step / 2;
-        k.y = blockTop + sp.nodeH + sp.gridRowGap;
+    if (node.vertical) {
+      node.x = x;
+      const childX = x + sp.indent;
+      let cy = y + sp.nodeH + sp.stackTopGap;
+      for (const k of node.kids) {
+        assign(k, childX, cy);
+        cy += k.subH + sp.stackRowGap;
       }
     } else {
       let cx = x;
@@ -110,17 +101,24 @@ function layoutTopDown(roots, kidsOf, byId, sp, gridLeaves) {
     originX += root.subW + sp.rootGap;
   }
 
-  // Connectors: one bus per parent. The grid's second-row boxes just have a longer
-  // drop that falls cleanly in the gaps between the top-row boxes.
+  // Connectors: a horizontal "bus" for spread levels, an indented spine + elbow stubs
+  // for stacked levels.
   const links = [];
   for (const parent of nodes) {
     if (!parent.kids.length) continue;
-    const px = parent.x + parent.w / 2;
-    const pBottom = parent.y + parent.h;
-    const gap = parent.grid ? sp.gridVGap : sp.vGap;
-    const busY = pBottom + gap / 2;
-    for (const k of parent.kids) {
-      links.push({ type: "bus", from: parent.id, to: k.id, px, pBottom, busY, cx: k.x + k.w / 2, cTop: k.y });
+    if (parent.vertical) {
+      const spineX = parent.x + sp.spineX;
+      const spineTop = parent.y + parent.h;
+      for (const k of parent.kids) {
+        links.push({ type: "indent", from: parent.id, spineX, spineTop, stubY: k.y + k.h / 2, childLeft: k.x });
+      }
+    } else {
+      const px = parent.x + parent.w / 2;
+      const pBottom = parent.y + parent.h;
+      const busY = pBottom + sp.vGap / 2;
+      for (const k of parent.kids) {
+        links.push({ type: "bus", from: parent.id, to: k.id, px, pBottom, busY, cx: k.x + k.w / 2, cTop: k.y });
+      }
     }
   }
   return { nodes, links };
@@ -142,7 +140,7 @@ export function layoutOrg(people, opts = {}) {
 
   const kidsOf = (id, placed) => (childrenOf.get(id) || []).filter((k) => k !== id && !placed.has(k));
 
-  const { nodes, links } = layoutTopDown(roots, kidsOf, byId, sp, opts.report !== "tree");
+  const { nodes, links } = layoutTopDown(roots, kidsOf, byId, sp);
 
   return { nodes, links, ...bounds(nodes, sp), margin: MARGIN, spacing: sp, issues };
 }
