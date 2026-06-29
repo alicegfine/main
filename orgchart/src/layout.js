@@ -1,7 +1,8 @@
-// Org-chart layout ("hybrid"): the top `horizontalDepth` levels spread across a row
-// (so the leadership structure reads at a glance), and every level below that stacks
-// its reports in a vertical, indented list with elbow connectors — keeping the chart
-// narrow instead of one very wide row.
+// Org-chart layout ("hybrid"): a manager whose reports are all individuals (no reports
+// of their own) stacks them in a vertical, indented list with elbow connectors;
+// managers who themselves have managers under them spread their reports across a row.
+// The top of the chart (depth < horizontalDepth) always spreads. This keeps leadership
+// readable while collapsing wide leaf teams into narrow columns.
 // Pure geometry: takes a people list, returns node boxes + connector geometry.
 
 import { buildForest } from "./model.js";
@@ -9,15 +10,15 @@ import { buildForest } from "./model.js";
 // Cards are portrait (taller than wide): a thicker header band holds the wrapped
 // title, and the body stacks first name over last name. The app fixes the layout to
 // "compact"; the other presets are kept for completeness but aren't selectable.
-//   horizontalDepth - how many top levels spread horizontally before stacking begins.
+//   horizontalDepth - top levels that always spread horizontally (1 = just the root).
 //   indent          - how far each stacked child sits right of its parent.
 //   stackTopGap     - vertical gap from a parent to its first stacked child.
 //   stackRowGap     - vertical gap between stacked siblings.
 //   spineX          - x offset of the vertical connector spine inside the parent.
 export const SPACING = {
-  normal: { nodeW: 140, nodeH: 148, hGap: 26, vGap: 46, rootGap: 42, horizontalDepth: 2, indent: 34, stackTopGap: 16, stackRowGap: 14, spineX: 20 },
-  compact: { nodeW: 116, nodeH: 134, hGap: 14, vGap: 26, rootGap: 24, horizontalDepth: 2, indent: 30, stackTopGap: 14, stackRowGap: 12, spineX: 18 },
-  airy: { nodeW: 156, nodeH: 168, hGap: 36, vGap: 64, rootGap: 60, horizontalDepth: 2, indent: 40, stackTopGap: 20, stackRowGap: 18, spineX: 22 },
+  normal: { nodeW: 140, nodeH: 148, hGap: 26, vGap: 46, rootGap: 42, horizontalDepth: 1, indent: 34, stackTopGap: 16, stackRowGap: 14, spineX: 20 },
+  compact: { nodeW: 116, nodeH: 134, hGap: 14, vGap: 26, rootGap: 24, horizontalDepth: 1, indent: 30, stackTopGap: 14, stackRowGap: 12, spineX: 18 },
+  airy: { nodeW: 156, nodeH: 168, hGap: 36, vGap: 64, rootGap: 60, horizontalDepth: 1, indent: 40, stackTopGap: 20, stackRowGap: 18, spineX: 22 },
 };
 
 export const MARGIN = 24;
@@ -51,7 +52,10 @@ function layoutTopDown(roots, kidsOf, byId, sp) {
       node.subH = sp.nodeH;
       return node;
     }
-    node.vertical = depth >= hDepth;
+    // Stack a team vertically when every report is an individual (a leaf); spread
+    // across a row when reports have their own reports. The very top always spreads.
+    const allLeaves = node.kids.every((k) => k.kids.length === 0);
+    node.vertical = depth >= hDepth && allLeaves;
     if (node.vertical) {
       // Reports stacked in an indented vertical list below the parent.
       const childrenH = node.kids.reduce((a, k) => a + k.subH, 0) + (node.kids.length - 1) * sp.stackRowGap;
