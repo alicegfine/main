@@ -84,14 +84,19 @@ function save() {
 // When the backend is reachable, the org lives at the URL and everyone edits one copy.
 const remote = { available: false, rev: 0, dirty: false, pushing: false, pushTimer: null };
 
+// Private scenarios never leave the browser, so the shared copy excludes them.
 function snapshot() {
-  return { scenarios: state.scenarios, spacing: state.spacing, report: state.report, bg: state.bg };
+  return { scenarios: state.scenarios.filter((s) => !s.private), spacing: state.spacing, report: state.report, bg: state.bg };
 }
 
 // Apply a data payload (from server or file) into state, keeping a valid active tab.
+// Private scenarios currently in state (loaded from this browser) are preserved and
+// re-appended, since they aren't part of the shared payload.
 function applyData(data) {
   if (!data || !Array.isArray(data.scenarios) || !data.scenarios.length) return false;
-  state.scenarios = data.scenarios;
+  const privates = state.scenarios.filter((s) => s && s.private);
+  const sharedIds = new Set(data.scenarios.map((s) => s.id));
+  state.scenarios = data.scenarios.concat(privates.filter((p) => !sharedIds.has(p.id)));
   state.spacing = "compact"; // layout is fixed
   state.report = "grid";
   state.bg = data.bg || DEFAULT_BG;
@@ -302,6 +307,13 @@ function renderTabs() {
     tab.className = "tab" + (s.id === state.activeId ? " active" : "");
     tab.title = "Drag to reorder · double-click to rename";
     tab.draggable = true;
+    if (s.private) {
+      const lock = document.createElement("span");
+      lock.className = "tab-lock";
+      lock.textContent = "🔒";
+      lock.title = "Private — only visible in this browser";
+      tab.appendChild(lock);
+    }
     const label = document.createElement("span");
     label.textContent = s.name;
     tab.appendChild(label);
@@ -391,6 +403,7 @@ function renameScenario(id) {
 function duplicateScenario() {
   const src = activeScenario();
   const copy = newScenario(`${src.name} (copy)`, src.people, src.layout);
+  copy.private = !!src.private; // a copy of a private draft stays private
   state.scenarios.push(copy);
   state.activeId = copy.id;
   zoom = null;
@@ -565,6 +578,12 @@ function renderRail() {
     ? "Your live org. Click Edit people to add or change staff."
     : "A what-if copy. Edits here don’t touch your current org.";
   $("#resetToCurrent").style.display = isCurrent ? "none" : "";
+
+  // The current org is the shared baseline, so it can't be made private.
+  const privRow = $("#scenarioPrivateRow");
+  const priv = $("#scenarioPrivate");
+  if (privRow) privRow.style.display = isCurrent ? "none" : "flex";
+  if (priv) priv.checked = !isCurrent && !!s.private;
 
   const layoutSel = $("#layoutSelect");
   if (layoutSel) layoutSel.value = s.layout === "wide" ? "wide" : "stacked";
@@ -1117,6 +1136,20 @@ function wire() {
     renderTabs();
     if (!state.compare.on) $("#canvasTitle").textContent = e.target.value;
   });
+  $("#scenarioPrivate").addEventListener("change", (e) => {
+    const s = activeScenario();
+    if (s.id === currentOrg().id) return; // can't privatize the shared baseline
+    const goingPrivate = e.target.checked;
+    s.private = goingPrivate;
+    save();
+    renderTabs();
+    renderRail();
+    toast(
+      goingPrivate
+        ? `“${s.name}” is now private — only visible in this browser.`
+        : `“${s.name}” is now shared with everyone on the link.`
+    );
+  });
   $("#duplicateScenario").addEventListener("click", duplicateScenario);
   $("#deleteScenario").addEventListener("click", () => deleteScenario(state.activeId));
   $("#resetToCurrent").addEventListener("click", () => {
@@ -1212,22 +1245,25 @@ function applyBrandVars() {
 // ---------------- boot ----------------
 async function boot() {
   applyBrandVars();
+  // Load this browser's cache first so any private (local-only) scenarios are in state
+  // before shared data is applied — applyData preserves them.
+  const hadLocal = load();
   const got = await remoteGet();
 
   if (got === null) {
     // No backend reachable -> local-only mode (still fully usable).
     remote.available = false;
-    if (!load()) seed();
+    if (!hadLocal) seed();
   } else {
     remote.available = true;
     remote.rev = got.rev || 0;
     if (got.data && Array.isArray(got.data.scenarios) && got.data.scenarios.length) {
-      // A shared version exists -> everyone loads it.
+      // A shared version exists -> everyone loads it (keeping local private scenarios).
       applyData(got.data);
       saveLocal();
-    } else if (load()) {
+    } else if (hadLocal) {
       // Server is empty but THIS browser already has data -> promote it to the
-      // shared version (this is how your existing org seeds the URL on first open).
+      // shared version (private scenarios stay local; snapshot() filters them out).
       await remotePush();
     } else {
       // Brand-new everywhere: show the sample locally but DON'T push it, so a real
