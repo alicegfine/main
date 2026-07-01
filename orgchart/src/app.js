@@ -582,7 +582,7 @@ function renderRail() {
   // The current org is the shared baseline, so it can't be made private.
   const privRow = $("#scenarioPrivateRow");
   const priv = $("#scenarioPrivate");
-  if (privRow) privRow.style.display = isCurrent ? "none" : "flex";
+  if (privRow) privRow.style.display = isCurrent ? "none" : "block";
   if (priv) priv.checked = !isCurrent && !!s.private;
 
   const layoutSel = $("#layoutSelect");
