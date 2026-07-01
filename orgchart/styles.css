@@ -99,6 +99,10 @@ body {
   cursor: pointer;
 }
 .tab:hover { background: var(--panel-2); color: var(--text); }
+.tab { cursor: grab; }
+.tab.dragging { opacity: 0.4; }
+.tab.drop-before { box-shadow: inset 3px 0 0 var(--accent); }
+.tab.drop-after { box-shadow: inset -3px 0 0 var(--accent); }
 .tab.active {
   background: var(--accent-soft);
   color: var(--accent-press);
@@ -380,6 +384,28 @@ input[type="text"]:focus, select:focus {
   align-content: start;
 }
 
+/* help modal — narrower, single-column prose */
+.modal.modal-narrow { width: min(660px, 96vw); height: min(760px, 88vh); }
+.help-body { display: block; }
+.help-body .help-lead { font-size: 14px; color: var(--muted); line-height: 1.55; margin: 0 0 4px; }
+.help-body h3 {
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 20px 0 6px;
+}
+.help-body p { font-size: 13.5px; line-height: 1.55; color: var(--text); margin: 6px 0; }
+.help-body ul { margin: 6px 0; padding-left: 20px; }
+.help-body li { font-size: 13.5px; line-height: 1.6; color: var(--text); margin: 3px 0; }
+.help-body code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--panel-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 /* ---------- manager combobox ---------- */
 .combo { position: relative; flex: 1; min-width: 0; }
 .combo-input {
@@ -621,6 +647,18 @@ input[type="text"]:focus, select:focus {
   max-width: 80vw;
 }
 .toast.err { background: var(--danger); }
+.toast-undo {
+  margin-left: 14px;
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: #fff;
+  border-radius: 14px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.toast-undo:hover { background: rgba(255, 255, 255, 0.15); }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

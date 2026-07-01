@@ -251,17 +251,89 @@ function toast(msg, isError = false) {
   toastTimer = setTimeout(() => (t.hidden = true), 3200);
 }
 
+// A toast with an "Undo" action, shown a bit longer so there's time to click it.
+function toastUndo(msg, onUndo) {
+  const t = $("#toast");
+  t.className = "toast";
+  t.textContent = "";
+  const span = document.createElement("span");
+  span.textContent = msg;
+  const btn = document.createElement("button");
+  btn.className = "toast-undo";
+  btn.textContent = "Undo";
+  btn.addEventListener("click", () => {
+    t.hidden = true;
+    clearTimeout(toastTimer);
+    onUndo();
+  });
+  t.append(span, btn);
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.hidden = true), 8000);
+}
+
 // ---------------- scenario tabs ----------------
+let dragId = null; // scenario id currently being dragged
+
+// Move the dragged scenario to before/after the target tab.
+function reorderScenario(sourceId, targetId, after) {
+  if (sourceId === targetId) return;
+  const from = state.scenarios.findIndex((s) => s.id === sourceId);
+  if (from < 0) return;
+  const [moved] = state.scenarios.splice(from, 1);
+  let to = state.scenarios.findIndex((s) => s.id === targetId);
+  if (to < 0) {
+    state.scenarios.splice(from, 0, moved); // target vanished; put it back
+    return;
+  }
+  if (after) to += 1;
+  state.scenarios.splice(to, 0, moved);
+  save();
+  renderAll(); // scenarios[0] ("current org") may have changed
+}
+
 function renderTabs() {
   const nav = $("#scenarioTabs");
   nav.innerHTML = "";
+  const clearDropHints = () =>
+    nav.querySelectorAll(".tab").forEach((t) => t.classList.remove("drop-before", "drop-after", "dragging"));
   state.scenarios.forEach((s, i) => {
     const tab = document.createElement("button");
     tab.className = "tab" + (s.id === state.activeId ? " active" : "");
-    tab.title = "Double-click to rename";
+    tab.title = "Drag to reorder · double-click to rename";
+    tab.draggable = true;
     const label = document.createElement("span");
     label.textContent = s.name;
     tab.appendChild(label);
+
+    tab.addEventListener("dragstart", (e) => {
+      dragId = s.id;
+      e.dataTransfer.effectAllowed = "move";
+      tab.classList.add("dragging");
+    });
+    tab.addEventListener("dragend", () => {
+      dragId = null;
+      clearDropHints();
+    });
+    tab.addEventListener("dragover", (e) => {
+      if (dragId === null || dragId === s.id) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const r = tab.getBoundingClientRect();
+      const after = e.clientX - r.left > r.width / 2;
+      tab.classList.toggle("drop-after", after);
+      tab.classList.toggle("drop-before", !after);
+    });
+    tab.addEventListener("dragleave", () => tab.classList.remove("drop-before", "drop-after"));
+    tab.addEventListener("drop", (e) => {
+      if (dragId === null || dragId === s.id) return;
+      e.preventDefault();
+      const r = tab.getBoundingClientRect();
+      const after = e.clientX - r.left > r.width / 2;
+      const src = dragId;
+      clearDropHints();
+      reorderScenario(src, s.id, after);
+    });
 
     const proposedCount = s.people.filter((p) => p.proposed).length;
     if (proposedCount) {
@@ -327,18 +399,37 @@ function duplicateScenario() {
   toast(`Created “${copy.name}”`);
 }
 
+let lastDeleted = null; // { scenario, index, wasActive, compareIds }
+
 function deleteScenario(id) {
   if (state.scenarios.length <= 1) {
     toast("Keep at least one scenario.", true);
     return;
   }
   const idx = state.scenarios.findIndex((s) => s.id === id);
+  if (idx < 0) return;
+  const scenario = state.scenarios[idx];
   const wasActive = state.activeId === id;
+  lastDeleted = { scenario, index: idx, wasActive, compareIds: state.compare.ids.includes(id) };
   state.scenarios.splice(idx, 1);
   state.compare.ids = state.compare.ids.filter((x) => x !== id);
   if (wasActive) state.activeId = state.scenarios[Math.max(0, idx - 1)].id;
   save();
   renderAll();
+  toastUndo(`Deleted “${scenario.name}”.`, undoDelete);
+}
+
+function undoDelete() {
+  if (!lastDeleted) return;
+  const { scenario, index, wasActive, compareIds } = lastDeleted;
+  state.scenarios.splice(Math.min(index, state.scenarios.length), 0, scenario);
+  if (compareIds && !state.compare.ids.includes(scenario.id)) state.compare.ids.push(scenario.id);
+  if (wasActive) state.activeId = scenario.id;
+  lastDeleted = null;
+  zoom = null;
+  save();
+  renderAll();
+  toast(`Restored “${scenario.name}”.`);
 }
 
 // ---------------- roster editor ----------------
@@ -977,8 +1068,18 @@ function wire() {
   $("#rosterModal").addEventListener("mousedown", (e) => {
     if (e.target.id === "rosterModal") closeRosterModal(); // click on backdrop
   });
+
+  const closeHelp = () => ($("#helpModal").hidden = true);
+  $("#helpBtn").addEventListener("click", () => ($("#helpModal").hidden = false));
+  $("#helpModalClose").addEventListener("click", closeHelp);
+  $("#helpModal").addEventListener("mousedown", (e) => {
+    if (e.target.id === "helpModal") closeHelp(); // click on backdrop
+  });
+
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !$("#rosterModal").hidden) closeRosterModal();
+    if (e.key !== "Escape") return;
+    if (!$("#helpModal").hidden) closeHelp();
+    else if (!$("#rosterModal").hidden) closeRosterModal();
   });
   $("#layoutSelect").addEventListener("change", (e) => {
     activeScenario().layout = e.target.value === "wide" ? "wide" : "stacked";

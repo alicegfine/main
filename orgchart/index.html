@@ -22,6 +22,7 @@
       <nav class="scenario-tabs" id="scenarioTabs" aria-label="Scenarios"></nav>
 
       <div class="topbar-actions">
+        <button class="btn btn-ghost" id="helpBtn" title="How to use">Help</button>
         <button class="btn btn-ghost" id="compareToggle" aria-pressed="false">Compare</button>
         <div class="menu" id="exportMenu">
           <button class="btn btn-primary" id="exportBtn" aria-haspopup="true" aria-expanded="false">
@@ -146,6 +147,58 @@
           <button class="modal-close" id="rosterModalClose" aria-label="Close">×</button>
         </div>
         <div class="modal-body" id="modalPeopleList"></div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="helpModal" hidden>
+      <div class="modal modal-narrow" role="dialog" aria-modal="true" aria-label="How to use">
+        <div class="modal-head">
+          <h2>How to use</h2>
+          <button class="modal-close" id="helpModalClose" aria-label="Close">×</button>
+        </div>
+        <div class="modal-body help-body">
+          <p class="help-lead">Build and edit the org chart here. Changes <b>save automatically</b>, and everyone with the link sees the same live copy.</p>
+
+          <h3>The big picture</h3>
+          <ul>
+            <li>The <b>tabs</b> across the top are versions of the org (e.g. <i>Current org</i>, <i>Future hires</i>). Click one to switch — the chart updates instantly.</li>
+            <li>The <b>left panel</b> is where you edit. The <b>chart</b> on the right is what you export into slides.</li>
+          </ul>
+
+          <h3>Editing people</h3>
+          <p>Click <b>Edit people</b> to open the roster. Each person is a card.</p>
+          <ul>
+            <li><b>Add someone:</b> click <b>+ Add person</b>, then fill in <b>Name</b> and <b>Title</b>. Leave the name blank for an open role.</li>
+            <li><b>Category</b> sets the card's color (Executive / Director / Manager / IC).</li>
+            <li><b>Status</b> is <i>Filled</i>, or <i>Hiring now / soon / later</i> for a planned role (shown as a dashed card with a colored tag).</li>
+            <li><b>Reports to</b> — type a manager's name and pick them to draw the reporting line. Leave as "Top of chart" for the top role.</li>
+            <li><b>Manager</b> checkbox makes a person available in others' "Reports to" list. (Anyone who already has reports is a manager automatically.)</li>
+            <li><b>Remove</b> with the trash icon — their reports move up to that person's manager.</li>
+          </ul>
+
+          <h3>Changing who reports to whom</h3>
+          <ul>
+            <li><b>One person:</b> change their <b>Reports to</b> field in Edit people.</li>
+            <li><b>Several at once:</b> in <b>Reassign reports</b>, pick a new manager, tick who should report to them, and click <b>Reassign selected</b>.</li>
+          </ul>
+
+          <h3>Versions (the tabs)</h3>
+          <ul>
+            <li><b>New version:</b> click <b>+</b> at the end of the tabs — it copies the tab you're on, so you can try what-ifs safely.</li>
+            <li><b>Rename:</b> double-click a tab. <b>Reorder:</b> drag a tab left or right.</li>
+            <li><b>Delete:</b> click the <b>×</b> on a tab. Deleted by accident? Click <b>Undo</b> in the message at the bottom.</li>
+            <li><b>Compare:</b> click <b>Compare</b> to see versions side by side.</li>
+          </ul>
+
+          <h3>Appearance</h3>
+          <ul>
+            <li><b>Layout</b> (remembered per version): <i>Stacked teams</i> for a full org on a slide, or <i>Wide rows</i> for a small/simple org.</li>
+            <li><b>Chart background</b> — type your slide's hex color (e.g. <code>#ecefff</code>) so screenshots and exports match your deck.</li>
+          </ul>
+
+          <h3>Getting it into a deck</h3>
+          <p>Click <b>Export ▾</b> → <b>PNG</b> (picture), <b>SVG</b> (editable), or <b>Copy image</b> (paste straight into a slide). You can also just screenshot the chart.</p>
+        </div>
       </div>
     </div>
 
