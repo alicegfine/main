@@ -422,6 +422,7 @@ function deleteScenario(id) {
   const idx = state.scenarios.findIndex((s) => s.id === id);
   if (idx < 0) return;
   const scenario = state.scenarios[idx];
+  if (!confirm(`Delete “${scenario.name}”?`)) return;
   const wasActive = state.activeId === id;
   lastDeleted = { scenario, index: idx, wasActive, compareIds: state.compare.ids.includes(id) };
   state.scenarios.splice(idx, 1);
