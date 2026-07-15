@@ -1,0 +1,66 @@
+// Personal Networking CRM data model.
+// Provider is SQLite by default (simplest to host on Railway with a volume).
+// To use Postgres instead: change provider to "postgresql", set DATABASE_URL
+// to your Postgres connection string, then run `prisma db push`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// A person you're networking with.
+model Contact {
+  id             String    @id @default(cuid())
+  name           String
+  email          String?
+  company        String?
+  role           String?
+  linkedinUrl    String?
+  howMet         String?
+  /// Free-form comma-separated tags/topics, e.g. "biosecurity, funder, warm intro".
+  tags           String?
+  /// One of the values in lib/status.ts: reached_out | connected | pending_reply | replied | cold
+  status         String    @default("reached_out")
+  notes          String?
+  lastContactAt  DateTime?
+  nextFollowUpAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  interactions Interaction[]
+
+  @@index([status])
+  @@index([nextFollowUpAt])
+}
+
+/// A single touchpoint with a contact (message, call, meeting, Granola note...).
+model Interaction {
+  id            String   @id @default(cuid())
+  contactId     String
+  contact       Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  occurredAt    DateTime @default(now())
+  /// linkedin | email | call | meeting | note | granola
+  channel       String   @default("note")
+  summary       String?
+  /// Granola note id, used to dedupe on sync (one entry per contact per note).
+  granolaNoteId String?
+  granolaUrl    String?
+  createdAt     DateTime @default(now())
+
+  @@unique([contactId, granolaNoteId])
+  @@index([contactId])
+  @@index([occurredAt])
+}
+
+/// Bookkeeping for the Granola sync job (single row, id = "granola").
+model SyncState {
+  id         String    @id
+  lastSyncAt DateTime?
+  cursor     String?
+  lastError  String?
+  updatedAt  DateTime  @updatedAt
+}
