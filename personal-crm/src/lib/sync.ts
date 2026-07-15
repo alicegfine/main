@@ -1,6 +1,6 @@
 import { prisma } from "./db";
 import { config } from "./env";
-import { GranolaAttendee, GranolaNote, listNotes } from "./granola";
+import { GranolaPerson, GranolaNote, getNote, listNotes } from "./granola";
 
 export interface SyncResult {
   ok: boolean;
@@ -37,9 +37,13 @@ export async function syncGranola(): Promise<SyncResult> {
     update: {},
   });
 
+  // state.lastSyncAt is kept for bookkeeping/UI; we dedupe by note id rather
+  // than server-side filtering, so re-fetching recent notes is harmless.
+  void state;
+
   let notes: GranolaNote[];
   try {
-    notes = await listNotes({ since: state.lastSyncAt ?? null });
+    notes = await listNotes();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await prisma.syncState.update({
@@ -62,11 +66,26 @@ export async function syncGranola(): Promise<SyncResult> {
     byName.set(normalizeName(c.name), c.id);
   }
 
-  const owners = new Set(config.ownerEmails);
+  const configuredOwners = new Set(config.ownerEmails);
   const touched = new Set<string>();
 
   for (const note of notes) {
-    for (const attendee of note.attendees) {
+    // The list endpoint sometimes omits attendees; fall back to note detail.
+    let attendees = note.attendees;
+    let owner = note.owner;
+    if (attendees.length === 0) {
+      const detail = await getNote(note.id);
+      if (detail) {
+        attendees = detail.attendees;
+        owner = detail.owner ?? owner;
+      }
+    }
+
+    // Never turn yourself into a contact: skip the note owner + configured emails.
+    const owners = new Set(configuredOwners);
+    if (owner?.email) owners.add(owner.email.toLowerCase());
+
+    for (const attendee of attendees) {
       const email = attendee.email?.toLowerCase() ?? null;
       if (email && owners.has(email)) continue;
 
@@ -138,7 +157,7 @@ export async function syncGranola(): Promise<SyncResult> {
 }
 
 function matchAttendee(
-  attendee: GranolaAttendee,
+  attendee: GranolaPerson,
   byEmail: Map<string, string>,
   byName: Map<string, string>,
 ): string | undefined {

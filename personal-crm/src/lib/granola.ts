@@ -1,20 +1,21 @@
 import { config } from "./env";
 
-// A normalized Granola note. Granola's public API returns notes with
-// summaries, transcripts and attendees; the exact JSON field names aren't
-// fully published, so `normalizeNote` accepts several likely shapes and maps
-// them onto this stable interface. If Granola's payload differs, adjust the
-// key lookups in `normalizeNote` — nothing else needs to change.
+// A normalized Granola note. The public API (https://public-api.granola.ai/v1)
+// returns notes with an owner, attendees, a calendar_event, and summary text.
+// Field names below follow the documented schema, with a few fallbacks in case
+// Granola varies them. If a sync misses data, the `pick(...)` key lists here and
+// in `collectAttendees` are the only place to adjust.
 export interface GranolaNote {
   id: string;
   title: string;
   occurredAt: Date;
   summary: string | null;
   url: string | null;
-  attendees: GranolaAttendee[];
+  owner: GranolaPerson | null;
+  attendees: GranolaPerson[];
 }
 
-export interface GranolaAttendee {
+export interface GranolaPerson {
   name: string | null;
   email: string | null;
 }
@@ -44,28 +45,55 @@ function toDate(value: unknown): Date {
   return new Date();
 }
 
-function normalizeAttendees(value: unknown): GranolaAttendee[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((raw): GranolaAttendee | null => {
-      if (typeof raw === "string") {
-        // Sometimes attendees are plain strings (name or email).
-        return raw.includes("@")
-          ? { name: null, email: raw.trim() }
-          : { name: raw.trim(), email: null };
-      }
-      if (raw && typeof raw === "object") {
-        const o = raw as Record<string, unknown>;
-        const name = pick(o, ["name", "display_name", "displayName", "full_name"]);
-        const email = pick(o, ["email", "email_address", "emailAddress"]);
-        return {
-          name: typeof name === "string" ? name.trim() : null,
-          email: typeof email === "string" ? email.trim().toLowerCase() : null,
-        };
-      }
-      return null;
-    })
-    .filter((a): a is GranolaAttendee => a !== null && (!!a.name || !!a.email));
+function toPerson(raw: unknown): GranolaPerson | null {
+  if (typeof raw === "string") {
+    return raw.includes("@")
+      ? { name: null, email: raw.trim().toLowerCase() }
+      : { name: raw.trim(), email: null };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    const name = pick(o, ["name", "display_name", "displayName", "full_name"]);
+    const email = pick(o, ["email", "email_address", "emailAddress"]);
+    const person: GranolaPerson = {
+      name: typeof name === "string" ? name.trim() : null,
+      email: typeof email === "string" ? email.trim().toLowerCase() : null,
+    };
+    return person.name || person.email ? person : null;
+  }
+  return null;
+}
+
+/**
+ * Gather everyone associated with a note: the `attendees` array plus the
+ * `calendar_event` invitees/attendees/organizer. Granola's list endpoint
+ * sometimes returns only basic fields, so the sync falls back to the per-note
+ * detail; this handles either payload.
+ */
+export function collectAttendees(raw: Record<string, unknown>): GranolaPerson[] {
+  const people: GranolaPerson[] = [];
+  const seen = new Set<string>();
+
+  const add = (p: GranolaPerson | null) => {
+    if (!p) return;
+    const key = (p.email ?? p.name ?? "").toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    people.push(p);
+  };
+
+  const direct = pick(raw, ["attendees", "participants", "people", "guests"]);
+  if (Array.isArray(direct)) direct.forEach((a) => add(toPerson(a)));
+
+  const cal = pick(raw, ["calendar_event", "calendarEvent", "event"]);
+  if (cal && typeof cal === "object") {
+    const c = cal as Record<string, unknown>;
+    const invitees = pick(c, ["invitees", "attendees", "guests"]);
+    if (Array.isArray(invitees)) invitees.forEach((a) => add(toPerson(a)));
+    add(toPerson(pick(c, ["organizer", "creator"])));
+  }
+
+  return people;
 }
 
 export function normalizeNote(raw: Record<string, unknown>): GranolaNote | null {
@@ -74,8 +102,9 @@ export function normalizeNote(raw: Record<string, unknown>): GranolaNote | null 
 
   const title = pick(raw, ["title", "name", "subject"]);
   const summaryRaw = pick(raw, [
-    "summary",
+    "summary_text",
     "summary_markdown",
+    "summary",
     "ai_summary",
     "notes",
     "content",
@@ -88,12 +117,6 @@ export function normalizeNote(raw: Record<string, unknown>): GranolaNote | null 
     "date",
     "updated_at",
   ]);
-  const attendees = pick(raw, [
-    "attendees",
-    "participants",
-    "people",
-    "guests",
-  ]);
 
   return {
     id,
@@ -101,56 +124,66 @@ export function normalizeNote(raw: Record<string, unknown>): GranolaNote | null 
     occurredAt: toDate(occurredAt),
     summary: typeof summaryRaw === "string" && summaryRaw ? summaryRaw : null,
     url: typeof url === "string" && url ? url : null,
-    attendees: normalizeAttendees(attendees),
+    owner: toPerson(pick(raw, ["owner", "user", "author"])),
+    attendees: collectAttendees(raw),
   };
 }
 
+function authHeaders(): Record<string, string> {
+  const apiKey = config.granolaApiKey;
+  if (!apiKey) throw new GranolaError("GRANOLA_API_KEY is not set");
+  return { Authorization: `Bearer ${apiKey}`, Accept: "application/json" };
+}
+
+function base(): string {
+  return config.granolaApiBase.replace(/\/$/, "");
+}
+
+async function getJson(url: string): Promise<Record<string, unknown>> {
+  const res = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new GranolaError(
+      `Granola API ${res.status} on ${url}: ${body.slice(0, 300)}`,
+      res.status,
+    );
+  }
+  return (await res.json()) as Record<string, unknown>;
+}
+
 interface ListOptions {
-  /** Only return notes created/updated after this time, if the API supports it. */
-  since?: Date | null;
   /** Safety cap so a first sync of a huge account doesn't run forever. */
   maxPages?: number;
 }
 
-/**
- * List notes from the Granola public API, following pagination. Returns
- * normalized notes newest-first is not guaranteed; callers dedupe by id.
- */
-export async function listNotes(options: ListOptions = {}): Promise<GranolaNote[]> {
-  const apiKey = config.granolaApiKey;
-  if (!apiKey) {
-    throw new GranolaError("GRANOLA_API_KEY is not set");
-  }
+/** Fetch a single page of the notes list — used by the debug endpoint. */
+export async function listNotesRaw(cursor?: string): Promise<Record<string, unknown>> {
+  const url = new URL(`${base()}/notes`);
+  url.searchParams.set("limit", "100");
+  if (cursor) url.searchParams.set("cursor", cursor);
+  return getJson(url.toString());
+}
 
-  const base = config.granolaApiBase.replace(/\/$/, "");
+/** Fetch the full detail for one note (includes attendees + summary). */
+export async function getNote(id: string): Promise<GranolaNote | null> {
+  try {
+    const json = await getJson(`${base()}/notes/${encodeURIComponent(id)}`);
+    // The note may be at the top level or nested under a `note`/`data` key.
+    const noteObj = pick(json, ["note", "data", "document"]) ?? json;
+    return normalizeNote(noteObj as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+}
+
+/** List notes, following pagination. Callers dedupe by note id. */
+export async function listNotes(options: ListOptions = {}): Promise<GranolaNote[]> {
   const maxPages = options.maxPages ?? 20;
   const notes: GranolaNote[] = [];
   let cursor: string | undefined;
 
   for (let page = 0; page < maxPages; page++) {
-    const url = new URL(`${base}/notes`);
-    url.searchParams.set("limit", "100");
-    if (cursor) url.searchParams.set("cursor", cursor);
-    if (options.since) url.searchParams.set("updated_since", options.since.toISOString());
-
-    const res = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-      },
-      // Never cache API responses.
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new GranolaError(
-        `Granola API returned ${res.status}: ${body.slice(0, 300)}`,
-        res.status,
-      );
-    }
-
-    const json = (await res.json()) as Record<string, unknown>;
+    const json = await listNotesRaw(cursor);
     const items = (pick(json, ["notes", "documents", "data", "results", "items"]) ??
       []) as unknown[];
 
@@ -161,7 +194,9 @@ export async function listNotes(options: ListOptions = {}): Promise<GranolaNote[
       }
     }
 
-    const next = pick(json, ["next_cursor", "nextCursor", "cursor", "next"]);
+    const hasMore = pick(json, ["hasMore", "has_more"]);
+    const next = pick(json, ["cursor", "next_cursor", "nextCursor", "next"]);
+    if (hasMore === false) break;
     if (typeof next === "string" && next.length > 0) {
       cursor = next;
     } else {

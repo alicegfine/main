@@ -24,8 +24,8 @@ Built to run on [Railway](https://railway.app).
 - **Granola sync** — pulls your meeting notes on a schedule, matches attendees
   to your contacts, logs each note as an interaction (with a link back to
   Granola), and can auto-create contacts for new people you met.
-- **Weekly digest** to Slack + email so follow-through happens even when you're
-  not in the app.
+- **Weekly digest** to Slack so follow-through happens even when you're not in
+  the app.
 - **Password-protected** — it's on the public internet, so your contacts aren't.
 
 ## Tech stack
@@ -34,7 +34,7 @@ Built to run on [Railway](https://railway.app).
 - **Prisma + SQLite** — the datastore (a single file on a Railway volume).
   Swappable to Postgres in one step (see below).
 - **node-cron** — in-process scheduler for the sync + digest jobs
-- **nodemailer** — email; **Slack incoming webhook** — Slack
+- **Slack incoming webhook** — digest delivery
 
 ---
 
@@ -67,9 +67,7 @@ app to be actually up.
 | `GRANOLA_API_BASE` | ➖ | Defaults to `https://public-api.granola.ai/v1`. |
 | `GRANOLA_AUTO_CREATE_CONTACTS` | ➖ | `true` (default) creates contacts for unmatched attendees. |
 | `OWNER_EMAIL` | ➖ | Your own email(s), comma-separated — skipped during sync so you don't become a contact. |
-| `SLACK_WEBHOOK_URL` | for Slack | Incoming webhook. Blank = no Slack. |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_SECURE` / `SMTP_USER` / `SMTP_PASS` | for email | SMTP creds. Blank host = no email. |
-| `DIGEST_EMAIL_FROM` / `DIGEST_EMAIL_TO` | for email | Digest sender/recipient. |
+| `SLACK_WEBHOOK_URL` | for digest | Incoming webhook. Blank = digest disabled. |
 | `GRANOLA_SYNC_CRON` | ➖ | Cron for the sync job. Default `0 */2 * * *` (every 2h). |
 | `DIGEST_CRON` | ➖ | Cron for the digest. Default `0 8 * * 1` (Mon 08:00). |
 | `TZ` | ➖ | IANA timezone for the schedules + date math. Default `America/New_York`. |
@@ -100,12 +98,16 @@ No match + `GRANOLA_AUTO_CREATE_CONTACTS=true` creates a new contact.
 
 ---
 
-## Slack & email digest
+## Slack digest
 
-- **Slack:** create an [incoming webhook](https://api.slack.com/messaging/webhooks)
-  and set `SLACK_WEBHOOK_URL`.
-- **Email:** set the `SMTP_*` vars. For Gmail/Google Workspace use an
-  [App Password](https://support.google.com/accounts/answer/185833).
+Create an [incoming webhook](https://api.slack.com/messaging/webhooks) and set
+`SLACK_WEBHOOK_URL`:
+
+1. Go to <https://api.slack.com/apps> → **Create New App** → **From scratch**.
+2. Name it (e.g. "Networking CRM"), pick your workspace.
+3. **Incoming Webhooks** → toggle **On** → **Add New Webhook to Workspace**.
+4. Choose the channel to post to (a private DM-to-self channel works well).
+5. Copy the `https://hooks.slack.com/services/...` URL into `SLACK_WEBHOOK_URL`.
 
 The digest is only sent when there's something to report (unless forced). Test
 it any time:
@@ -118,6 +120,21 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
   -H 'Content-Type: application/json' -d '{"force":true}' \
   https://<your-app>/api/digest
 ```
+
+## Debugging the Granola sync
+
+If a sync doesn't capture what you expect, hit the diagnostic endpoint (while
+logged in, or with the bearer token) to see exactly what Granola returns for
+your account:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://<your-app>/api/granola/debug
+```
+
+It shows the top-level response keys, a sample note's raw fields, and how the
+parser normalized it. If the raw fields don't match what `src/lib/granola.ts`
+looks for, that's the fix. Note: Granola only returns notes that already have a
+generated summary — a call from minutes ago may still be processing.
 
 ### Prefer an external scheduler?
 
@@ -145,6 +162,7 @@ also accept `Authorization: Bearer <CRON_SECRET>`.
 | `DELETE` | `/api/interactions/:id` | Delete an interaction. |
 | `POST`/`GET` | `/api/sync` | Run a Granola sync. |
 | `GET`/`POST` | `/api/digest` | Preview (GET) or send (POST, or GET `?send=1`). |
+| `GET` | `/api/granola/debug` | Inspect the raw Granola API response. |
 | `GET` | `/api/health` | Liveness + DB check. |
 
 ---

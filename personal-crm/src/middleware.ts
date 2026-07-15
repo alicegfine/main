@@ -4,7 +4,14 @@ import { SESSION_COOKIE, verifySessionToken } from "./lib/auth";
 // Paths that don't require a login cookie. The automation endpoints
 // (/api/sync, /api/digest) authorize themselves via the CRON_SECRET bearer
 // token, so they're allowed through here and checked inside the handler.
-const PUBLIC_PREFIXES = ["/login", "/api/auth", "/api/health", "/api/sync", "/api/digest"];
+const PUBLIC_PREFIXES = [
+  "/login",
+  "/api/auth",
+  "/api/health",
+  "/api/sync",
+  "/api/digest",
+  "/api/granola",
+];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

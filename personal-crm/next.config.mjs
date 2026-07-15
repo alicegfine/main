@@ -2,7 +2,7 @@
 const nextConfig = {
   // These are Node-only libs; keep webpack from bundling them (the scheduler
   // and email sender run only in the Node.js runtime).
-  serverExternalPackages: ["node-cron", "nodemailer"],
+  serverExternalPackages: ["node-cron"],
   eslint: {
     // Deploys shouldn't be blocked on lint; run `npm run lint` locally.
     ignoreDuringBuilds: true,

@@ -61,27 +61,4 @@ export const config = {
   get appSecret() {
     return env("APP_SECRET") ?? "insecure-dev-secret-change-me";
   },
-  email: {
-    get host() {
-      return env("SMTP_HOST");
-    },
-    get port() {
-      return envNumber("SMTP_PORT", 587);
-    },
-    get secure() {
-      return envBool("SMTP_SECURE", false);
-    },
-    get user() {
-      return env("SMTP_USER");
-    },
-    get pass() {
-      return env("SMTP_PASS");
-    },
-    get from() {
-      return env("DIGEST_EMAIL_FROM");
-    },
-    get to() {
-      return env("DIGEST_EMAIL_TO");
-    },
-  },
 };

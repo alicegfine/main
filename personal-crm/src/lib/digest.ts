@@ -2,7 +2,6 @@ import type { Contact } from "@prisma/client";
 import { prisma } from "./db";
 import { config } from "./env";
 import { daysAgo, formatDate, relativeDays } from "./date";
-import { sendEmail } from "./email";
 import { postToSlack } from "./slack";
 
 export interface DigestData {
@@ -88,23 +87,6 @@ export function formatDigestText(data: DigestData): string {
   return lines.join("\n");
 }
 
-export function formatDigestHtml(data: DigestData): string {
-  const section = (title: string, items: Contact[], kind: "pending" | "overdue" | "cold") => {
-    const rows =
-      items.length === 0
-        ? `<li style="color:#64748b">none 🎉</li>`
-        : items.map((c) => `<li>${escapeHtml(lineFor(c, kind))}</li>`).join("");
-    return `<h3 style="margin:16px 0 4px">${title} (${items.length})</h3><ul style="margin:0;padding-left:20px;line-height:1.6">${rows}</ul>`;
-  };
-  return `<div style="font-family:system-ui,-apple-system,sans-serif;color:#0f172a;max-width:560px">
-    <h2 style="margin:0 0 4px">Networking digest</h2>
-    <p style="margin:0;color:#64748b">${formatDate(data.generatedAt)}</p>
-    ${section("⏳ Pending replies", data.pendingReplies, "pending")}
-    ${section("🔔 Overdue follow-ups", data.overdueFollowUps, "overdue")}
-    ${section("🥶 Going cold", data.goingCold, "cold")}
-  </div>`;
-}
-
 export function formatDigestSlackBlocks(data: DigestData): unknown[] {
   const blocks: unknown[] = [
     {
@@ -133,20 +115,12 @@ export function formatDigestSlackBlocks(data: DigestData): unknown[] {
   return blocks;
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
 // ---- Send ----------------------------------------------------------------
 
 export interface DigestReport {
   data: DigestData;
   empty: boolean;
   slack: Awaited<ReturnType<typeof postToSlack>>;
-  email: Awaited<ReturnType<typeof sendEmail>>;
 }
 
 export async function runDigest(options: { force?: boolean } = {}): Promise<DigestReport> {
@@ -155,19 +129,10 @@ export async function runDigest(options: { force?: boolean } = {}): Promise<Dige
 
   // Don't spam an empty digest unless explicitly forced (e.g. manual test).
   if (empty && !options.force) {
-    return {
-      data,
-      empty,
-      slack: { sent: false, skipped: "digest empty" },
-      email: { sent: false, skipped: "digest empty" },
-    };
+    return { data, empty, slack: { sent: false, skipped: "digest empty" } };
   }
 
   const text = formatDigestText(data);
-  const [slack, email] = await Promise.all([
-    postToSlack(text, formatDigestSlackBlocks(data)),
-    sendEmail(`Networking digest — ${formatDate(data.generatedAt)}`, formatDigestHtml(data), text),
-  ]);
-
-  return { data, empty, slack, email };
+  const slack = await postToSlack(text, formatDigestSlackBlocks(data));
+  return { data, empty, slack };
 }

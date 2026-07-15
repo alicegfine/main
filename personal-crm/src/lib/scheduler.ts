@@ -41,10 +41,7 @@ export function startScheduler(): void {
       async () => {
         try {
           const r = await runDigest();
-          console.log(
-            "[scheduler] digest",
-            JSON.stringify({ empty: r.empty, slack: r.slack, email: r.email }),
-          );
+          console.log("[scheduler] digest", JSON.stringify({ empty: r.empty, slack: r.slack }));
         } catch (err) {
           console.error("[scheduler] digest failed", err);
         }
