@@ -1,6 +1,7 @@
 // The outreach pipeline. Order matters — it's the natural progression and is
 // used to sort the dashboard.
 export const STATUSES = [
+  "to_reach_out",
   "reached_out",
   "connected",
   "pending_reply",
@@ -11,6 +12,7 @@ export const STATUSES = [
 export type Status = (typeof STATUSES)[number];
 
 export const STATUS_LABELS: Record<Status, string> = {
+  to_reach_out: "To reach out",
   reached_out: "Reached out",
   connected: "Connected",
   pending_reply: "Pending reply",
@@ -20,6 +22,8 @@ export const STATUS_LABELS: Record<Status, string> = {
 
 // Tailwind classes for the status pill (works in light + dark).
 export const STATUS_STYLES: Record<Status, string> = {
+  to_reach_out:
+    "bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-200",
   reached_out:
     "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200",
   connected:

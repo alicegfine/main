@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { buildDigestData } from "@/lib/digest";
 import { formatDate, relativeDays } from "@/lib/date";
 import { CHANNEL_LABELS, Channel } from "@/lib/status";
+import { SuggestionList } from "@/components/SuggestionList";
 
 export const dynamic = "force-dynamic";
 
@@ -61,13 +62,21 @@ function Card({ title, hint, children }: { title: string; hint?: string; childre
 }
 
 export default async function DashboardPage() {
-  const [digest, totalContacts, recent] = await Promise.all([
+  const [digest, totalContacts, recent, suggestions, toReachOut] = await Promise.all([
     buildDigestData(),
     prisma.contact.count(),
     prisma.interaction.findMany({
       orderBy: { occurredAt: "desc" },
       take: 8,
       include: { contact: { select: { id: true, name: true } } },
+    }),
+    prisma.suggestion.findMany({
+      where: { status: "pending" },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.contact.findMany({
+      where: { status: "to_reach_out" },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -90,7 +99,20 @@ export default async function DashboardPage() {
         <Stat label="Going cold" value={digest.goingCold.length} />
       </div>
 
+      {suggestions.length > 0 && (
+        <Card title="✨ Follow-up suggestions from your notes" hint="from Granola">
+          <SuggestionList suggestions={suggestions} />
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card title="📇 To reach out" hint="not contacted yet">
+          <ContactList
+            contacts={toReachOut}
+            meta={(c) => (c.tags?.includes("from-granola") ? "from notes" : "")}
+            emptyText="Nobody queued to reach out to."
+          />
+        </Card>
         <Card title="⏳ Pending replies" hint="waiting to hear back">
           <ContactList
             contacts={digest.pendingReplies}

@@ -11,6 +11,8 @@ const PUBLIC_PREFIXES = [
   "/api/sync",
   "/api/digest",
   "/api/granola",
+  "/api/nudge",
+  "/api/ingest",
 ];
 
 export async function middleware(req: NextRequest) {

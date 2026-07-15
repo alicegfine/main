@@ -14,7 +14,17 @@ Built to run on [Railway](https://railway.app).
 
 - **Contacts** with the context that matters for networking: company, role,
   LinkedIn URL, how you met, tags/topics, notes, and a status in the outreach
-  pipeline (_reached out → connected → pending reply → replied → cold_).
+  pipeline (_to reach out → reached out → connected → pending reply → replied →
+  cold_).
+- **AI follow-up suggestions** — after a Granola sync, an LLM reads each note
+  and surfaces people you should reach out to (mentioned in the notes, not just
+  attendees). Review them on the dashboard: **Add** creates a "to reach out"
+  contact, **Dismiss** drops it.
+- **Email capture** — forward an email (e.g. via Zapier) and it's logged as an
+  interaction against the right contact automatically.
+- **Daily LinkedIn nudge** — a Slack reminder each morning listing who you need
+  to reach out to and who you're awaiting a LinkedIn reply from, so you can
+  eyeball your LinkedIn and update statuses.
 - **Conversation log** — every touchpoint (LinkedIn, email, call, meeting…)
   with a date and summary, per contact.
 - **Follow-up reminders** — a next-action date on each contact; overdue ones
@@ -33,8 +43,9 @@ Built to run on [Railway](https://railway.app).
 - **Next.js 15** (App Router, TypeScript) — UI + API in one deployable service
 - **Prisma + SQLite** — the datastore (a single file on a Railway volume).
   Swappable to Postgres in one step (see below).
-- **node-cron** — in-process scheduler for the sync + digest jobs
-- **Slack incoming webhook** — digest delivery
+- **node-cron** — in-process scheduler for the sync + digest + nudge jobs
+- **@anthropic-ai/sdk** — AI follow-up extraction from Granola notes
+- **Slack incoming webhook** — digest + nudge delivery
 
 ---
 
@@ -66,10 +77,13 @@ app to be actually up.
 | `GRANOLA_API_KEY` | for sync | Granola API key (`grn_…`). Needs a Granola **Business/Enterprise** plan. |
 | `GRANOLA_API_BASE` | ➖ | Defaults to `https://public-api.granola.ai/v1`. |
 | `GRANOLA_AUTO_CREATE_CONTACTS` | ➖ | `true` (default) creates contacts for unmatched attendees. |
-| `OWNER_EMAIL` | ➖ | Your own email(s), comma-separated — skipped during sync so you don't become a contact. |
-| `SLACK_WEBHOOK_URL` | for digest | Incoming webhook. Blank = digest disabled. |
+| `OWNER_EMAIL` | ➖ | Your own email(s), comma-separated — skipped during sync/ingest so you don't become a contact. |
+| `ANTHROPIC_API_KEY` | for AI | Enables follow-up extraction from Granola notes. Blank = disabled. |
+| `EXTRACT_MODEL` | ➖ | Extraction model. Default `claude-haiku-4-5` (cheap); bump to `claude-opus-4-8` for deeper reasoning. |
+| `SLACK_WEBHOOK_URL` | for digest/nudge | Incoming webhook. Blank = digest + nudge disabled. |
 | `GRANOLA_SYNC_CRON` | ➖ | Cron for the sync job. Default `0 */2 * * *` (every 2h). |
-| `DIGEST_CRON` | ➖ | Cron for the digest. Default `0 8 * * 1` (Mon 08:00). |
+| `DIGEST_CRON` | ➖ | Cron for the weekly digest. Default `0 8 * * 1` (Mon 08:00). |
+| `DAILY_NUDGE_CRON` | ➖ | Cron for the daily LinkedIn nudge. Default `0 8 * * *` (daily 08:00). |
 | `TZ` | ➖ | IANA timezone for the schedules + date math. Default `America/New_York`. |
 | `ENABLE_SCHEDULER` | ➖ | `false` turns off the in-process cron (drive jobs externally instead). |
 | `COLD_AFTER_DAYS` | ➖ | Days without contact before a warm contact is "going cold". Default 21. |
@@ -136,13 +150,65 @@ parser normalized it. If the raw fields don't match what `src/lib/granola.ts`
 looks for, that's the fix. Note: Granola only returns notes that already have a
 generated summary — a call from minutes ago may still be processing.
 
+## AI follow-up suggestions
+
+Set `ANTHROPIC_API_KEY` and the Granola sync will, for each new note, ask a
+model to pull out people you should reach out to who were *mentioned* in the
+notes (not just the attendees). They show up on the dashboard under **Follow-up
+suggestions** — **Add** turns one into a "to reach out" contact, **Dismiss**
+drops it. Each note is only processed once, so you don't pay for repeat LLM
+calls. Default model is `claude-haiku-4-5` (cheap and plenty for this);
+set `EXTRACT_MODEL=claude-opus-4-8` for deeper reasoning.
+
+## Capturing forwarded emails (Zapier)
+
+Forward an email into the CRM and it's logged against the matching contact
+(created if new). The endpoint is provider-agnostic; the easiest wiring is
+**Email by Zapier → Webhooks**:
+
+1. In Zapier, create a Zap with the **Email by Zapier** trigger. It gives you a
+   custom address like `something@robot.zapier.com`.
+2. Forward relevant emails there (or set a Gmail filter to auto-forward).
+3. Add a **Webhooks by Zapier → POST** action:
+   - **URL:** `https://<your-app>/api/ingest/email`
+   - **Headers:** `Authorization: Bearer <CRON_SECRET>`
+   - **Data:** map `from`, `to`, `subject`, `body` (and `date` if available)
+     from the email trigger.
+4. Set `OWNER_EMAIL` to your own address(es) so you're never logged as the
+   contact — the endpoint picks the first non-owner email (from the headers,
+   then from a forwarded `From:` line in the body).
+
+You can also pass `contactEmail` / `contactName` explicitly if your automation
+already knows the counterpart.
+
+```bash
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" -H 'Content-Type: application/json' \
+  -d '{"from":"Casey Reed <casey@x.org>","subject":"Re: coffee","body":"Great chat!"}' \
+  https://<your-app>/api/ingest/email
+```
+
+## Daily LinkedIn nudge
+
+Since LinkedIn has no usable API, the CRM nudges you to check it. Each morning
+(`DAILY_NUDGE_CRON`, needs `SLACK_WEBHOOK_URL`) it posts a Slack summary of:
+
+- **To reach out** — contacts with status *to reach out* (including accepted AI
+  suggestions).
+- **Check LinkedIn for replies** — contacts you reached out to on LinkedIn
+  (have a LinkedIn URL or a logged LinkedIn interaction) with status *reached
+  out* or *pending reply*.
+
+Pop over to LinkedIn, see who accepted/replied, and update their status in the
+app. Preview or send on demand: `GET /api/nudge` / `POST /api/nudge`.
+
 ### Prefer an external scheduler?
 
 Set `ENABLE_SCHEDULER=false` and drive the jobs from Railway Cron (or any
 scheduler) by hitting the endpoints with the `CRON_SECRET` bearer token:
 
 - `POST /api/sync` — run a Granola sync
-- `POST /api/digest` — build and send the digest
+- `POST /api/digest` — build and send the weekly digest
+- `POST /api/nudge` — build and send the daily nudge
 
 ---
 
@@ -160,8 +226,12 @@ also accept `Authorization: Bearer <CRON_SECRET>`.
 | `GET/PATCH/DELETE` | `/api/contacts/:id` | Read / update / delete. |
 | `POST` | `/api/interactions` | Log an interaction. |
 | `DELETE` | `/api/interactions/:id` | Delete an interaction. |
-| `POST`/`GET` | `/api/sync` | Run a Granola sync. |
-| `GET`/`POST` | `/api/digest` | Preview (GET) or send (POST, or GET `?send=1`). |
+| `POST`/`GET` | `/api/sync` | Run a Granola sync (+ AI extraction). |
+| `GET`/`POST` | `/api/digest` | Weekly digest: preview (GET) or send (POST / GET `?send=1`). |
+| `GET`/`POST` | `/api/nudge` | Daily nudge: preview (GET) or send (POST / GET `?send=1`). |
+| `POST` | `/api/ingest/email` | Log a forwarded email against a contact. |
+| `GET` | `/api/suggestions` | List pending AI follow-up suggestions. |
+| `POST` | `/api/suggestions/:id` | `{action:"accept"\|"dismiss"}`. |
 | `GET` | `/api/granola/debug` | Inspect the raw Granola API response. |
 | `GET` | `/api/health` | Liveness + DB check. |
 

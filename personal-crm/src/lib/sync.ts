@@ -1,6 +1,7 @@
 import { prisma } from "./db";
 import { config } from "./env";
 import { GranolaPerson, GranolaNote, getNote, listNotes } from "./granola";
+import { extractFollowUps, extractionEnabled } from "./extract";
 
 export interface SyncResult {
   ok: boolean;
@@ -8,6 +9,7 @@ export interface SyncResult {
   interactionsCreated: number;
   contactsCreated: number;
   contactsTouched: number;
+  suggestionsCreated: number;
   error?: string;
 }
 
@@ -29,6 +31,7 @@ export async function syncGranola(): Promise<SyncResult> {
     interactionsCreated: 0,
     contactsCreated: 0,
     contactsTouched: 0,
+    suggestionsCreated: 0,
   };
 
   const state = await prisma.syncState.upsert({
@@ -143,6 +146,42 @@ export async function syncGranola(): Promise<SyncResult> {
         data: { lastContactAt: note.occurredAt },
       });
       touched.add(contactId);
+    }
+
+    // AI: surface people the note says to reach out to (mentions, not attendees).
+    if (extractionEnabled() && note.summary) {
+      const already = await prisma.processedNote.findUnique({
+        where: { noteId: note.id },
+        select: { noteId: true },
+      });
+      if (!already) {
+        const attendeeNames = new Set(
+          attendees.map((a) => (a.name ? normalizeName(a.name) : "")).filter(Boolean),
+        );
+        const people = await extractFollowUps(note).catch((err) => {
+          console.error("[sync] extraction failed", err);
+          return [];
+        });
+        for (const p of people) {
+          const key = normalizeName(p.name);
+          if (attendeeNames.has(key) || byName.has(key)) continue; // already known
+          try {
+            await prisma.suggestion.create({
+              data: {
+                name: p.name,
+                reason: p.reason || undefined,
+                sourceNoteId: note.id,
+                sourceNoteTitle: note.title,
+                sourceUrl: note.url ?? undefined,
+              },
+            });
+            result.suggestionsCreated++;
+          } catch {
+            // @@unique([sourceNoteId, name]) — already suggested; ignore
+          }
+        }
+        await prisma.processedNote.create({ data: { noteId: note.id } }).catch(() => {});
+      }
     }
   }
 

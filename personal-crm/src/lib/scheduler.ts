@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { config } from "./env";
 import { syncGranola } from "./sync";
 import { runDigest } from "./digest";
+import { runNudge } from "./nudge";
 
 let started = false;
 
@@ -51,5 +52,23 @@ export function startScheduler(): void {
     console.log(`[scheduler] Digest scheduled: ${config.digestCron} (${tz})`);
   } else {
     console.warn(`[scheduler] invalid DIGEST_CRON: ${config.digestCron}`);
+  }
+
+  if (config.dailyNudgeCron && cron.validate(config.dailyNudgeCron)) {
+    cron.schedule(
+      config.dailyNudgeCron,
+      async () => {
+        try {
+          const r = await runNudge();
+          console.log("[scheduler] nudge", JSON.stringify({ empty: r.empty, slack: r.slack }));
+        } catch (err) {
+          console.error("[scheduler] nudge failed", err);
+        }
+      },
+      { timezone: tz },
+    );
+    console.log(`[scheduler] Daily nudge scheduled: ${config.dailyNudgeCron} (${tz})`);
+  } else {
+    console.warn(`[scheduler] invalid DAILY_NUDGE_CRON: ${config.dailyNudgeCron}`);
   }
 }

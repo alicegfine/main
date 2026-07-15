@@ -49,6 +49,15 @@ export const config = {
   get digestCron() {
     return env("DIGEST_CRON") ?? "0 8 * * 1";
   },
+  get dailyNudgeCron() {
+    return env("DAILY_NUDGE_CRON") ?? "0 8 * * *";
+  },
+  get anthropicApiKey() {
+    return env("ANTHROPIC_API_KEY");
+  },
+  get extractModel() {
+    return env("EXTRACT_MODEL") ?? "claude-haiku-4-5";
+  },
   get timezone() {
     return env("TZ") ?? "America/New_York";
   },

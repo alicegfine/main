@@ -56,6 +56,31 @@ model Interaction {
   @@index([occurredAt])
 }
 
+/// A person the AI extracted from a Granola note that you should follow up
+/// with (an action item / mention), pending your review on the dashboard.
+model Suggestion {
+  id              String   @id @default(cuid())
+  name            String
+  /// Why to reach out / what the note said about them.
+  reason          String?
+  sourceNoteId    String?
+  sourceNoteTitle String?
+  sourceUrl       String?
+  /// pending | accepted | dismissed
+  status          String   @default("pending")
+  createdAt       DateTime @default(now())
+
+  @@unique([sourceNoteId, name])
+  @@index([status])
+}
+
+/// Marks a Granola note as already run through AI extraction, so we don't
+/// re-spend LLM calls on the same note every sync.
+model ProcessedNote {
+  noteId    String   @id
+  createdAt DateTime @default(now())
+}
+
 /// Bookkeeping for the Granola sync job (single row, id = "granola").
 model SyncState {
   id         String    @id
