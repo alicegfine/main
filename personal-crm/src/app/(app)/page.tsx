@@ -5,6 +5,7 @@ import { getDueBuckets } from "@/lib/due";
 import { dueLabel } from "@/lib/cadence";
 import { CadenceSelect } from "@/components/CadenceSelect";
 import { SnoozeSelect } from "@/components/SnoozeSelect";
+import { ReachedOutButton } from "@/components/ReachedOutButton";
 import { formatDate, relativeDays } from "@/lib/date";
 import { CHANNEL_LABELS, Channel } from "@/lib/status";
 import { granolaNoteUrl } from "@/lib/granola";
@@ -171,7 +172,10 @@ export default async function DashboardPage() {
                     {c.company && <span className="text-slate-400"> · {c.company}</span>}
                     <span className="block text-xs text-slate-400">{dueLabel(c, now)}</span>
                   </Link>
-                  <SnoozeSelect contactId={c.id} snoozed={false} />
+                  <span className="flex shrink-0 items-center gap-2">
+                    <ReachedOutButton contactId={c.id} />
+                    <SnoozeSelect contactId={c.id} snoozed={false} />
+                  </span>
                 </li>
               ))}
             </ul>

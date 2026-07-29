@@ -18,6 +18,10 @@ export function HeaderActions() {
         setMsg(data.error ?? "Sync failed");
       } else {
         const more = data.capped ? " (more remain — sync again)" : "";
+        const repaired =
+          data.staleQueuesCleared > 0
+            ? ` · cleared ${data.staleQueuesCleared} stale "reach out now" flag(s)`
+            : "";
         let ai = "";
         if (data.extractionEnabled === false) ai = " · AI suggestions off (no ANTHROPIC_API_KEY)";
         else if (data.extractionFailures > 0)
@@ -25,7 +29,7 @@ export function HeaderActions() {
         else if (data.extractionPending > 0)
           ai = ` · ${data.extractionPending} note(s) awaiting AI — sync again`;
         setMsg(
-          `Synced ${data.notesProcessed} note(s): ${data.contactsCreated} new contact(s), ${data.suggestionsCreated} suggestion(s)${more}${ai}`,
+          `Synced ${data.notesProcessed} note(s): ${data.contactsCreated} new contact(s), ${data.suggestionsCreated} suggestion(s)${more}${ai}${repaired}`,
         );
         router.refresh();
       }

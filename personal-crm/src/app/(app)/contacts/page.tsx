@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { dueInfo, dueLabel, isSnoozed } from "@/lib/cadence";
 import { CadenceSelect } from "@/components/CadenceSelect";
 import { SnoozeSelect } from "@/components/SnoozeSelect";
+import { ReachedOutButton } from "@/components/ReachedOutButton";
 import { ContactRowActions } from "@/components/ContactRowActions";
 import { DuplicatesCard } from "@/components/DuplicatesCard";
 import { findDuplicateGroups } from "@/lib/dedupe";
@@ -272,6 +273,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Sea
                         >
                           {dueLabel(c, now)}
                         </span>
+                        {d.due && <ReachedOutButton contactId={c.id} />}
                         {(d.due || isSnoozed(c, now)) && (
                           <SnoozeSelect contactId={c.id} snoozed={isSnoozed(c, now)} />
                         )}

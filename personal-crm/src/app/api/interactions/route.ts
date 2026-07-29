@@ -33,21 +33,24 @@ export async function POST(req: Request) {
       },
     });
 
-    // A new interaction restarts the cadence loop: bump lastContactAt, clear
-    // the "scheduled" snooze, and consume a queued follow-up date that's now met.
-    if (!contact.lastContactAt || contact.lastContactAt < input.occurredAt) {
-      await prisma.contact.update({
-        where: { id: input.contactId },
-        data: {
-          lastContactAt: input.occurredAt,
-          scheduled: false,
-          snoozedUntil: null,
-          ...(contact.nextFollowUpAt && contact.nextFollowUpAt <= input.occurredAt
-            ? { nextFollowUpAt: null }
-            : {}),
-        },
-      });
-    }
+    // A logged interaction restarts the cadence loop: clear the scheduled flag
+    // and any snooze, drop a queued "reach out now" date (it's been handled —
+    // even if the conversation is backdated), and bump lastContactAt when this
+    // is the newest contact we know about.
+    const now = new Date();
+    await prisma.contact.update({
+      where: { id: input.contactId },
+      data: {
+        scheduled: false,
+        snoozedUntil: null,
+        ...(contact.nextFollowUpAt && contact.nextFollowUpAt <= now
+          ? { nextFollowUpAt: null }
+          : {}),
+        ...(!contact.lastContactAt || contact.lastContactAt < input.occurredAt
+          ? { lastContactAt: input.occurredAt }
+          : {}),
+      },
+    });
 
     return NextResponse.json({ interaction }, { status: 201 });
   } catch (err) {

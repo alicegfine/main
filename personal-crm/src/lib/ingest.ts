@@ -119,20 +119,23 @@ export async function ingestEmail(payload: EmailPayload): Promise<IngestResult> 
     },
   });
 
-  // A captured email restarts the cadence loop (see cadence.ts).
-  if (!contact.lastContactAt || contact.lastContactAt < when) {
-    await prisma.contact.update({
-      where: { id: contact.id },
-      data: {
-        lastContactAt: when,
-        scheduled: false,
-        snoozedUntil: null,
-        ...(contact.nextFollowUpAt && contact.nextFollowUpAt <= when
-          ? { nextFollowUpAt: null }
-          : {}),
-      },
-    });
-  }
+  // A captured email restarts the cadence loop (see cadence.ts): clear the
+  // scheduled flag, any snooze, and a past-due queued date; bump lastContactAt
+  // when this is the newest contact we know about.
+  const nowTs = new Date();
+  await prisma.contact.update({
+    where: { id: contact.id },
+    data: {
+      scheduled: false,
+      snoozedUntil: null,
+      ...(contact.nextFollowUpAt && contact.nextFollowUpAt <= nowTs
+        ? { nextFollowUpAt: null }
+        : {}),
+      ...(!contact.lastContactAt || contact.lastContactAt < when
+        ? { lastContactAt: when }
+        : {}),
+    },
+  });
 
   return {
     ok: true,

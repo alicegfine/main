@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { Prisma, Suggestion } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { normalizeName } from "@/lib/match";
+import { coveredByCadence } from "@/lib/cadence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,12 +50,14 @@ async function resolveToContact(suggestion: Suggestion, contactId: string) {
   }
 
   const note = contextNote(suggestion);
+  // Don't override a cadence that's already satisfied — if you spoke to them
+  // recently, the mention is context, not a "reach out now" alarm.
+  const covered = coveredByCadence(contact);
   const updated = await prisma.contact.update({
     where: { id: contact.id },
     data: {
-      nextFollowUpAt: new Date(), // due now — clears itself once you talk
+      ...(covered ? {} : { nextFollowUpAt: new Date(), scheduled: false }),
       cadenceDays: contact.cadenceDays ?? 0, // first outreach — pick a real cadence after you talk
-      scheduled: false,
       archivedAt: null, // reaching out revives an archived contact
       notes: contact.notes ? (note ? `${contact.notes}\n\n${note}` : contact.notes) : note || undefined,
     },

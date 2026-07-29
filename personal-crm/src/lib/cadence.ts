@@ -49,6 +49,17 @@ export function isSnoozed(c: CadenceFields, now: Date = new Date()): boolean {
   return c.snoozedUntil !== null && c.snoozedUntil.getTime() > now.getTime();
 }
 
+/**
+ * Their cadence says they're fine: a real cadence is set and the interval
+ * hasn't elapsed since the last conversation. Used to stop system-generated
+ * "reach out now" flags from overriding a cadence that's already satisfied.
+ */
+export function coveredByCadence(c: CadenceFields, now: Date = new Date()): boolean {
+  if (c.cadenceDays === null || c.cadenceDays <= FIRST_OUTREACH) return false;
+  if (!c.lastContactAt) return false;
+  return c.lastContactAt.getTime() + c.cadenceDays * DAY_MS > now.getTime();
+}
+
 export interface DueInfo {
   /** Reach out now (and not snoozed by "scheduled"). */
   due: boolean;
@@ -127,7 +138,11 @@ export function dueLabel(c: CadenceFields, now: Date = new Date()): string {
     if (d.reason === "never") {
       return c.cadenceDays === FIRST_OUTREACH ? "due · first outreach" : "due · not contacted yet";
     }
-    return d.overdueDays <= 0 ? "due today" : `due · ${d.overdueDays}d overdue`;
+    // Name the driver so a one-off queued date is never confused with cadence.
+    const why = d.reason === "queued" ? " · queued" : "";
+    return d.overdueDays <= 0
+      ? `due today${why}`
+      : `due · ${d.overdueDays}d overdue${why}`;
   }
   const inDays = -d.overdueDays;
   return inDays === 0 ? "due today" : `due in ${inDays}d`;

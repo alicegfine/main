@@ -1,10 +1,9 @@
 # 🤝 Personal Networking CRM
 
-A lightweight, self-hosted CRM for one person doing a lot of networking. Track
-who you've reached out to, log your conversations, see who you're pending
-replies from, and never let a follow-up slip. Meeting notes flow in
-automatically from **Granola**, and a weekly digest of what needs attention
-gets pushed to **Slack and email**.
+A lightweight, self-hosted CRM for one person doing a lot of networking. Put
+each person on a contact cadence, and the app tells you who's **due**. Meeting
+notes flow in automatically from **Granola**, and Slack nudges you daily so
+follow-through happens without you maintaining a list.
 
 Built to run on [Railway](https://railway.app).
 
@@ -23,14 +22,18 @@ Built to run on [Railway](https://railway.app).
 - **"Scheduled" toggle** — booked a meeting? Flip 📅 and reminders pause. It
   clears itself when the meeting actually happens (the Granola sync / logged
   interaction restarts the timer). The loop maintains itself.
+- **✓ Reached out** — a due row you've already handled? One click logs the
+  contact and restarts their cadence from today.
 - **⏰ Snooze** — "she hasn't replied and I don't want to ping her again yet":
   snooze a due contact for 3 days / 1 week / 2 weeks / 1 month right from the
   due list. They vanish from reminders until the window passes; any logged
   interaction clears the snooze early.
+- **Conversation log** — every touchpoint (LinkedIn, email, call, meeting…)
+  with a date and summary, per contact; the dashboard shows recent activity.
 - **AI follow-up suggestions** — after a Granola sync, an LLM reads each note
   and surfaces people you should reach out to (mentioned in the notes, not just
-  attendees). Review them on the dashboard: **Add** creates a "to reach out"
-  contact, **Dismiss** drops it.
+  attendees). Review them on the dashboard: **Add** queues them, **Dismiss**
+  drops it.
 - **Email capture** — forward an email (e.g. via Zapier) and it's logged as an
   interaction against the right contact automatically.
 - **Daily nudge + weekly digest** — Slack tells you each morning who's due for
@@ -47,17 +50,9 @@ Built to run on [Railway](https://railway.app).
   recently added), and the contact page is directly editable (fields + notes, ⌘⏎ to
   save) — no separate edit screen. The old status pipeline is retired;
   cadence + scheduled is the whole model.
-- **Conversation log** — every touchpoint (LinkedIn, email, call, meeting…)
-  with a date and summary, per contact.
-- **Follow-up reminders** — a next-action date on each contact; overdue ones
-  surface on the dashboard and in the digest.
-- **Dashboard** that leads with what needs you: pending replies, overdue
-  follow-ups, contacts going cold, and recent activity.
 - **Granola sync** — pulls your meeting notes on a schedule, matches attendees
   to your contacts, logs each note as an interaction (with a link back to
   Granola), and can auto-create contacts for new people you met.
-- **Weekly digest** to Slack so follow-through happens even when you're not in
-  the app.
 - **Password-protected** — it's on the public internet, so your contacts aren't.
 
 ## Tech stack
@@ -107,10 +102,9 @@ app to be actually up.
 | `SLACK_WEBHOOK_URL` | for digest/nudge | Incoming webhook. Blank = digest + nudge disabled. |
 | `GRANOLA_SYNC_CRON` | ➖ | Cron for the sync job. Default `0 */2 * * *` (every 2h). |
 | `DIGEST_CRON` | ➖ | Cron for the weekly digest. Default `0 8 * * 1` (Mon 08:00). |
-| `DAILY_NUDGE_CRON` | ➖ | Cron for the daily LinkedIn nudge. Default `0 8 * * *` (daily 08:00). |
+| `DAILY_NUDGE_CRON` | ➖ | Cron for the daily due-contact nudge. Default `0 8 * * *` (daily 08:00). |
 | `TZ` | ➖ | IANA timezone for the schedules + date math. Default `America/New_York`. |
 | `ENABLE_SCHEDULER` | ➖ | `false` turns off the in-process cron (drive jobs externally instead). |
-| `COLD_AFTER_DAYS` | ➖ | Days without contact before a warm contact is "going cold". Default 21. |
 
 See `.env.example` for a copy-paste starting point.
 

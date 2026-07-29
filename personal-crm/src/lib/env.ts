@@ -57,9 +57,6 @@ export const config = {
   get slackWebhookUrl() {
     return env("SLACK_WEBHOOK_URL");
   },
-  get coldAfterDays() {
-    return envNumber("COLD_AFTER_DAYS", 21);
-  },
   get enableScheduler() {
     return envBool("ENABLE_SCHEDULER", true);
   },

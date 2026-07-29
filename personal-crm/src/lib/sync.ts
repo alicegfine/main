@@ -3,6 +3,7 @@ import { config } from "./env";
 import { GranolaPerson, GranolaNote, getNote, listNotesPage } from "./granola";
 import { extractFollowUps, extractionEnabled } from "./extract";
 import { matchName, normalizeName } from "./match";
+import { coveredByCadence } from "./cadence";
 
 export interface SyncResult {
   ok: boolean;
@@ -19,6 +20,8 @@ export interface SyncResult {
   extractionFailures: number;
   /** Notes still awaiting extraction after this run (backfill continues next sync). */
   extractionPending: number;
+  /** One-time repair: stale "reach out now" dates dropped in favour of cadence. */
+  staleQueuesCleared: number;
   error?: string;
 }
 
@@ -42,6 +45,7 @@ export async function syncGranola(): Promise<SyncResult> {
     extractionEnabled: extractionEnabled(),
     extractionFailures: 0,
     extractionPending: 0,
+    staleQueuesCleared: 0,
   };
 
   await prisma.syncState.upsert({
@@ -50,12 +54,7 @@ export async function syncGranola(): Promise<SyncResult> {
     update: {},
   });
 
-  // One-time legacy migration: people queued under the old status pipeline
-  // become "queued" in the cadence model so they stay visible as due.
-  await prisma.contact.updateMany({
-    where: { status: "to_reach_out", nextFollowUpAt: null, archivedAt: null },
-    data: { nextFollowUpAt: new Date(), status: "migrated" },
-  });
+  await migrateLegacyQueue(result);
 
   // Load contacts once and index them for fast matching.
   const contacts = await prisma.contact.findMany({
@@ -201,6 +200,52 @@ export async function syncGranola(): Promise<SyncResult> {
   return result;
 }
 
+const STALE_QUEUE_REPAIR_ID = "repair_stale_queues_v1";
+
+/**
+ * Legacy pipeline cleanup, plus a one-time repair for the bug where a
+ * system-generated "reach out now" date was stamped on people whose cadence
+ * already had them covered (so a quarterly contact you spoke to last week
+ * showed as due today).
+ */
+async function migrateLegacyQueue(result: SyncResult): Promise<void> {
+  const now = new Date();
+
+  // Old status pipeline → cadence model. Only queue people the cadence isn't
+  // already covering; the rest just get their legacy status retired.
+  const legacy = await prisma.contact.findMany({
+    where: { status: "to_reach_out", nextFollowUpAt: null, archivedAt: null },
+  });
+  for (const c of legacy) {
+    await prisma.contact.update({
+      where: { id: c.id },
+      data: {
+        status: "migrated",
+        ...(coveredByCadence(c, now) ? {} : { nextFollowUpAt: now }),
+      },
+    });
+  }
+
+  // One-time repair (marked in SyncState so it never fights a queue date you
+  // set deliberately later): drop past-due queued dates where the cadence says
+  // the person was contacted recently enough.
+  const done = await prisma.syncState.findUnique({ where: { id: STALE_QUEUE_REPAIR_ID } });
+  if (!done) {
+    const queued = await prisma.contact.findMany({
+      where: { nextFollowUpAt: { not: null, lte: now }, archivedAt: null },
+    });
+    const stale = queued.filter((c) => coveredByCadence(c, now));
+    if (stale.length > 0) {
+      await prisma.contact.updateMany({
+        where: { id: { in: stale.map((c) => c.id) } },
+        data: { nextFollowUpAt: null },
+      });
+    }
+    await prisma.syncState.create({ data: { id: STALE_QUEUE_REPAIR_ID } }).catch(() => {});
+    result.staleQueuesCleared = stale.length;
+  }
+}
+
 /** Contact fields the sync needs for matching and coworker checks. */
 interface SyncContact {
   id: string;
@@ -302,7 +347,7 @@ async function processNote(note: GranolaNote, ctx: ProcessCtx): Promise<void> {
       data: { lastContactAt: note.occurredAt, scheduled: false, snoozedUntil: null },
     });
     await prisma.contact.updateMany({
-      where: { id: contactId, nextFollowUpAt: { lte: note.occurredAt } },
+      where: { id: contactId, nextFollowUpAt: { lte: new Date() } },
       data: { nextFollowUpAt: null },
     });
     touched.add(contactId);
