@@ -23,6 +23,10 @@ Built to run on [Railway](https://railway.app).
 - **"Scheduled" toggle** — booked a meeting? Flip 📅 and reminders pause. It
   clears itself when the meeting actually happens (the Granola sync / logged
   interaction restarts the timer). The loop maintains itself.
+- **⏰ Snooze** — "she hasn't replied and I don't want to ping her again yet":
+  snooze a due contact for 3 days / 1 week / 2 weeks / 1 month right from the
+  due list. They vanish from reminders until the window passes; any logged
+  interaction clears the snooze early.
 - **AI follow-up suggestions** — after a Granola sync, an LLM reads each note
   and surfaces people you should reach out to (mentioned in the notes, not just
   attendees). Review them on the dashboard: **Add** creates a "to reach out"
@@ -39,8 +43,8 @@ Built to run on [Railway](https://railway.app).
   list in one click; they disappear from everything but the Archived tab, and
   sync won't recreate them.
 - **Edit in place** — cadence is a dropdown right in the contacts list (plus a
-  🔔 Due filter and sort options: due first, name, last contact, recently
-  added), and the contact page is directly editable (fields + notes, ⌘⏎ to
+  🔔 Due filter and sort options: due first, name, cadence, last contact,
+  recently added), and the contact page is directly editable (fields + notes, ⌘⏎ to
   save) — no separate edit screen. The old status pipeline is retired;
   cadence + scheduled is the whole model.
 - **Conversation log** — every touchpoint (LinkedIn, email, call, meeting…)

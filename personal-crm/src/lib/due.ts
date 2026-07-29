@@ -1,6 +1,6 @@
 import type { Contact } from "@prisma/client";
 import { prisma } from "./db";
-import { dueInfo, needsCadencePick } from "./cadence";
+import { dueInfo, isSnoozed, needsCadencePick } from "./cadence";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -13,6 +13,8 @@ export interface DueBuckets {
   dueSoon: Contact[];
   /** Meeting booked — reminders paused. */
   scheduled: Contact[];
+  /** Snoozed — "don't bother me for a while"; back when the window passes. */
+  snoozed: Contact[];
   /** First outreach done, real cadence not chosen yet — prompt to pick one. */
   needsCadence: Contact[];
   /** Active contacts with no cadence and nothing queued (untracked). */
@@ -28,12 +30,17 @@ export async function getDueBuckets(now = new Date()): Promise<DueBuckets> {
   const due: Contact[] = [];
   const dueSoon: Contact[] = [];
   const scheduled: Contact[] = [];
+  const snoozed: Contact[] = [];
   const needsCadence: Contact[] = [];
   let noCadenceCount = 0;
 
   for (const c of contacts) {
     if (c.scheduled) {
       scheduled.push(c);
+      continue;
+    }
+    if (isSnoozed(c, now)) {
+      snoozed.push(c);
       continue;
     }
     if (needsCadencePick(c)) {
@@ -58,6 +65,9 @@ export async function getDueBuckets(now = new Date()): Promise<DueBuckets> {
   needsCadence.sort(
     (a, b) => (b.lastContactAt?.getTime() ?? 0) - (a.lastContactAt?.getTime() ?? 0),
   );
+  snoozed.sort(
+    (a, b) => (a.snoozedUntil?.getTime() ?? 0) - (b.snoozedUntil?.getTime() ?? 0),
+  );
 
-  return { generatedAt: now, due, dueSoon, scheduled, needsCadence, noCadenceCount };
+  return { generatedAt: now, due, dueSoon, scheduled, snoozed, needsCadence, noCadenceCount };
 }

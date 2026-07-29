@@ -126,6 +126,7 @@ export async function ingestEmail(payload: EmailPayload): Promise<IngestResult> 
       data: {
         lastContactAt: when,
         scheduled: false,
+        snoozedUntil: null,
         ...(contact.nextFollowUpAt && contact.nextFollowUpAt <= when
           ? { nextFollowUpAt: null }
           : {}),

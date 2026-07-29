@@ -31,6 +31,10 @@ model Contact {
   /// "Meeting booked — stop reminding me." Cleared automatically when a new
   /// interaction is logged (Granola sync, email capture, or manual log).
   scheduled      Boolean   @default(false)
+  /// Time-boxed "don't bother me about them" — e.g. you pinged them and are
+  /// giving them a week to reply. Due again once this passes; cleared by any
+  /// new interaction.
+  snoozedUntil   DateTime?
   notes          String?
   /// Colleagues at your own org — kept for history but excluded from all
   /// networking views, digests, and nudges.

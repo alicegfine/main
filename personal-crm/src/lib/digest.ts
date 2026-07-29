@@ -48,6 +48,10 @@ export function formatDigestText(data: DigestData): string {
     lines.push(`📅 Scheduled (reminders paused): ${data.scheduled.map((c) => c.name).join(", ")}`);
     lines.push("");
   }
+  if (data.snoozed.length > 0) {
+    lines.push(`⏰ Snoozed: ${data.snoozed.map((c) => c.name).join(", ")}`);
+    lines.push("");
+  }
   if (data.noCadenceCount > 0) {
     lines.push(`💤 ${data.noCadenceCount} contact(s) have no cadence set — set one to get reminders.`);
   }
@@ -77,6 +81,9 @@ export function formatDigestSlackBlocks(data: DigestData): unknown[] {
   }
   if (data.scheduled.length > 0) {
     footer.push(`📅 Scheduled: ${data.scheduled.map((c) => c.name).join(", ")}`);
+  }
+  if (data.snoozed.length > 0) {
+    footer.push(`⏰ Snoozed: ${data.snoozed.map((c) => c.name).join(", ")}`);
   }
   if (data.noCadenceCount > 0) {
     footer.push(`💤 ${data.noCadenceCount} contact(s) with no cadence set`);

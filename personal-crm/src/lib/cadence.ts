@@ -39,8 +39,14 @@ export interface CadenceFields {
   lastContactAt: Date | null;
   nextFollowUpAt: Date | null;
   scheduled: boolean;
+  snoozedUntil: Date | null;
   isCoworker: boolean;
   archivedAt: Date | null;
+}
+
+/** Actively snoozed: "don't bother me about them" until the date passes. */
+export function isSnoozed(c: CadenceFields, now: Date = new Date()): boolean {
+  return c.snoozedUntil !== null && c.snoozedUntil.getTime() > now.getTime();
 }
 
 export interface DueInfo {
@@ -84,7 +90,7 @@ export function dueInfo(c: CadenceFields, now: Date = new Date()): DueInfo {
   const { at, reason } = candidates[0];
   const overdueDays = Math.floor((now.getTime() - at.getTime()) / DAY_MS);
   return {
-    due: !c.scheduled && at.getTime() <= now.getTime(),
+    due: !c.scheduled && !isSnoozed(c, now) && at.getTime() <= now.getTime(),
     dueAt: at,
     overdueDays,
     reason,
@@ -110,6 +116,10 @@ export function dueLabel(c: CadenceFields, now: Date = new Date()): string {
   if (c.archivedAt) return "archived";
   if (c.isCoworker) return "coworker";
   if (c.scheduled) return "scheduled ✓";
+  if (isSnoozed(c, now)) {
+    const days = Math.ceil((c.snoozedUntil!.getTime() - now.getTime()) / DAY_MS);
+    return `snoozed · back in ${days}d`;
+  }
   if (needsCadencePick(c)) return "pick a cadence";
   const d = dueInfo(c, now);
   if (!d.dueAt) return "—";

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getDueBuckets } from "@/lib/due";
 import { dueLabel } from "@/lib/cadence";
 import { CadenceSelect } from "@/components/CadenceSelect";
+import { SnoozeSelect } from "@/components/SnoozeSelect";
 import { formatDate, relativeDays } from "@/lib/date";
 import { CHANNEL_LABELS, Channel } from "@/lib/status";
 import { granolaNoteUrl } from "@/lib/granola";
@@ -157,11 +158,24 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card title="🔔 Due" hint="now or within the week, most overdue first">
-          <ContactList
-            contacts={buckets.dueSoon}
-            meta={(c) => dueLabel(c, now)}
-            emptyText="Nobody's due — all caught up. 🎉"
-          />
+          {buckets.dueSoon.length === 0 ? (
+            <p className="px-1 py-3 text-sm text-slate-400">
+              Nobody&apos;s due — all caught up. 🎉
+            </p>
+          ) : (
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {buckets.dueSoon.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 px-1 py-2">
+                  <Link href={`/contacts/${c.id}`} className="min-w-0 hover:underline">
+                    <span className="font-medium">{c.name}</span>
+                    {c.company && <span className="text-slate-400"> · {c.company}</span>}
+                    <span className="block text-xs text-slate-400">{dueLabel(c, now)}</span>
+                  </Link>
+                  <SnoozeSelect contactId={c.id} snoozed={false} />
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
         <Card title="🎯 Pick a cadence" hint="first conversation done — how often from here?">
           {buckets.needsCadence.length === 0 ? (
@@ -183,11 +197,11 @@ export default async function DashboardPage() {
             </ul>
           )}
         </Card>
-        <Card title="📅 Scheduled" hint="meeting booked — reminders paused">
+        <Card title="📅 Paused" hint="scheduled meetings & snoozes">
           <ContactList
-            contacts={buckets.scheduled}
-            meta={(c) => `last contact ${relativeDays(c.lastContactAt)}`}
-            emptyText="No meetings marked as scheduled."
+            contacts={[...buckets.scheduled, ...buckets.snoozed]}
+            meta={(c) => dueLabel(c, now)}
+            emptyText="Nothing paused — no booked meetings or snoozes."
           />
         </Card>
         <Card title="🗒️ Recent activity">

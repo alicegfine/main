@@ -14,6 +14,7 @@ export interface ContactInput {
   archivedAt: Date | null;
   cadenceDays: number | null;
   scheduled: boolean;
+  snoozedUntil: Date | null;
   lastContactAt: Date | null;
   nextFollowUpAt: Date | null;
 }
@@ -69,6 +70,19 @@ export function parseContact(
   if ("isCoworker" in body) out.isCoworker = Boolean(body.isCoworker);
   if ("archived" in body) out.archivedAt = body.archived ? new Date() : null;
   if ("scheduled" in body) out.scheduled = Boolean(body.scheduled);
+  // snoozeDays: N → "don't bother me for N days"; 0/null → unsnooze.
+  if ("snoozeDays" in body) {
+    const v = body.snoozeDays;
+    if (v === null || v === 0 || v === "0" || v === "") {
+      out.snoozedUntil = null;
+    } else {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 1 || n > 365) {
+        throw new ValidationError("snoozeDays must be 1–365 or 0/null to unsnooze");
+      }
+      out.snoozedUntil = new Date(Date.now() + n * 24 * 60 * 60 * 1000);
+    }
+  }
   if ("cadenceDays" in body) {
     const v = body.cadenceDays;
     if (v === null || v === "" || v === undefined) {

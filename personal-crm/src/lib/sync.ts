@@ -299,7 +299,7 @@ async function processNote(note: GranolaNote, ctx: ProcessCtx): Promise<void> {
         id: contactId,
         OR: [{ lastContactAt: null }, { lastContactAt: { lt: note.occurredAt } }],
       },
-      data: { lastContactAt: note.occurredAt, scheduled: false },
+      data: { lastContactAt: note.occurredAt, scheduled: false, snoozedUntil: null },
     });
     await prisma.contact.updateMany({
       where: { id: contactId, nextFollowUpAt: { lte: note.occurredAt } },

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { dueInfo, dueLabel } from "@/lib/cadence";
+import { dueInfo, dueLabel, isSnoozed } from "@/lib/cadence";
 import { CadenceSelect } from "@/components/CadenceSelect";
+import { SnoozeSelect } from "@/components/SnoozeSelect";
 import { ContactRowActions } from "@/components/ContactRowActions";
 import { DuplicatesCard } from "@/components/DuplicatesCard";
 import { findDuplicateGroups } from "@/lib/dedupe";
@@ -21,6 +22,7 @@ type SearchParams = Promise<{
 const SORTS = [
   { key: "due", label: "Due first" },
   { key: "name", label: "Name" },
+  { key: "cadence", label: "Cadence" },
   { key: "contact", label: "Last contact" },
   { key: "new", label: "Recently added" },
 ] as const;
@@ -55,11 +57,13 @@ export default async function ContactsPage({ searchParams }: { searchParams: Sea
   const orderBy: Prisma.ContactOrderByWithRelationInput[] =
     currentSort === "name"
       ? [{ name: "asc" }]
-      : currentSort === "contact"
-        ? [{ lastContactAt: { sort: "asc", nulls: "first" } }]
-        : currentSort === "new"
-          ? [{ createdAt: "desc" }]
-          : [{ updatedAt: "desc" }];
+      : currentSort === "cadence"
+        ? [{ cadenceDays: { sort: "asc", nulls: "last" } }, { name: "asc" }]
+        : currentSort === "contact"
+          ? [{ lastContactAt: { sort: "asc", nulls: "first" } }]
+          : currentSort === "new"
+            ? [{ createdAt: "desc" }]
+            : [{ updatedAt: "desc" }];
 
   const [rows, activeCount, coworkerCount, archivedCount, allForDupes] = await Promise.all([
     prisma.contact.findMany({ where, orderBy }),
@@ -254,16 +258,23 @@ export default async function ContactsPage({ searchParams }: { searchParams: Sea
                       {c.lastContactAt ? relativeDays(c.lastContactAt) : "never"}
                     </td>
                     <td className="px-4 py-2.5">
-                      <span
-                        className={
-                          c.scheduled
-                            ? "text-xs font-medium text-emerald-600 dark:text-emerald-400"
-                            : d.due
-                              ? "text-xs font-medium text-amber-600 dark:text-amber-400"
-                              : "text-xs text-slate-400"
-                        }
-                      >
-                        {dueLabel(c, now)}
+                      <span className="flex items-center gap-2">
+                        <span
+                          className={
+                            c.scheduled
+                              ? "text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                              : isSnoozed(c, now)
+                                ? "text-xs text-slate-400"
+                                : d.due
+                                  ? "text-xs font-medium text-amber-600 dark:text-amber-400"
+                                  : "text-xs text-slate-400"
+                          }
+                        >
+                          {dueLabel(c, now)}
+                        </span>
+                        {(d.due || isSnoozed(c, now)) && (
+                          <SnoozeSelect contactId={c.id} snoozed={isSnoozed(c, now)} />
+                        )}
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-right">

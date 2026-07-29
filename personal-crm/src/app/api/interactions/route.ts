@@ -41,6 +41,7 @@ export async function POST(req: Request) {
         data: {
           lastContactAt: input.occurredAt,
           scheduled: false,
+          snoozedUntil: null,
           ...(contact.nextFollowUpAt && contact.nextFollowUpAt <= input.occurredAt
             ? { nextFollowUpAt: null }
             : {}),
