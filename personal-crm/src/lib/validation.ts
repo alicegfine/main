@@ -12,6 +12,8 @@ export interface ContactInput {
   notes: string | null;
   isCoworker: boolean;
   archivedAt: Date | null;
+  cadenceDays: number | null;
+  scheduled: boolean;
   lastContactAt: Date | null;
   nextFollowUpAt: Date | null;
 }
@@ -51,8 +53,9 @@ export function parseContact(
   if (!partial || "tags" in body) out.tags = str(body.tags);
   if (!partial || "notes" in body) out.notes = str(body.notes);
 
-  if (!partial || "status" in body) {
-    const status = str(body.status) ?? "reached_out";
+  // Legacy field — cadence replaced statuses in the UI, but stay tolerant.
+  if ("status" in body && body.status != null && body.status !== "") {
+    const status = str(body.status) ?? "";
     if (!isStatus(status)) throw new ValidationError(`Invalid status: ${status}`);
     out.status = status;
   }
@@ -65,6 +68,19 @@ export function parseContact(
   // Only applied when explicitly sent (both create and PATCH).
   if ("isCoworker" in body) out.isCoworker = Boolean(body.isCoworker);
   if ("archived" in body) out.archivedAt = body.archived ? new Date() : null;
+  if ("scheduled" in body) out.scheduled = Boolean(body.scheduled);
+  if ("cadenceDays" in body) {
+    const v = body.cadenceDays;
+    if (v === null || v === "" || v === undefined) {
+      out.cadenceDays = null;
+    } else {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 1 || n > 3650) {
+        throw new ValidationError("cadenceDays must be a whole number of days (1–3650) or null");
+      }
+      out.cadenceDays = n;
+    }
+  }
 
   return out;
 }

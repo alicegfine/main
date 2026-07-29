@@ -23,8 +23,14 @@ model Contact {
   howMet         String?
   /// Free-form comma-separated tags/topics, e.g. "biosecurity, funder, warm intro".
   tags           String?
-  /// One of the values in lib/status.ts: reached_out | connected | pending_reply | replied | cold
+  /// Legacy pipeline status — retired from the UI in favor of cadence.
   status         String    @default("reached_out")
+  /// How often you want to be in touch, in days (14 = every two weeks).
+  /// Null = no reminders for this person.
+  cadenceDays    Int?
+  /// "Meeting booked — stop reminding me." Cleared automatically when a new
+  /// interaction is logged (Granola sync, email capture, or manual log).
+  scheduled      Boolean   @default(false)
   notes          String?
   /// Colleagues at your own org — kept for history but excluded from all
   /// networking views, digests, and nudges.

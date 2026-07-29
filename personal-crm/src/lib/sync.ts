@@ -50,9 +50,16 @@ export async function syncGranola(): Promise<SyncResult> {
     update: {},
   });
 
+  // One-time legacy migration: people queued under the old status pipeline
+  // become "queued" in the cadence model so they stay visible as due.
+  await prisma.contact.updateMany({
+    where: { status: "to_reach_out", nextFollowUpAt: null, archivedAt: null },
+    data: { nextFollowUpAt: new Date(), status: "migrated" },
+  });
+
   // Load contacts once and index them for fast matching.
   const contacts = await prisma.contact.findMany({
-    select: { id: true, name: true, email: true, isCoworker: true, status: true },
+    select: { id: true, name: true, email: true, isCoworker: true, nextFollowUpAt: true },
   });
   const byEmail = new Map<string, string>();
   const byName = new Map<string, string>();
@@ -61,8 +68,15 @@ export async function syncGranola(): Promise<SyncResult> {
   for (const c of contacts) {
     if (c.email) byEmail.set(c.email.toLowerCase(), c.id);
     byName.set(normalizeName(c.name), c.id);
-    matchables.push(c);
-    byId.set(c.id, c);
+    const sc: SyncContact = {
+      id: c.id,
+      name: c.name,
+      email: c.email,
+      isCoworker: c.isCoworker,
+      queued: c.nextFollowUpAt !== null,
+    };
+    matchables.push(sc);
+    byId.set(c.id, sc);
   }
 
   // Learned aliases + already-pending suggestions, so extraction never
@@ -193,7 +207,8 @@ interface SyncContact {
   name: string;
   email: string | null;
   isCoworker: boolean;
-  status: string;
+  /** Already queued for outreach (manual follow-up date set). */
+  queued: boolean;
 }
 
 interface ProcessCtx {
@@ -237,7 +252,6 @@ async function processNote(note: GranolaNote, ctx: ProcessCtx): Promise<void> {
         data: {
           name: attendee.name ?? attendee.email ?? "Unknown",
           email: attendee.email ?? undefined,
-          status: "connected",
           isCoworker,
           howMet: `Met via Granola: ${note.title}`,
           lastContactAt: note.occurredAt,
@@ -252,7 +266,7 @@ async function processNote(note: GranolaNote, ctx: ProcessCtx): Promise<void> {
         name: attendee.name ?? attendee.email ?? "Unknown",
         email: attendee.email ?? null,
         isCoworker,
-        status: "connected",
+        queued: false,
       };
       matchables.push(sc);
       byId.set(contactId, sc);
@@ -278,12 +292,18 @@ async function processNote(note: GranolaNote, ctx: ProcessCtx): Promise<void> {
     });
     result.interactionsCreated++;
 
+    // A fresh meeting restarts the cadence loop: bump lastContactAt, clear
+    // the "scheduled" snooze, and consume any queued follow-up date now met.
     await prisma.contact.updateMany({
       where: {
         id: contactId,
         OR: [{ lastContactAt: null }, { lastContactAt: { lt: note.occurredAt } }],
       },
-      data: { lastContactAt: note.occurredAt },
+      data: { lastContactAt: note.occurredAt, scheduled: false },
+    });
+    await prisma.contact.updateMany({
+      where: { id: contactId, nextFollowUpAt: { lte: note.occurredAt } },
+      data: { nextFollowUpAt: null },
     });
     touched.add(contactId);
   }
@@ -358,7 +378,7 @@ async function runExtraction(
     const aliased = aliasedId ? byId.get(aliasedId) : undefined;
     if (aliased) {
       if (aliased.isCoworker) continue; // known coworker mention — drop silently
-      if (aliased.status === "to_reach_out" || pendingContactIds.has(aliased.id)) continue;
+      if (aliased.queued || pendingContactIds.has(aliased.id)) continue;
       await createSuggestion({
         name: aliased.name,
         contactId: aliased.id,
@@ -372,7 +392,7 @@ async function runExtraction(
     const { exact, candidates } = matchName(p.name, matchables);
     if (exact) {
       if (exact.isCoworker) continue;
-      if (exact.status === "to_reach_out" || pendingContactIds.has(exact.id)) continue;
+      if (exact.queued || pendingContactIds.has(exact.id)) continue;
       await createSuggestion({
         name: exact.name,
         contactId: exact.id,

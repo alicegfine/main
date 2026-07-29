@@ -12,28 +12,33 @@ Built to run on [Railway](https://railway.app).
 
 ## What it does
 
-- **Contacts** with the context that matters for networking: company, role,
-  LinkedIn URL, how you met, tags/topics, notes, and a status in the outreach
-  pipeline (_to reach out → reached out → connected → pending reply → replied →
-  cold_).
+- **Contacts on a cadence** — set how often you want to be in touch with each
+  person (weekly, every 2 weeks, monthly, quarterly…). Everything revolves
+  around one question: **who's due?** A contact is due when their cadence has
+  elapsed since the last interaction, when you queued them manually, or when
+  they're on a cadence but never contacted.
+- **"Scheduled" toggle** — booked a meeting? Flip 📅 and reminders pause. It
+  clears itself when the meeting actually happens (the Granola sync / logged
+  interaction restarts the timer). The loop maintains itself.
 - **AI follow-up suggestions** — after a Granola sync, an LLM reads each note
   and surfaces people you should reach out to (mentioned in the notes, not just
   attendees). Review them on the dashboard: **Add** creates a "to reach out"
   contact, **Dismiss** drops it.
 - **Email capture** — forward an email (e.g. via Zapier) and it's logged as an
   interaction against the right contact automatically.
-- **Daily LinkedIn nudge** — a Slack reminder each morning listing who you need
-  to reach out to, who you're awaiting a LinkedIn reply from, and any pending
-  AI suggestions, so you can eyeball your LinkedIn and update statuses.
+- **Daily nudge + weekly digest** — Slack tells you each morning who's due for
+  contact (and pending AI suggestions); the weekly digest adds who's coming up
+  and how many contacts have no cadence set.
 - **Coworkers stay out of the way** — people at your own org (matched by email
   domain) are auto-flagged and excluded from every networking view, digest, and
   nudge. They live in their own tab.
 - **Archiving** — one-off contacts (sales demos etc.) can be archived from the
   list in one click; they disappear from everything but the Archived tab, and
   sync won't recreate them.
-- **Edit in place** — status is a dropdown right in the contacts list, and the
-  contact page is directly editable (fields + notes, ⌘⏎ to save) — no separate
-  edit screen.
+- **Edit in place** — cadence is a dropdown right in the contacts list (plus a
+  🔔 Due-now filter), and the contact page is directly editable (fields +
+  notes, ⌘⏎ to save) — no separate edit screen. The old status pipeline is
+  retired; cadence + scheduled is the whole model.
 - **Conversation log** — every touchpoint (LinkedIn, email, call, meeting…)
   with a date and summary, per contact.
 - **Follow-up reminders** — a next-action date on each contact; overdue ones
@@ -242,19 +247,21 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" -H 'Content-Type: applicati
   https://<your-app>/api/ingest/email
 ```
 
-## Daily LinkedIn nudge
+## The cadence loop (daily nudge + weekly digest)
 
-Since LinkedIn has no usable API, the CRM nudges you to check it. Each morning
-(`DAILY_NUDGE_CRON`, needs `SLACK_WEBHOOK_URL`) it posts a Slack summary of:
+Set a **cadence** on each person you care about — that's the whole system.
+Every morning (`DAILY_NUDGE_CRON`) Slack lists who's **due**: their cadence
+elapsed, you queued them, or they're on a cadence and never contacted. Reach
+out however you like (LinkedIn, email, a meeting); as soon as an interaction
+lands — Granola sync, captured email, or a manual log — the timer restarts.
 
-- **To reach out** — contacts with status *to reach out* (including accepted AI
-  suggestions).
-- **Check LinkedIn for replies** — contacts you reached out to on LinkedIn
-  (have a LinkedIn URL or a logged LinkedIn interaction) with status *reached
-  out* or *pending reply*.
+Booked a meeting and don't need reminders in the meantime? Flip **📅
+scheduled** — reminders pause and the flag clears itself when the meeting is
+logged. The weekly digest (`DIGEST_CRON`) adds who's coming up in the next 7
+days and how many contacts have no cadence set.
 
-Pop over to LinkedIn, see who accepted/replied, and update their status in the
-app. Preview or send on demand: `GET /api/nudge` / `POST /api/nudge`.
+Preview or send on demand: `GET /api/nudge` / `POST /api/nudge`, same for
+`/api/digest`.
 
 ### Prefer an external scheduler?
 

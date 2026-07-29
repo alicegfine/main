@@ -21,7 +21,7 @@ async function main() {
       linkedinUrl: "https://linkedin.com/in/example-jordan",
       howMet: "Intro from a mutual contact at a biosecurity summit",
       tags: "funder, biosecurity, warm intro",
-      status: "pending_reply",
+      cadenceDays: 14,
       notes: "Interested in the pandemic preparedness work. Wants a one-pager.",
       lastContactAt: new Date(now - 9 * DAY),
     },
@@ -33,7 +33,7 @@ async function main() {
       company: "Global Health Fund",
       role: "Partnerships Lead",
       tags: "funder, follow-up",
-      status: "connected",
+      cadenceDays: 30,
       nextFollowUpAt: new Date(now - 2 * DAY), // overdue
       lastContactAt: new Date(now - 14 * DAY),
     },
@@ -45,7 +45,7 @@ async function main() {
       company: "Policy Lab",
       role: "Director",
       tags: "policy",
-      status: "replied",
+      cadenceDays: 60,
       lastContactAt: new Date(now - 40 * DAY), // going cold
     },
   });

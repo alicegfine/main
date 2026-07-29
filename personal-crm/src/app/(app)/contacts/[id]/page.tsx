@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/date";
 import { CHANNEL_LABELS, Channel } from "@/lib/status";
 import { granolaNoteUrl } from "@/lib/granola";
-import { StatusSelect } from "@/components/StatusSelect";
+import { dueLabel } from "@/lib/cadence";
+import { CadenceSelect } from "@/components/CadenceSelect";
 import { ContactRowActions } from "@/components/ContactRowActions";
 import { LogInteractionForm } from "@/components/LogInteractionForm";
 import { DeleteContactButton } from "@/components/DeleteContactButton";
@@ -72,12 +73,22 @@ export default async function ContactDetailPage({
               </a>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <StatusSelect contactId={contact.id} status={contact.status} />
+          <div className="flex flex-wrap items-center gap-3">
+            <span
+              className={
+                contact.scheduled
+                  ? "text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                  : "text-xs text-slate-500"
+              }
+            >
+              {dueLabel(contact)}
+            </span>
+            <CadenceSelect contactId={contact.id} cadenceDays={contact.cadenceDays} />
             <ContactRowActions
               contactId={contact.id}
               isCoworker={contact.isCoworker}
               archived={contact.archivedAt !== null}
+              scheduled={contact.scheduled}
             />
             <DeleteContactButton contactId={contact.id} />
           </div>

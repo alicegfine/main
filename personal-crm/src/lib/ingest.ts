@@ -94,7 +94,6 @@ export async function ingestEmail(payload: EmailPayload): Promise<IngestResult> 
       data: {
         name: displayName,
         email: counterpart,
-        status: "replied",
         howMet: "Email",
       },
     });
@@ -120,8 +119,18 @@ export async function ingestEmail(payload: EmailPayload): Promise<IngestResult> 
     },
   });
 
+  // A captured email restarts the cadence loop (see cadence.ts).
   if (!contact.lastContactAt || contact.lastContactAt < when) {
-    await prisma.contact.update({ where: { id: contact.id }, data: { lastContactAt: when } });
+    await prisma.contact.update({
+      where: { id: contact.id },
+      data: {
+        lastContactAt: when,
+        scheduled: false,
+        ...(contact.nextFollowUpAt && contact.nextFollowUpAt <= when
+          ? { nextFollowUpAt: null }
+          : {}),
+      },
+    });
   }
 
   return {

@@ -128,7 +128,7 @@ export function InlineContactEditor({ id, initial }: { id: string; initial: Edit
           />
         </div>
         <div>
-          <label className={label}>Next follow-up</label>
+          <label className={label}>Queued for (one-off due date)</label>
           <input
             type="date"
             className={field}

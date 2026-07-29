@@ -52,10 +52,9 @@ async function resolveToContact(suggestion: Suggestion, contactId: string) {
   const updated = await prisma.contact.update({
     where: { id: contact.id },
     data: {
-      // Queue them unless they're already mid-conversation.
-      status: ["connected", "cold", "reached_out"].includes(contact.status)
-        ? "to_reach_out"
-        : contact.status,
+      nextFollowUpAt: new Date(), // due now — clears itself once you talk
+      cadenceDays: contact.cadenceDays ?? 30, // default monthly if none set yet
+      scheduled: false,
       archivedAt: null, // reaching out revives an archived contact
       notes: contact.notes ? (note ? `${contact.notes}\n\n${note}` : contact.notes) : note || undefined,
     },
@@ -103,7 +102,7 @@ export async function POST(req: Request, { params }: Params) {
     const contact = await prisma.contact.create({
       data: {
         name,
-        status: "to_reach_out",
+        cadenceDays: 30, // on a cadence + never contacted → due immediately
         howMet,
         notes: contextNote(suggestion) || undefined,
         tags: "from-granola",

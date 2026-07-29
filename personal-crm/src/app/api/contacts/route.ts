@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { parseContact, ValidationError } from "@/lib/validation";
-import { isStatus } from "@/lib/status";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,11 +9,9 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim();
-  const status = url.searchParams.get("status")?.trim();
   const tag = url.searchParams.get("tag")?.trim();
 
   const where: Prisma.ContactWhereInput = {};
-  if (status && isStatus(status)) where.status = status;
   if (tag) where.tags = { contains: tag };
   if (q) {
     where.OR = [

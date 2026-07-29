@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { Contact } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { buildDigestData } from "@/lib/digest";
+import { getDueBuckets } from "@/lib/due";
+import { cadenceLabel, dueInfo, dueLabel } from "@/lib/cadence";
 import { formatDate, relativeDays } from "@/lib/date";
 import { CHANNEL_LABELS, Channel } from "@/lib/status";
 import { granolaNoteUrl } from "@/lib/granola";
@@ -67,11 +68,11 @@ function Card({ title, hint, children }: { title: string; hint?: string; childre
 }
 
 export default async function DashboardPage() {
-  // Coworkers and archived contacts are excluded from all networking views.
+  const now = new Date();
   const active = { isCoworker: false, archivedAt: null } as const;
 
-  const [digest, totalContacts, recent, suggestions, toReachOut] = await Promise.all([
-    buildDigestData(),
+  const [buckets, totalContacts, recent, suggestions] = await Promise.all([
+    getDueBuckets(now),
     prisma.contact.count({ where: active }),
     prisma.interaction.findMany({
       where: { contact: active },
@@ -81,10 +82,6 @@ export default async function DashboardPage() {
     }),
     prisma.suggestion.findMany({
       where: { status: "pending" },
-      orderBy: { createdAt: "desc" },
-    }),
-    prisma.contact.findMany({
-      where: { ...active, status: "to_reach_out" },
       orderBy: { createdAt: "desc" },
     }),
   ]);
@@ -146,9 +143,9 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Contacts" value={totalContacts} />
-        <Stat label="Pending replies" value={digest.pendingReplies.length} />
-        <Stat label="Overdue follow-ups" value={digest.overdueFollowUps.length} />
-        <Stat label="Going cold" value={digest.goingCold.length} />
+        <Stat label="Due now" value={buckets.due.length} />
+        <Stat label="Scheduled" value={buckets.scheduled.length} />
+        <Stat label="No cadence set" value={buckets.noCadenceCount} />
       </div>
 
       {suggestionViews.length > 0 && (
@@ -158,32 +155,28 @@ export default async function DashboardPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card title="📇 To reach out" hint="not contacted yet">
+        <Card title="🔔 Due now" hint="cadence elapsed or queued">
           <ContactList
-            contacts={toReachOut}
-            meta={(c) => (c.tags?.includes("from-granola") ? "from notes" : "")}
-            emptyText="Nobody queued to reach out to."
+            contacts={buckets.due}
+            meta={(c) => dueLabel(c, now)}
+            emptyText="Nobody's due — all caught up. 🎉"
           />
         </Card>
-        <Card title="⏳ Pending replies" hint="waiting to hear back">
+        <Card title="📆 Coming up this week" hint="due within 7 days">
           <ContactList
-            contacts={digest.pendingReplies}
+            contacts={buckets.dueSoon}
+            meta={(c) => {
+              const d = dueInfo(c, now);
+              return `due ${relativeDays(d.dueAt)} · ${cadenceLabel(c.cadenceDays).toLowerCase()}`;
+            }}
+            emptyText="Nothing coming up."
+          />
+        </Card>
+        <Card title="📅 Scheduled" hint="meeting booked — reminders paused">
+          <ContactList
+            contacts={buckets.scheduled}
             meta={(c) => `last contact ${relativeDays(c.lastContactAt)}`}
-            emptyText="Nobody's pending. 🎉"
-          />
-        </Card>
-        <Card title="🔔 Overdue follow-ups" hint="past their follow-up date">
-          <ContactList
-            contacts={digest.overdueFollowUps}
-            meta={(c) => `due ${relativeDays(c.nextFollowUpAt)}`}
-            emptyText="All caught up. 🎉"
-          />
-        </Card>
-        <Card title="🥶 Going cold" hint="no contact recently">
-          <ContactList
-            contacts={digest.goingCold}
-            meta={(c) => `last contact ${relativeDays(c.lastContactAt)}`}
-            emptyText="Nothing going cold."
+            emptyText="No meetings marked as scheduled."
           />
         </Card>
         <Card title="🗒️ Recent activity">

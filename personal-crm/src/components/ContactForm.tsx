@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { STATUSES, STATUS_LABELS } from "@/lib/status";
+import { CADENCE_OPTIONS } from "@/lib/cadence";
 
 export interface ContactFormValues {
   name: string;
@@ -12,7 +12,7 @@ export interface ContactFormValues {
   linkedinUrl: string;
   howMet: string;
   tags: string;
-  status: string;
+  cadenceDays: string; // "" = no reminders
   notes: string;
   lastContactAt: string; // yyyy-mm-dd or ""
   nextFollowUpAt: string; // yyyy-mm-dd or ""
@@ -26,7 +26,7 @@ const EMPTY: ContactFormValues = {
   linkedinUrl: "",
   howMet: "",
   tags: "",
-  status: "reached_out",
+  cadenceDays: "30",
   notes: "",
   lastContactAt: "",
   nextFollowUpAt: "",
@@ -120,11 +120,15 @@ export function ContactForm({
           />
         </div>
         <div>
-          <label className={label}>Status</label>
-          <select className={field} value={values.status} onChange={(e) => set("status", e.target.value)}>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABELS[s]}
+          <label className={label}>Contact cadence</label>
+          <select
+            className={field}
+            value={values.cadenceDays}
+            onChange={(e) => set("cadenceDays", e.target.value)}
+          >
+            {CADENCE_OPTIONS.map((o) => (
+              <option key={o.label} value={o.days === null ? "" : String(o.days)}>
+                {o.label}
               </option>
             ))}
           </select>

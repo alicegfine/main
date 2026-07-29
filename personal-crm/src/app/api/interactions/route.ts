@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     const contact = await prisma.contact.findUnique({
       where: { id: input.contactId },
-      select: { id: true, lastContactAt: true },
+      select: { id: true, lastContactAt: true, nextFollowUpAt: true },
     });
     if (!contact) {
       return NextResponse.json({ error: "Contact not found" }, { status: 404 });
@@ -33,11 +33,18 @@ export async function POST(req: Request) {
       },
     });
 
-    // Keep the contact's lastContactAt in sync with its newest interaction.
+    // A new interaction restarts the cadence loop: bump lastContactAt, clear
+    // the "scheduled" snooze, and consume a queued follow-up date that's now met.
     if (!contact.lastContactAt || contact.lastContactAt < input.occurredAt) {
       await prisma.contact.update({
         where: { id: input.contactId },
-        data: { lastContactAt: input.occurredAt },
+        data: {
+          lastContactAt: input.occurredAt,
+          scheduled: false,
+          ...(contact.nextFollowUpAt && contact.nextFollowUpAt <= input.occurredAt
+            ? { nextFollowUpAt: null }
+            : {}),
+        },
       });
     }
 
