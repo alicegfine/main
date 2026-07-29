@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { Contact } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getDueBuckets } from "@/lib/due";
-import { cadenceLabel, dueInfo, dueLabel } from "@/lib/cadence";
+import { dueLabel } from "@/lib/cadence";
+import { CadenceSelect } from "@/components/CadenceSelect";
 import { formatDate, relativeDays } from "@/lib/date";
 import { CHANNEL_LABELS, Channel } from "@/lib/status";
 import { granolaNoteUrl } from "@/lib/granola";
@@ -143,7 +144,7 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Contacts" value={totalContacts} />
-        <Stat label="Due now" value={buckets.due.length} />
+        <Stat label="Due (now or this week)" value={buckets.dueSoon.length} />
         <Stat label="Scheduled" value={buckets.scheduled.length} />
         <Stat label="No cadence set" value={buckets.noCadenceCount} />
       </div>
@@ -155,22 +156,32 @@ export default async function DashboardPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card title="🔔 Due now" hint="cadence elapsed or queued">
+        <Card title="🔔 Due" hint="now or within the week, most overdue first">
           <ContactList
-            contacts={buckets.due}
+            contacts={buckets.dueSoon}
             meta={(c) => dueLabel(c, now)}
             emptyText="Nobody's due — all caught up. 🎉"
           />
         </Card>
-        <Card title="📆 Coming up this week" hint="due within 7 days">
-          <ContactList
-            contacts={buckets.dueSoon}
-            meta={(c) => {
-              const d = dueInfo(c, now);
-              return `due ${relativeDays(d.dueAt)} · ${cadenceLabel(c.cadenceDays).toLowerCase()}`;
-            }}
-            emptyText="Nothing coming up."
-          />
+        <Card title="🎯 Pick a cadence" hint="first conversation done — how often from here?">
+          {buckets.needsCadence.length === 0 ? (
+            <p className="px-1 py-3 text-sm text-slate-400">Nobody waiting on a decision.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+              {buckets.needsCadence.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 px-1 py-2">
+                  <Link href={`/contacts/${c.id}`} className="min-w-0 hover:underline">
+                    <span className="font-medium">{c.name}</span>
+                    {c.company && <span className="text-slate-400"> · {c.company}</span>}
+                    <span className="block text-xs text-slate-400">
+                      talked {relativeDays(c.lastContactAt)}
+                    </span>
+                  </Link>
+                  <CadenceSelect contactId={c.id} cadenceDays={c.cadenceDays} />
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
         <Card title="📅 Scheduled" hint="meeting booked — reminders paused">
           <ContactList

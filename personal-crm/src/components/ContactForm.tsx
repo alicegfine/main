@@ -26,7 +26,7 @@ const EMPTY: ContactFormValues = {
   linkedinUrl: "",
   howMet: "",
   tags: "",
-  cadenceDays: "30",
+  cadenceDays: "0",
   notes: "",
   lastContactAt: "",
   nextFollowUpAt: "",

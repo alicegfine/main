@@ -53,7 +53,7 @@ async function resolveToContact(suggestion: Suggestion, contactId: string) {
     where: { id: contact.id },
     data: {
       nextFollowUpAt: new Date(), // due now — clears itself once you talk
-      cadenceDays: contact.cadenceDays ?? 30, // default monthly if none set yet
+      cadenceDays: contact.cadenceDays ?? 0, // first outreach — pick a real cadence after you talk
       scheduled: false,
       archivedAt: null, // reaching out revives an archived contact
       notes: contact.notes ? (note ? `${contact.notes}\n\n${note}` : contact.notes) : note || undefined,
@@ -102,7 +102,7 @@ export async function POST(req: Request, { params }: Params) {
     const contact = await prisma.contact.create({
       data: {
         name,
-        cadenceDays: 30, // on a cadence + never contacted → due immediately
+        cadenceDays: 0, // first outreach: due until contacted, then prompts for a cadence
         howMet,
         notes: contextNote(suggestion) || undefined,
         tags: "from-granola",

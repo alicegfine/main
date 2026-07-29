@@ -12,7 +12,7 @@ export type DigestData = DueBuckets;
 export const buildDigestData = getDueBuckets;
 
 export function isDigestEmpty(data: DigestData): boolean {
-  return data.due.length === 0 && data.dueSoon.length === 0;
+  return data.dueSoon.length === 0 && data.needsCadence.length === 0;
 }
 
 function line(c: Contact): string {
@@ -34,14 +34,16 @@ function line(c: Contact): string {
 
 export function formatDigestText(data: DigestData): string {
   const lines: string[] = [`Weekly networking digest — ${formatDate(data.generatedAt)}`, ""];
-  const section = (title: string, items: Contact[], empty: string) => {
-    lines.push(`${title} (${items.length})`);
-    if (items.length === 0) lines.push(`  • ${empty}`);
-    for (const c of items) lines.push(`  • ${line(c)}`);
+  lines.push(`🔔 Due (now or this week) (${data.dueSoon.length})`);
+  if (data.dueSoon.length === 0) lines.push("  • nobody — all caught up 🎉");
+  for (const c of data.dueSoon) lines.push(`  • ${line(c)}`);
+  lines.push("");
+  if (data.needsCadence.length > 0) {
+    lines.push(
+      `🎯 Pick a cadence (you've now talked to them): ${data.needsCadence.map((c) => c.name).join(", ")}`,
+    );
     lines.push("");
-  };
-  section("🔔 Due now", data.due, "nobody — all caught up 🎉");
-  section("📆 Coming up this week", data.dueSoon, "nobody");
+  }
   if (data.scheduled.length > 0) {
     lines.push(`📅 Scheduled (reminders paused): ${data.scheduled.map((c) => c.name).join(", ")}`);
     lines.push("");
@@ -64,11 +66,15 @@ export function formatDigestSlackBlocks(data: DigestData): unknown[] {
     { type: "header", text: { type: "plain_text", text: "🤝 Weekly networking digest", emoji: true } },
     { type: "context", elements: [{ type: "mrkdwn", text: formatDate(data.generatedAt) }] },
     { type: "divider" },
-    section(`🔔 Due now (${data.due.length})`, body(data.due, "nobody — all caught up 🎉")),
-    { type: "divider" },
-    section(`📆 Coming up this week (${data.dueSoon.length})`, body(data.dueSoon, "nobody")),
+    section(
+      `🔔 Due — now or this week (${data.dueSoon.length})`,
+      body(data.dueSoon, "nobody — all caught up 🎉"),
+    ),
   ];
   const footer: string[] = [];
+  if (data.needsCadence.length > 0) {
+    footer.push(`🎯 Pick a cadence: ${data.needsCadence.map((c) => c.name).join(", ")}`);
+  }
   if (data.scheduled.length > 0) {
     footer.push(`📅 Scheduled: ${data.scheduled.map((c) => c.name).join(", ")}`);
   }

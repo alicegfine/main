@@ -75,8 +75,9 @@ export function parseContact(
       out.cadenceDays = null;
     } else {
       const n = Number(v);
-      if (!Number.isInteger(n) || n < 1 || n > 3650) {
-        throw new ValidationError("cadenceDays must be a whole number of days (1–3650) or null");
+      // 0 is the "first outreach — cadence TBD" sentinel.
+      if (!Number.isInteger(n) || n < 0 || n > 3650) {
+        throw new ValidationError("cadenceDays must be a whole number of days (0–3650) or null");
       }
       out.cadenceDays = n;
     }

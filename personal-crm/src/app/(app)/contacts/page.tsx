@@ -10,10 +10,24 @@ import { formatDate, relativeDays } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = Promise<{ q?: string; tag?: string; view?: string; due?: string }>;
+type SearchParams = Promise<{
+  q?: string;
+  tag?: string;
+  view?: string;
+  due?: string;
+  sort?: string;
+}>;
+
+const SORTS = [
+  { key: "due", label: "Due first" },
+  { key: "name", label: "Name" },
+  { key: "contact", label: "Last contact" },
+  { key: "new", label: "Recently added" },
+] as const;
 
 export default async function ContactsPage({ searchParams }: { searchParams: SearchParams }) {
-  const { q, tag, view, due } = await searchParams;
+  const { q, tag, view, due, sort } = await searchParams;
+  const currentSort = SORTS.some((s) => s.key === sort) ? (sort as string) : "due";
 
   // Views: networking contacts (default), coworkers, archived.
   const where: Prisma.ContactWhereInput = {};
@@ -38,8 +52,17 @@ export default async function ContactsPage({ searchParams }: { searchParams: Sea
     ];
   }
 
+  const orderBy: Prisma.ContactOrderByWithRelationInput[] =
+    currentSort === "name"
+      ? [{ name: "asc" }]
+      : currentSort === "contact"
+        ? [{ lastContactAt: { sort: "asc", nulls: "first" } }]
+        : currentSort === "new"
+          ? [{ createdAt: "desc" }]
+          : [{ updatedAt: "desc" }];
+
   const [rows, activeCount, coworkerCount, archivedCount, allForDupes] = await Promise.all([
-    prisma.contact.findMany({ where, orderBy: [{ updatedAt: "desc" }] }),
+    prisma.contact.findMany({ where, orderBy }),
     prisma.contact.count({ where: { archivedAt: null, isCoworker: false } }),
     prisma.contact.count({ where: { archivedAt: null, isCoworker: true } }),
     prisma.contact.count({ where: { archivedAt: { not: null } } }),
@@ -59,14 +82,16 @@ export default async function ContactsPage({ searchParams }: { searchParams: Sea
   const now = new Date();
   const dueOnly = due === "1";
   const contacts = dueOnly ? rows.filter((c) => dueInfo(c, now).due) : rows;
-  // Due-first ordering: most overdue on top, then everyone else by recency.
-  contacts.sort((a, b) => {
-    const da = dueInfo(a, now);
-    const db = dueInfo(b, now);
-    if (da.due !== db.due) return da.due ? -1 : 1;
-    if (da.due && db.due) return db.overdueDays - da.overdueDays;
-    return 0;
-  });
+  if (currentSort === "due") {
+    // Due-first ordering: most overdue on top, then everyone else by recency.
+    contacts.sort((a, b) => {
+      const da = dueInfo(a, now);
+      const db = dueInfo(b, now);
+      if (da.due !== db.due) return da.due ? -1 : 1;
+      if (da.due && db.due) return db.overdueDays - da.overdueDays;
+      return 0;
+    });
+  }
 
   const dupeGroups = findDuplicateGroups(
     allForDupes.map((c) => ({
@@ -130,9 +155,35 @@ export default async function ContactsPage({ searchParams }: { searchParams: Sea
         )}
       </div>
 
+      <div className="flex flex-wrap items-center gap-1 text-sm">
+        <span className="mr-1 text-xs uppercase tracking-wide text-slate-400">Sort</span>
+        {SORTS.map((s) => {
+          const sp = new URLSearchParams();
+          if (currentView) sp.set("view", currentView);
+          if (dueOnly) sp.set("due", "1");
+          if (q) sp.set("q", q);
+          if (s.key !== "due") sp.set("sort", s.key);
+          const qs = sp.toString();
+          return (
+            <Link
+              key={s.key}
+              href={qs ? `/contacts?${qs}` : "/contacts"}
+              className={
+                currentSort === s.key
+                  ? "rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-800 dark:bg-slate-700 dark:text-slate-100"
+                  : "rounded-full px-2.5 py-0.5 text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              }
+            >
+              {s.label}
+            </Link>
+          );
+        })}
+      </div>
+
       <form method="GET" className="flex flex-wrap items-center gap-2">
         {currentView && <input type="hidden" name="view" value={currentView} />}
         {dueOnly && <input type="hidden" name="due" value="1" />}
+        {currentSort !== "due" && <input type="hidden" name="sort" value={currentSort} />}
         <input
           name="q"
           defaultValue={q ?? ""}

@@ -10,8 +10,15 @@ export interface CadenceOption {
   days: number | null;
 }
 
+/**
+ * `days: 0` is the "first outreach" sentinel: remind me until I've actually
+ * talked to them — I'll pick a real cadence once I know them.
+ */
+export const FIRST_OUTREACH = 0;
+
 export const CADENCE_OPTIONS: CadenceOption[] = [
   { label: "No reminders", days: null },
+  { label: "First outreach — cadence TBD", days: FIRST_OUTREACH },
   { label: "Weekly", days: 7 },
   { label: "Every 2 weeks", days: 14 },
   { label: "Monthly", days: 30 },
@@ -59,14 +66,17 @@ export function dueInfo(c: CadenceFields, now: Date = new Date()): DueInfo {
   const candidates: { at: Date; reason: DueInfo["reason"] }[] = [];
   if (c.nextFollowUpAt) candidates.push({ at: c.nextFollowUpAt, reason: "queued" });
   if (c.cadenceDays !== null) {
-    if (c.lastContactAt) {
+    if (!c.lastContactAt) {
+      // On a cadence (or queued for first outreach) but never contacted → due.
+      candidates.push({ at: now, reason: "never" });
+    } else if (c.cadenceDays > FIRST_OUTREACH) {
       candidates.push({
         at: new Date(c.lastContactAt.getTime() + c.cadenceDays * DAY_MS),
         reason: "cadence",
       });
-    } else {
-      candidates.push({ at: now, reason: "never" });
     }
+    // cadenceDays === FIRST_OUTREACH after contact: not auto-due — the user
+    // should now pick a real cadence (see needsCadencePick).
   }
   if (candidates.length === 0) return none;
 
@@ -81,15 +91,32 @@ export function dueInfo(c: CadenceFields, now: Date = new Date()): DueInfo {
   };
 }
 
+/**
+ * First outreach happened, but no real cadence chosen yet — prompt the user
+ * to pick one now that they know the person.
+ */
+export function needsCadencePick(c: CadenceFields): boolean {
+  return (
+    !c.archivedAt &&
+    !c.isCoworker &&
+    c.cadenceDays === FIRST_OUTREACH &&
+    c.lastContactAt !== null &&
+    c.nextFollowUpAt === null
+  );
+}
+
 /** Short human label for a contact's due state ("due · 5d overdue"). */
 export function dueLabel(c: CadenceFields, now: Date = new Date()): string {
   if (c.archivedAt) return "archived";
   if (c.isCoworker) return "coworker";
   if (c.scheduled) return "scheduled ✓";
+  if (needsCadencePick(c)) return "pick a cadence";
   const d = dueInfo(c, now);
   if (!d.dueAt) return "—";
   if (d.due) {
-    if (d.reason === "never") return "due · not contacted yet";
+    if (d.reason === "never") {
+      return c.cadenceDays === FIRST_OUTREACH ? "due · first outreach" : "due · not contacted yet";
+    }
     return d.overdueDays <= 0 ? "due today" : `due · ${d.overdueDays}d overdue`;
   }
   const inDays = -d.overdueDays;

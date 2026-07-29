@@ -14,9 +14,12 @@ Built to run on [Railway](https://railway.app).
 
 - **Contacts on a cadence** — set how often you want to be in touch with each
   person (weekly, every 2 weeks, monthly, quarterly…). Everything revolves
-  around one question: **who's due?** A contact is due when their cadence has
-  elapsed since the last interaction, when you queued them manually, or when
-  they're on a cadence but never contacted.
+  around one question: **who's due?** "Due" is soft — the lists show anyone
+  due now *or within the week*, most overdue first.
+- **First outreach** — a special cadence for people you haven't talked to yet:
+  they stay due until the first conversation lands, then move to a
+  **"Pick a cadence"** prompt so you decide the frequency once you know them.
+  Accepted AI suggestions default to this.
 - **"Scheduled" toggle** — booked a meeting? Flip 📅 and reminders pause. It
   clears itself when the meeting actually happens (the Granola sync / logged
   interaction restarts the timer). The loop maintains itself.
@@ -36,9 +39,10 @@ Built to run on [Railway](https://railway.app).
   list in one click; they disappear from everything but the Archived tab, and
   sync won't recreate them.
 - **Edit in place** — cadence is a dropdown right in the contacts list (plus a
-  🔔 Due-now filter), and the contact page is directly editable (fields +
-  notes, ⌘⏎ to save) — no separate edit screen. The old status pipeline is
-  retired; cadence + scheduled is the whole model.
+  🔔 Due filter and sort options: due first, name, last contact, recently
+  added), and the contact page is directly editable (fields + notes, ⌘⏎ to
+  save) — no separate edit screen. The old status pipeline is retired;
+  cadence + scheduled is the whole model.
 - **Conversation log** — every touchpoint (LinkedIn, email, call, meeting…)
   with a date and summary, per contact.
 - **Follow-up reminders** — a next-action date on each contact; overdue ones

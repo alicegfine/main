@@ -12,6 +12,7 @@ import { postToSlack } from "./slack";
 export interface NudgeData {
   generatedAt: Date;
   due: Contact[];
+  needsCadence: Contact[];
   suggestions: Suggestion[];
 }
 
@@ -24,11 +25,18 @@ export async function buildNudgeData(now = new Date()): Promise<NudgeData> {
       take: 15,
     }),
   ]);
-  return { generatedAt: now, due: buckets.due, suggestions };
+  return {
+    generatedAt: now,
+    due: buckets.due,
+    needsCadence: buckets.needsCadence,
+    suggestions,
+  };
 }
 
 export function isNudgeEmpty(data: NudgeData): boolean {
-  return data.due.length === 0 && data.suggestions.length === 0;
+  return (
+    data.due.length === 0 && data.needsCadence.length === 0 && data.suggestions.length === 0
+  );
 }
 
 function line(c: Contact): string {
@@ -52,6 +60,12 @@ export function formatNudgeText(data: NudgeData): string {
   lines.push(`🔔 Due for contact (${data.due.length})`);
   if (data.due.length === 0) lines.push("  • nobody — all caught up 🎉");
   for (const c of data.due) lines.push(`  • ${line(c)}`);
+  if (data.needsCadence.length > 0) {
+    lines.push("");
+    lines.push(
+      `🎯 Pick a cadence (first conversation done): ${data.needsCadence.map((c) => c.name).join(", ")}`,
+    );
+  }
   if (data.suggestions.length > 0) {
     lines.push("");
     lines.push(`✨ From your notes — review on the dashboard (${data.suggestions.length})`);
@@ -74,6 +88,17 @@ function slackBlocks(data: NudgeData): unknown[] {
       data.due.length === 0 ? "_nobody — all caught up 🎉_" : data.due.map((c) => `• ${line(c)}`).join("\n"),
     ),
   ];
+  if (data.needsCadence.length > 0) {
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `🎯 Pick a cadence: ${data.needsCadence.map((c) => c.name).join(", ")}`,
+        },
+      ],
+    });
+  }
   if (data.suggestions.length > 0) {
     blocks.push({ type: "divider" });
     blocks.push(
