@@ -99,10 +99,19 @@ See `.env.example` for a copy-paste starting point.
 3. Set `OWNER_EMAIL` to your own address so you aren't added as a contact.
 4. Click **Sync Granola** in the header, or wait for the scheduled sync.
 
-**How matching works:** for each note attendee, the sync looks for an existing
-contact by email first, then by name. A match logs the note as a `granola`
-interaction (deduped per contact per note) and updates their last-contact date.
-No match + `GRANOLA_AUTO_CREATE_CONTACTS=true` creates a new contact.
+**How matching works:** the list endpoint returns only basic fields, so the
+sync fetches each note's detail to get attendees + summary. For each attendee it
+looks for an existing contact by email first, then by name. A match logs the
+note as a `granola` interaction (deduped per contact per note) and updates their
+last-contact date. No match + `GRANOLA_AUTO_CREATE_CONTACTS=true` creates a new
+contact.
+
+**First sync only imports the most recent `MAX_NOTES_PER_SYNC` notes** (default
+25). Each note needs a detail fetch and, with AI extraction on, an LLM call, so
+the run is capped to stay fast. Already-imported notes are skipped, so **running
+Sync again backfills older history** a chunk at a time — the sync button tells
+you when more remain. Bump `MAX_NOTES_PER_SYNC` if you'd rather pull more per
+run (at the cost of a longer sync).
 
 > **Note on the API shape:** Granola's public API returns notes with summaries
 > and attendees, but the exact JSON field names aren't fully documented.

@@ -140,15 +140,31 @@ function base(): string {
 }
 
 async function getJson(url: string): Promise<Record<string, unknown>> {
-  const res = await fetch(url, { headers: authHeaders(), cache: "no-store" });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new GranolaError(
-      `Granola API ${res.status} on ${url}: ${body.slice(0, 300)}`,
-      res.status,
-    );
+  // Hard timeout so a hung connection can never stall a sync forever.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const res = await fetch(url, {
+      headers: authHeaders(),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new GranolaError(
+        `Granola API ${res.status} on ${url}: ${body.slice(0, 300)}`,
+        res.status,
+      );
+    }
+    return (await res.json()) as Record<string, unknown>;
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new GranolaError(`Granola API request timed out: ${url}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  return (await res.json()) as Record<string, unknown>;
 }
 
 interface ListOptions {
@@ -164,45 +180,62 @@ export async function listNotesRaw(cursor?: string): Promise<Record<string, unkn
   return getJson(url.toString());
 }
 
-/** Fetch the full detail for one note (includes attendees + summary). */
+/** Fetch the raw detail JSON for one note — used by the debug endpoint. */
+export async function getNoteRaw(id: string): Promise<Record<string, unknown>> {
+  const json = await getJson(`${base()}/notes/${encodeURIComponent(id)}`);
+  return (pick(json, ["note", "data", "document"]) ?? json) as Record<string, unknown>;
+}
+
+/**
+ * Fetch the full detail for one note. The list endpoint returns only basic
+ * fields (id/title/owner/timestamps); attendees and the summary come only from
+ * this per-note detail call.
+ */
 export async function getNote(id: string): Promise<GranolaNote | null> {
   try {
-    const json = await getJson(`${base()}/notes/${encodeURIComponent(id)}`);
-    // The note may be at the top level or nested under a `note`/`data` key.
-    const noteObj = pick(json, ["note", "data", "document"]) ?? json;
-    return normalizeNote(noteObj as Record<string, unknown>);
+    return normalizeNote(await getNoteRaw(id));
   } catch {
     return null;
   }
 }
 
-/** List notes, following pagination. Callers dedupe by note id. */
+export interface NotesPage {
+  notes: GranolaNote[];
+  cursor?: string;
+  hasMore: boolean;
+}
+
+/** Fetch and normalize one page of the notes list, with pagination info. */
+export async function listNotesPage(cursor?: string): Promise<NotesPage> {
+  const json = await listNotesRaw(cursor);
+  const items = (pick(json, ["notes", "documents", "data", "results", "items"]) ??
+    []) as unknown[];
+  const notes: GranolaNote[] = [];
+  for (const item of items) {
+    if (item && typeof item === "object") {
+      const note = normalizeNote(item as Record<string, unknown>);
+      if (note) notes.push(note);
+    }
+  }
+  const hasMore = pick(json, ["hasMore", "has_more"]) === true;
+  const next = pick(json, ["cursor", "next_cursor", "nextCursor", "next"]);
+  return {
+    notes,
+    cursor: typeof next === "string" && next.length > 0 ? next : undefined,
+    hasMore,
+  };
+}
+
+/** List notes across pages (bounded). Callers dedupe by note id. */
 export async function listNotes(options: ListOptions = {}): Promise<GranolaNote[]> {
   const maxPages = options.maxPages ?? 20;
   const notes: GranolaNote[] = [];
   let cursor: string | undefined;
-
   for (let page = 0; page < maxPages; page++) {
-    const json = await listNotesRaw(cursor);
-    const items = (pick(json, ["notes", "documents", "data", "results", "items"]) ??
-      []) as unknown[];
-
-    for (const item of items) {
-      if (item && typeof item === "object") {
-        const note = normalizeNote(item as Record<string, unknown>);
-        if (note) notes.push(note);
-      }
-    }
-
-    const hasMore = pick(json, ["hasMore", "has_more"]);
-    const next = pick(json, ["cursor", "next_cursor", "nextCursor", "next"]);
-    if (hasMore === false) break;
-    if (typeof next === "string" && next.length > 0) {
-      cursor = next;
-    } else {
-      break;
-    }
+    const res = await listNotesPage(cursor);
+    notes.push(...res.notes);
+    if (!res.hasMore || !res.cursor) break;
+    cursor = res.cursor;
   }
-
   return notes;
 }

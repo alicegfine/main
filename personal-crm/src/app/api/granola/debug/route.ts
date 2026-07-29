@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthorizedRequest } from "@/lib/auth";
-import { listNotesRaw, normalizeNote } from "@/lib/granola";
+import { listNotesRaw, normalizeNote, getNoteRaw } from "@/lib/granola";
 import { config } from "@/lib/env";
 
 export const runtime = "nodejs";
@@ -28,6 +28,22 @@ export async function GET(req: Request) {
     );
     const items = (listKey ? (raw as Record<string, unknown>)[listKey] : []) as unknown[];
     const first = (items[0] ?? null) as Record<string, unknown> | null;
+    const firstId = first && typeof first.id === "string" ? first.id : null;
+
+    // Attendees + summary come only from the per-note detail — fetch it so we
+    // can confirm those fields are present and named as expected.
+    let detailKeys: string[] = [];
+    let detailNormalized: unknown = null;
+    let detailError: string | null = null;
+    if (firstId) {
+      try {
+        const detail = await getNoteRaw(firstId);
+        detailKeys = Object.keys(detail);
+        detailNormalized = normalizeNote(detail);
+      } catch (err) {
+        detailError = err instanceof Error ? err.message : String(err);
+      }
+    }
 
     return NextResponse.json({
       ok: true,
@@ -41,6 +57,9 @@ export async function GET(req: Request) {
       firstNoteKeys: first ? Object.keys(first) : [],
       firstNoteRaw: first,
       firstNoteNormalized: first ? normalizeNote(first) : null,
+      firstNoteDetailKeys: detailKeys,
+      firstNoteDetailNormalized: detailNormalized,
+      firstNoteDetailError: detailError,
     });
   } catch (err) {
     return NextResponse.json(

@@ -12,7 +12,8 @@ let client: Anthropic | null = null;
 function getClient(): Anthropic | null {
   const key = config.anthropicApiKey;
   if (!key) return null;
-  if (!client) client = new Anthropic({ apiKey: key });
+  // Tight timeout + single retry so a slow model call can't stall a sync.
+  if (!client) client = new Anthropic({ apiKey: key, timeout: 30_000, maxRetries: 1 });
   return client;
 }
 

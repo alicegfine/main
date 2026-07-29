@@ -1,11 +1,13 @@
 import { prisma } from "./db";
 import { config } from "./env";
-import { GranolaPerson, GranolaNote, getNote, listNotes } from "./granola";
+import { GranolaPerson, GranolaNote, getNote, listNotesPage } from "./granola";
 import { extractFollowUps, extractionEnabled } from "./extract";
 
 export interface SyncResult {
   ok: boolean;
   notesSeen: number;
+  notesProcessed: number;
+  capped: boolean;
   interactionsCreated: number;
   contactsCreated: number;
   contactsTouched: number;
@@ -28,35 +30,19 @@ export async function syncGranola(): Promise<SyncResult> {
   const result: SyncResult = {
     ok: true,
     notesSeen: 0,
+    notesProcessed: 0,
+    capped: false,
     interactionsCreated: 0,
     contactsCreated: 0,
     contactsTouched: 0,
     suggestionsCreated: 0,
   };
 
-  const state = await prisma.syncState.upsert({
+  await prisma.syncState.upsert({
     where: { id: "granola" },
     create: { id: "granola" },
     update: {},
   });
-
-  // state.lastSyncAt is kept for bookkeeping/UI; we dedupe by note id rather
-  // than server-side filtering, so re-fetching recent notes is harmless.
-  void state;
-
-  let notes: GranolaNote[];
-  try {
-    notes = await listNotes();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await prisma.syncState.update({
-      where: { id: "granola" },
-      data: { lastError: message },
-    });
-    return { ...result, ok: false, error: message };
-  }
-
-  result.notesSeen = notes.length;
 
   // Load contacts once and index them for fast matching.
   const contacts = await prisma.contact.findMany({
@@ -71,118 +57,63 @@ export async function syncGranola(): Promise<SyncResult> {
 
   const configuredOwners = new Set(config.ownerEmails);
   const touched = new Set<string>();
+  const cap = config.maxNotesPerSync;
+  const maxPages = 40;
 
-  for (const note of notes) {
-    // The list endpoint sometimes omits attendees; fall back to note detail.
-    let attendees = note.attendees;
-    let owner = note.owner;
-    if (attendees.length === 0) {
-      const detail = await getNote(note.id);
-      if (detail) {
-        attendees = detail.attendees;
-        owner = detail.owner ?? owner;
-      }
-    }
+  try {
+    let cursor: string | undefined;
 
-    // Never turn yourself into a contact: skip the note owner + configured emails.
-    const owners = new Set(configuredOwners);
-    if (owner?.email) owners.add(owner.email.toLowerCase());
+    pages: for (let page = 0; page < maxPages; page++) {
+      const pageRes = await listNotesPage(cursor);
 
-    for (const attendee of attendees) {
-      const email = attendee.email?.toLowerCase() ?? null;
-      if (email && owners.has(email)) continue;
+      for (const listItem of pageRes.notes) {
+        result.notesSeen++;
 
-      let contactId = matchAttendee(attendee, byEmail, byName);
-
-      if (!contactId) {
-        if (!config.granolaAutoCreateContacts) continue;
-        if (!attendee.name && !attendee.email) continue;
-        const created = await prisma.contact.create({
-          data: {
-            name: attendee.name ?? attendee.email ?? "Unknown",
-            email: attendee.email ?? undefined,
-            status: "connected",
-            howMet: `Met via Granola: ${note.title}`,
-            lastContactAt: note.occurredAt,
-          },
-          select: { id: true },
+        // Skip notes already handled — keeps re-syncs cheap and lets repeated
+        // runs walk back through history a chunk at a time.
+        const done = await prisma.processedNote.findUnique({
+          where: { noteId: listItem.id },
+          select: { noteId: true },
         });
-        contactId = created.id;
-        if (attendee.email) byEmail.set(attendee.email.toLowerCase(), contactId);
-        if (attendee.name) byName.set(normalizeName(attendee.name), contactId);
-        result.contactsCreated++;
-      }
+        if (done) continue;
 
-      // Dedupe: one interaction per (contact, note).
-      const existing = await prisma.interaction.findUnique({
-        where: {
-          contactId_granolaNoteId: {
-            contactId,
-            granolaNoteId: note.id,
-          },
-        },
-        select: { id: true },
-      });
-      if (existing) continue;
-
-      await prisma.interaction.create({
-        data: {
-          contactId,
-          channel: "granola",
-          occurredAt: note.occurredAt,
-          summary: buildSummary(note),
-          granolaNoteId: note.id,
-          granolaUrl: note.url ?? undefined,
-        },
-      });
-      result.interactionsCreated++;
-
-      // Bump lastContactAt if this note is newer than what we have.
-      await prisma.contact.updateMany({
-        where: {
-          id: contactId,
-          OR: [{ lastContactAt: null }, { lastContactAt: { lt: note.occurredAt } }],
-        },
-        data: { lastContactAt: note.occurredAt },
-      });
-      touched.add(contactId);
-    }
-
-    // AI: surface people the note says to reach out to (mentions, not attendees).
-    if (extractionEnabled() && note.summary) {
-      const already = await prisma.processedNote.findUnique({
-        where: { noteId: note.id },
-        select: { noteId: true },
-      });
-      if (!already) {
-        const attendeeNames = new Set(
-          attendees.map((a) => (a.name ? normalizeName(a.name) : "")).filter(Boolean),
-        );
-        const people = await extractFollowUps(note).catch((err) => {
-          console.error("[sync] extraction failed", err);
-          return [];
-        });
-        for (const p of people) {
-          const key = normalizeName(p.name);
-          if (attendeeNames.has(key) || byName.has(key)) continue; // already known
-          try {
-            await prisma.suggestion.create({
-              data: {
-                name: p.name,
-                reason: p.reason || undefined,
-                sourceNoteId: note.id,
-                sourceNoteTitle: note.title,
-                sourceUrl: note.url ?? undefined,
-              },
-            });
-            result.suggestionsCreated++;
-          } catch {
-            // @@unique([sourceNoteId, name]) — already suggested; ignore
-          }
+        // Cap work per run so a first sync of a big account can't run for ages.
+        if (result.notesProcessed >= cap) {
+          result.capped = true;
+          break pages;
         }
-        await prisma.processedNote.create({ data: { noteId: note.id } }).catch(() => {});
+        result.notesProcessed++;
+
+        // The list endpoint returns only basic fields — attendees and the
+        // summary come only from the per-note detail.
+        const detail = await getNote(listItem.id);
+        const note = detail ?? listItem;
+
+        await processNote(note, {
+          byEmail,
+          byName,
+          configuredOwners,
+          touched,
+          result,
+        });
+
+        // Only mark handled if the detail fetch actually succeeded, so a
+        // transient failure retries on the next sync instead of being skipped.
+        if (detail) {
+          await prisma.processedNote.create({ data: { noteId: note.id } }).catch(() => {});
+        }
       }
+
+      if (!pageRes.hasMore || !pageRes.cursor) break;
+      cursor = pageRes.cursor;
     }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await prisma.syncState.update({
+      where: { id: "granola" },
+      data: { lastError: message },
+    });
+    return { ...result, ok: false, error: message };
   }
 
   result.contactsTouched = touched.size;
@@ -193,6 +124,105 @@ export async function syncGranola(): Promise<SyncResult> {
   });
 
   return result;
+}
+
+interface ProcessCtx {
+  byEmail: Map<string, string>;
+  byName: Map<string, string>;
+  configuredOwners: Set<string>;
+  touched: Set<string>;
+  result: SyncResult;
+}
+
+async function processNote(note: GranolaNote, ctx: ProcessCtx): Promise<void> {
+  const { byEmail, byName, configuredOwners, touched, result } = ctx;
+
+  // Never turn yourself into a contact: skip the note owner + configured emails.
+  const owners = new Set(configuredOwners);
+  if (note.owner?.email) owners.add(note.owner.email.toLowerCase());
+
+  for (const attendee of note.attendees) {
+    const email = attendee.email?.toLowerCase() ?? null;
+    if (email && owners.has(email)) continue;
+
+    let contactId = matchAttendee(attendee, byEmail, byName);
+
+    if (!contactId) {
+      if (!config.granolaAutoCreateContacts) continue;
+      if (!attendee.name && !attendee.email) continue;
+      const created = await prisma.contact.create({
+        data: {
+          name: attendee.name ?? attendee.email ?? "Unknown",
+          email: attendee.email ?? undefined,
+          status: "connected",
+          howMet: `Met via Granola: ${note.title}`,
+          lastContactAt: note.occurredAt,
+        },
+        select: { id: true },
+      });
+      contactId = created.id;
+      if (attendee.email) byEmail.set(attendee.email.toLowerCase(), contactId);
+      if (attendee.name) byName.set(normalizeName(attendee.name), contactId);
+      result.contactsCreated++;
+    }
+
+    // Dedupe: one interaction per (contact, note).
+    const existing = await prisma.interaction.findUnique({
+      where: { contactId_granolaNoteId: { contactId, granolaNoteId: note.id } },
+      select: { id: true },
+    });
+    if (existing) continue;
+
+    await prisma.interaction.create({
+      data: {
+        contactId,
+        channel: "granola",
+        occurredAt: note.occurredAt,
+        summary: buildSummary(note),
+        granolaNoteId: note.id,
+        granolaUrl: note.url ?? undefined,
+      },
+    });
+    result.interactionsCreated++;
+
+    await prisma.contact.updateMany({
+      where: {
+        id: contactId,
+        OR: [{ lastContactAt: null }, { lastContactAt: { lt: note.occurredAt } }],
+      },
+      data: { lastContactAt: note.occurredAt },
+    });
+    touched.add(contactId);
+  }
+
+  // AI: surface people the note says to reach out to (mentions, not attendees).
+  if (extractionEnabled() && note.summary) {
+    const attendeeNames = new Set(
+      note.attendees.map((a) => (a.name ? normalizeName(a.name) : "")).filter(Boolean),
+    );
+    const people = await extractFollowUps(note).catch((err) => {
+      console.error("[sync] extraction failed", err);
+      return [];
+    });
+    for (const p of people) {
+      const key = normalizeName(p.name);
+      if (attendeeNames.has(key) || byName.has(key)) continue; // already known
+      try {
+        await prisma.suggestion.create({
+          data: {
+            name: p.name,
+            reason: p.reason || undefined,
+            sourceNoteId: note.id,
+            sourceNoteTitle: note.title,
+            sourceUrl: note.url ?? undefined,
+          },
+        });
+        result.suggestionsCreated++;
+      } catch {
+        // @@unique([sourceNoteId, name]) — already suggested; ignore
+      }
+    }
+  }
 }
 
 function matchAttendee(

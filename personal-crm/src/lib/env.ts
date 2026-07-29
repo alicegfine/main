@@ -28,6 +28,9 @@ export const config = {
   get granolaAutoCreateContacts() {
     return envBool("GRANOLA_AUTO_CREATE_CONTACTS", true);
   },
+  get maxNotesPerSync() {
+    return envNumber("MAX_NOTES_PER_SYNC", 25);
+  },
   get ownerEmails(): string[] {
     return (env("OWNER_EMAIL") ?? "")
       .split(",")

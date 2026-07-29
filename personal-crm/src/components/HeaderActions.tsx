@@ -17,8 +17,9 @@ export function HeaderActions() {
       if (!res.ok) {
         setMsg(data.error ?? "Sync failed");
       } else {
+        const more = data.capped ? " (more remain — sync again)" : "";
         setMsg(
-          `Synced: ${data.interactionsCreated} new note(s), ${data.contactsCreated} new contact(s)`,
+          `Synced ${data.notesProcessed} note(s): ${data.contactsCreated} new contact(s), ${data.suggestionsCreated} suggestion(s)${more}`,
         );
         router.refresh();
       }
