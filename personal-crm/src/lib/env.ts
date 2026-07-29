@@ -37,6 +37,19 @@ export const config = {
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean);
   },
+  /**
+   * Email domains that mark a contact as a coworker. Defaults to the
+   * domain(s) of OWNER_EMAIL — people at your own org aren't networking
+   * targets. Override with COWORKER_DOMAINS (comma-separated).
+   */
+  get coworkerDomains(): string[] {
+    const explicit = (env("COWORKER_DOMAINS") ?? "")
+      .split(",")
+      .map((d) => d.trim().toLowerCase().replace(/^@/, ""))
+      .filter(Boolean);
+    if (explicit.length > 0) return explicit;
+    return [...new Set(this.ownerEmails.map((e) => e.split("@")[1]).filter(Boolean))];
+  },
   get slackWebhookUrl() {
     return env("SLACK_WEBHOOK_URL");
   },

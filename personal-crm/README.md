@@ -23,8 +23,17 @@ Built to run on [Railway](https://railway.app).
 - **Email capture** — forward an email (e.g. via Zapier) and it's logged as an
   interaction against the right contact automatically.
 - **Daily LinkedIn nudge** — a Slack reminder each morning listing who you need
-  to reach out to and who you're awaiting a LinkedIn reply from, so you can
-  eyeball your LinkedIn and update statuses.
+  to reach out to, who you're awaiting a LinkedIn reply from, and any pending
+  AI suggestions, so you can eyeball your LinkedIn and update statuses.
+- **Coworkers stay out of the way** — people at your own org (matched by email
+  domain) are auto-flagged and excluded from every networking view, digest, and
+  nudge. They live in their own tab.
+- **Archiving** — one-off contacts (sales demos etc.) can be archived from the
+  list in one click; they disappear from everything but the Archived tab, and
+  sync won't recreate them.
+- **Edit in place** — status is a dropdown right in the contacts list, and the
+  contact page is directly editable (fields + notes, ⌘⏎ to save) — no separate
+  edit screen.
 - **Conversation log** — every touchpoint (LinkedIn, email, call, meeting…)
   with a date and summary, per contact.
 - **Follow-up reminders** — a next-action date on each contact; overdue ones
@@ -78,6 +87,7 @@ app to be actually up.
 | `GRANOLA_API_BASE` | ➖ | Defaults to `https://public-api.granola.ai/v1`. |
 | `GRANOLA_AUTO_CREATE_CONTACTS` | ➖ | `true` (default) creates contacts for unmatched attendees. |
 | `OWNER_EMAIL` | ➖ | Your own email(s), comma-separated — skipped during sync/ingest so you don't become a contact. |
+| `COWORKER_DOMAINS` | ➖ | Email domains flagged as coworkers. Defaults to your `OWNER_EMAIL` domain(s). |
 | `ANTHROPIC_API_KEY` | for AI | Enables follow-up extraction from Granola notes. Blank = disabled. |
 | `EXTRACT_MODEL` | ➖ | Extraction model. Default `claude-haiku-4-5` (cheap); bump to `claude-opus-4-8` for deeper reasoning. |
 | `SLACK_WEBHOOK_URL` | for digest/nudge | Incoming webhook. Blank = digest + nudge disabled. |
@@ -168,6 +178,13 @@ suggestions** — **Add** turns one into a "to reach out" contact, **Dismiss**
 drops it. Each note is only processed once, so you don't pay for repeat LLM
 calls. Default model is `claude-haiku-4-5` (cheap and plenty for this);
 set `EXTRACT_MODEL=claude-opus-4-8` for deeper reasoning.
+
+Pending suggestions are also included in the daily Slack nudge, so your notes
+actively tell you who to network with.
+
+**Set the key later? No problem.** Notes synced before `ANTHROPIC_API_KEY` was
+configured are backfilled: each subsequent sync extracts a chunk of older
+already-imported notes until they're all covered.
 
 ## Capturing forwarded emails (Zapier)
 

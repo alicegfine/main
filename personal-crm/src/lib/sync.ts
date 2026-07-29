@@ -97,15 +97,46 @@ export async function syncGranola(): Promise<SyncResult> {
           result,
         });
 
+        // Extraction runs alongside import when enabled; extractedAt stays
+        // null when disabled (or on failure) so a later sync can backfill.
+        let extractedAt: Date | null = null;
+        if (extractionEnabled()) {
+          const ok = note.summary ? await runExtraction(note, byName, result) : true;
+          if (ok) extractedAt = new Date();
+        }
+
         // Only mark handled if the detail fetch actually succeeded, so a
         // transient failure retries on the next sync instead of being skipped.
         if (detail) {
-          await prisma.processedNote.create({ data: { noteId: note.id } }).catch(() => {});
+          await prisma.processedNote
+            .create({ data: { noteId: note.id, extractedAt } })
+            .catch(() => {});
         }
       }
 
       if (!pageRes.hasMore || !pageRes.cursor) break;
       cursor = pageRes.cursor;
+    }
+
+    // Backfill: notes imported before ANTHROPIC_API_KEY was set were never
+    // extracted. Run them through extraction now, a bounded chunk per sync.
+    if (extractionEnabled()) {
+      const pending = await prisma.processedNote.findMany({
+        where: { extractedAt: null },
+        orderBy: { createdAt: "desc" },
+        take: cap,
+      });
+      for (const pn of pending) {
+        const d = await getNote(pn.noteId);
+        if (!d) continue;
+        const ok = d.summary ? await runExtraction(d, byName, result) : true;
+        if (ok) {
+          await prisma.processedNote.update({
+            where: { noteId: pn.noteId },
+            data: { extractedAt: new Date() },
+          });
+        }
+      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -150,11 +181,15 @@ async function processNote(note: GranolaNote, ctx: ProcessCtx): Promise<void> {
     if (!contactId) {
       if (!config.granolaAutoCreateContacts) continue;
       if (!attendee.name && !attendee.email) continue;
+      // People at your own org are coworkers, not networking targets.
+      const domain = attendee.email?.toLowerCase().split("@")[1];
+      const isCoworker = Boolean(domain && config.coworkerDomains.includes(domain));
       const created = await prisma.contact.create({
         data: {
           name: attendee.name ?? attendee.email ?? "Unknown",
           email: attendee.email ?? undefined,
           status: "connected",
+          isCoworker,
           howMet: `Met via Granola: ${note.title}`,
           lastContactAt: note.occurredAt,
         },
@@ -194,35 +229,46 @@ async function processNote(note: GranolaNote, ctx: ProcessCtx): Promise<void> {
     });
     touched.add(contactId);
   }
+}
 
-  // AI: surface people the note says to reach out to (mentions, not attendees).
-  if (extractionEnabled() && note.summary) {
-    const attendeeNames = new Set(
-      note.attendees.map((a) => (a.name ? normalizeName(a.name) : "")).filter(Boolean),
-    );
-    const people = await extractFollowUps(note).catch((err) => {
-      console.error("[sync] extraction failed", err);
-      return [];
-    });
-    for (const p of people) {
-      const key = normalizeName(p.name);
-      if (attendeeNames.has(key) || byName.has(key)) continue; // already known
-      try {
-        await prisma.suggestion.create({
-          data: {
-            name: p.name,
-            reason: p.reason || undefined,
-            sourceNoteId: note.id,
-            sourceNoteTitle: note.title,
-            sourceUrl: note.url ?? undefined,
-          },
-        });
-        result.suggestionsCreated++;
-      } catch {
-        // @@unique([sourceNoteId, name]) — already suggested; ignore
-      }
+/**
+ * AI: surface people the note says to reach out to (mentions, not attendees)
+ * as pending Suggestions. Skips attendees and existing contacts by name.
+ * Returns false when the model call failed, so the note retries next sync.
+ */
+async function runExtraction(
+  note: GranolaNote,
+  byName: Map<string, string>,
+  result: SyncResult,
+): Promise<boolean> {
+  const attendeeNames = new Set(
+    note.attendees.map((a) => (a.name ? normalizeName(a.name) : "")).filter(Boolean),
+  );
+  let failed = false;
+  const people = await extractFollowUps(note).catch((err) => {
+    console.error("[sync] extraction failed", err);
+    failed = true;
+    return [];
+  });
+  for (const p of people) {
+    const key = normalizeName(p.name);
+    if (attendeeNames.has(key) || byName.has(key)) continue; // already known
+    try {
+      await prisma.suggestion.create({
+        data: {
+          name: p.name,
+          reason: p.reason || undefined,
+          sourceNoteId: note.id,
+          sourceNoteTitle: note.title,
+          sourceUrl: note.url ?? undefined,
+        },
+      });
+      result.suggestionsCreated++;
+    } catch {
+      // @@unique([sourceNoteId, name]) — already suggested; ignore
     }
   }
+  return !failed;
 }
 
 function matchAttendee(

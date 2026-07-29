@@ -10,6 +10,8 @@ export interface ContactInput {
   tags: string | null;
   status: string;
   notes: string | null;
+  isCoworker: boolean;
+  archivedAt: Date | null;
   lastContactAt: Date | null;
   nextFollowUpAt: Date | null;
 }
@@ -60,6 +62,9 @@ export function parseContact(
   if (!partial || "nextFollowUpAt" in body) {
     out.nextFollowUpAt = date(body.nextFollowUpAt, "nextFollowUpAt");
   }
+  // Only applied when explicitly sent (both create and PATCH).
+  if ("isCoworker" in body) out.isCoworker = Boolean(body.isCoworker);
+  if ("archived" in body) out.archivedAt = body.archived ? new Date() : null;
 
   return out;
 }

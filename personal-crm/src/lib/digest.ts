@@ -20,17 +20,21 @@ export interface DigestData {
 export async function buildDigestData(now = new Date()): Promise<DigestData> {
   const coldCutoff = daysAgo(config.coldAfterDays, now);
 
+  // Coworkers and archived contacts are never networking targets.
+  const active = { isCoworker: false, archivedAt: null } as const;
+
   const [pendingReplies, overdueFollowUps, goingCold] = await Promise.all([
     prisma.contact.findMany({
-      where: { status: "pending_reply" },
+      where: { ...active, status: "pending_reply" },
       orderBy: { lastContactAt: "asc" },
     }),
     prisma.contact.findMany({
-      where: { nextFollowUpAt: { not: null, lte: now } },
+      where: { ...active, nextFollowUpAt: { not: null, lte: now } },
       orderBy: { nextFollowUpAt: "asc" },
     }),
     prisma.contact.findMany({
       where: {
+        ...active,
         status: { in: ["reached_out", "connected", "replied"] },
         OR: [{ lastContactAt: null }, { lastContactAt: { lt: coldCutoff } }],
         // Don't nag about people with an upcoming scheduled follow-up.

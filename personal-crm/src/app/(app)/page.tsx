@@ -62,10 +62,14 @@ function Card({ title, hint, children }: { title: string; hint?: string; childre
 }
 
 export default async function DashboardPage() {
+  // Coworkers and archived contacts are excluded from all networking views.
+  const active = { isCoworker: false, archivedAt: null } as const;
+
   const [digest, totalContacts, recent, suggestions, toReachOut] = await Promise.all([
     buildDigestData(),
-    prisma.contact.count(),
+    prisma.contact.count({ where: active }),
     prisma.interaction.findMany({
+      where: { contact: active },
       orderBy: { occurredAt: "desc" },
       take: 8,
       include: { contact: { select: { id: true, name: true } } },
@@ -75,7 +79,7 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
     }),
     prisma.contact.findMany({
-      where: { status: "to_reach_out" },
+      where: { ...active, status: "to_reach_out" },
       orderBy: { createdAt: "desc" },
     }),
   ]);

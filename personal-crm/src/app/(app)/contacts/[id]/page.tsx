@@ -1,22 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { formatDate, relativeDays } from "@/lib/date";
+import { formatDate } from "@/lib/date";
 import { CHANNEL_LABELS, Channel } from "@/lib/status";
 import { StatusSelect } from "@/components/StatusSelect";
+import { ContactRowActions } from "@/components/ContactRowActions";
 import { LogInteractionForm } from "@/components/LogInteractionForm";
 import { DeleteContactButton } from "@/components/DeleteContactButton";
 import { DeleteInteractionButton } from "@/components/DeleteInteractionButton";
+import { InlineContactEditor, EditorValues } from "@/components/InlineContactEditor";
 
 export const dynamic = "force-dynamic";
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className="mt-0.5 text-sm">{children}</dd>
-    </div>
-  );
+function toDateInput(d: Date | null): string {
+  return d ? d.toISOString().slice(0, 10) : "";
 }
 
 export default async function ContactDetailPage({
@@ -31,6 +28,19 @@ export default async function ContactDetailPage({
   });
   if (!contact) notFound();
 
+  const initial: EditorValues = {
+    name: contact.name,
+    email: contact.email ?? "",
+    company: contact.company ?? "",
+    role: contact.role ?? "",
+    linkedinUrl: contact.linkedinUrl ?? "",
+    howMet: contact.howMet ?? "",
+    tags: contact.tags ?? "",
+    notes: contact.notes ?? "",
+    lastContactAt: toDateInput(contact.lastContactAt),
+    nextFollowUpAt: toDateInput(contact.nextFollowUpAt),
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -38,72 +48,43 @@ export default async function ContactDetailPage({
           ← Contacts
         </Link>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
-          <div>
+          <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold">{contact.name}</h1>
-            {(contact.role || contact.company) && (
-              <p className="text-sm text-slate-500">
-                {[contact.role, contact.company].filter(Boolean).join(" · ")}
-              </p>
+            {contact.isCoworker && (
+              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                coworker
+              </span>
+            )}
+            {contact.archivedAt && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                archived
+              </span>
+            )}
+            {contact.linkedinUrl && (
+              <a
+                href={contact.linkedinUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-accent hover:underline"
+              >
+                LinkedIn ↗
+              </a>
             )}
           </div>
           <div className="flex items-center gap-3">
             <StatusSelect contactId={contact.id} status={contact.status} />
-            <Link
-              href={`/contacts/${contact.id}/edit`}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              Edit
-            </Link>
+            <ContactRowActions
+              contactId={contact.id}
+              isCoworker={contact.isCoworker}
+              archived={contact.archivedAt !== null}
+            />
             <DeleteContactButton contactId={contact.id} />
           </div>
         </div>
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <Field label="Email">
-            {contact.email ? (
-              <a href={`mailto:${contact.email}`} className="text-accent hover:underline">
-                {contact.email}
-              </a>
-            ) : (
-              "—"
-            )}
-          </Field>
-          <Field label="LinkedIn">
-            {contact.linkedinUrl ? (
-              <a
-                href={contact.linkedinUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-accent hover:underline"
-              >
-                Profile ↗
-              </a>
-            ) : (
-              "—"
-            )}
-          </Field>
-          <Field label="Tags">{contact.tags || "—"}</Field>
-          <Field label="Last contact">{formatDate(contact.lastContactAt)}</Field>
-          <Field label="Next follow-up">
-            {contact.nextFollowUpAt ? (
-              <span>
-                {formatDate(contact.nextFollowUpAt)}{" "}
-                <span className="text-xs text-slate-400">({relativeDays(contact.nextFollowUpAt)})</span>
-              </span>
-            ) : (
-              "—"
-            )}
-          </Field>
-          <Field label="How you met">{contact.howMet || "—"}</Field>
-        </dl>
-        {contact.notes && (
-          <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
-            <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Notes</dt>
-            <dd className="mt-1 whitespace-pre-wrap text-sm">{contact.notes}</dd>
-          </div>
-        )}
+        <InlineContactEditor id={contact.id} initial={initial} />
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
