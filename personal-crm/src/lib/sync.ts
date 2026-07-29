@@ -2,6 +2,7 @@ import { prisma } from "./db";
 import { config } from "./env";
 import { GranolaPerson, GranolaNote, getNote, listNotesPage } from "./granola";
 import { extractFollowUps, extractionEnabled } from "./extract";
+import { matchName, normalizeName } from "./match";
 
 export interface SyncResult {
   ok: boolean;
@@ -12,11 +13,13 @@ export interface SyncResult {
   contactsCreated: number;
   contactsTouched: number;
   suggestionsCreated: number;
+  /** Whether AI extraction ran at all (ANTHROPIC_API_KEY present). */
+  extractionEnabled: boolean;
+  /** Model calls that errored this run (bad key, no credits, timeout…). */
+  extractionFailures: number;
+  /** Notes still awaiting extraction after this run (backfill continues next sync). */
+  extractionPending: number;
   error?: string;
-}
-
-function normalizeName(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -36,6 +39,9 @@ export async function syncGranola(): Promise<SyncResult> {
     contactsCreated: 0,
     contactsTouched: 0,
     suggestionsCreated: 0,
+    extractionEnabled: extractionEnabled(),
+    extractionFailures: 0,
+    extractionPending: 0,
   };
 
   await prisma.syncState.upsert({
@@ -46,14 +52,33 @@ export async function syncGranola(): Promise<SyncResult> {
 
   // Load contacts once and index them for fast matching.
   const contacts = await prisma.contact.findMany({
-    select: { id: true, name: true, email: true },
+    select: { id: true, name: true, email: true, isCoworker: true, status: true },
   });
   const byEmail = new Map<string, string>();
   const byName = new Map<string, string>();
+  const matchables: SyncContact[] = [];
+  const byId = new Map<string, SyncContact>();
   for (const c of contacts) {
     if (c.email) byEmail.set(c.email.toLowerCase(), c.id);
     byName.set(normalizeName(c.name), c.id);
+    matchables.push(c);
+    byId.set(c.id, c);
   }
+
+  // Learned aliases + already-pending suggestions, so extraction never
+  // re-suggests someone already resolved or already awaiting review.
+  const aliasRows = await prisma.contactAlias.findMany();
+  const aliasMap = new Map(aliasRows.map((a) => [a.alias, a.contactId]));
+  const pendingRows = await prisma.suggestion.findMany({
+    where: { status: "pending" },
+    select: { name: true, contactId: true },
+  });
+  const pendingNames = new Set(pendingRows.map((s) => normalizeName(s.name)));
+  const pendingContactIds = new Set(
+    pendingRows.map((s) => s.contactId).filter((id): id is string => Boolean(id)),
+  );
+
+  const extractCtx: ExtractCtx = { matchables, byId, aliasMap, pendingNames, pendingContactIds };
 
   const configuredOwners = new Set(config.ownerEmails);
   const touched = new Set<string>();
@@ -92,6 +117,8 @@ export async function syncGranola(): Promise<SyncResult> {
         await processNote(note, {
           byEmail,
           byName,
+          matchables,
+          byId,
           configuredOwners,
           touched,
           result,
@@ -101,7 +128,7 @@ export async function syncGranola(): Promise<SyncResult> {
         // null when disabled (or on failure) so a later sync can backfill.
         let extractedAt: Date | null = null;
         if (extractionEnabled()) {
-          const ok = note.summary ? await runExtraction(note, byName, result) : true;
+          const ok = note.summary ? await runExtraction(note, extractCtx, result) : true;
           if (ok) extractedAt = new Date();
         }
 
@@ -129,7 +156,7 @@ export async function syncGranola(): Promise<SyncResult> {
       for (const pn of pending) {
         const d = await getNote(pn.noteId);
         if (!d) continue;
-        const ok = d.summary ? await runExtraction(d, byName, result) : true;
+        const ok = d.summary ? await runExtraction(d, extractCtx, result) : true;
         if (ok) {
           await prisma.processedNote.update({
             where: { noteId: pn.noteId },
@@ -137,6 +164,9 @@ export async function syncGranola(): Promise<SyncResult> {
           });
         }
       }
+      result.extractionPending = await prisma.processedNote.count({
+        where: { extractedAt: null },
+      });
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -157,16 +187,35 @@ export async function syncGranola(): Promise<SyncResult> {
   return result;
 }
 
+/** Contact fields the sync needs for matching and coworker checks. */
+interface SyncContact {
+  id: string;
+  name: string;
+  email: string | null;
+  isCoworker: boolean;
+  status: string;
+}
+
 interface ProcessCtx {
   byEmail: Map<string, string>;
   byName: Map<string, string>;
+  matchables: SyncContact[];
+  byId: Map<string, SyncContact>;
   configuredOwners: Set<string>;
   touched: Set<string>;
   result: SyncResult;
 }
 
+interface ExtractCtx {
+  matchables: SyncContact[];
+  byId: Map<string, SyncContact>;
+  aliasMap: Map<string, string>;
+  pendingNames: Set<string>;
+  pendingContactIds: Set<string>;
+}
+
 async function processNote(note: GranolaNote, ctx: ProcessCtx): Promise<void> {
-  const { byEmail, byName, configuredOwners, touched, result } = ctx;
+  const { byEmail, byName, matchables, byId, configuredOwners, touched, result } = ctx;
 
   // Never turn yourself into a contact: skip the note owner + configured emails.
   const owners = new Set(configuredOwners);
@@ -198,6 +247,15 @@ async function processNote(note: GranolaNote, ctx: ProcessCtx): Promise<void> {
       contactId = created.id;
       if (attendee.email) byEmail.set(attendee.email.toLowerCase(), contactId);
       if (attendee.name) byName.set(normalizeName(attendee.name), contactId);
+      const sc: SyncContact = {
+        id: contactId,
+        name: attendee.name ?? attendee.email ?? "Unknown",
+        email: attendee.email ?? null,
+        isCoworker,
+        status: "connected",
+      };
+      matchables.push(sc);
+      byId.set(contactId, sc);
       result.contactsCreated++;
     }
 
@@ -233,40 +291,105 @@ async function processNote(note: GranolaNote, ctx: ProcessCtx): Promise<void> {
 
 /**
  * AI: surface people the note says to reach out to (mentions, not attendees)
- * as pending Suggestions. Skips attendees and existing contacts by name.
+ * as pending Suggestions. Matching policy:
+ *  - a saved alias or an exact multi-token full-name match resolves
+ *    automatically (coworkers are skipped silently, others link to the
+ *    existing contact — no duplicate is ever created);
+ *  - first-name-only or fuzzy matches are NEVER auto-resolved — the
+ *    suggestion carries the candidate contacts and the user picks (there may
+ *    be several Lesleys); the pick is saved as an alias for next time;
+ *  - no match at all → a plain new-person suggestion.
  * Returns false when the model call failed, so the note retries next sync.
  */
 async function runExtraction(
   note: GranolaNote,
-  byName: Map<string, string>,
+  ctx: ExtractCtx,
   result: SyncResult,
 ): Promise<boolean> {
+  const { matchables, byId, aliasMap, pendingNames, pendingContactIds } = ctx;
   const attendeeNames = new Set(
     note.attendees.map((a) => (a.name ? normalizeName(a.name) : "")).filter(Boolean),
   );
   let failed = false;
   const people = await extractFollowUps(note).catch((err) => {
     console.error("[sync] extraction failed", err);
+    result.extractionFailures++;
     failed = true;
     return [];
   });
-  for (const p of people) {
-    const key = normalizeName(p.name);
-    if (attendeeNames.has(key) || byName.has(key)) continue; // already known
+
+  const createSuggestion = async (data: {
+    name: string;
+    contactId?: string;
+    candidates?: string[];
+    reason: string;
+    context: string;
+  }) => {
     try {
       await prisma.suggestion.create({
         data: {
-          name: p.name,
-          reason: p.reason || undefined,
+          name: data.name,
+          reason: data.reason || undefined,
+          context: data.context || undefined,
+          contactId: data.contactId,
+          candidates:
+            data.candidates && data.candidates.length > 0
+              ? JSON.stringify(data.candidates)
+              : undefined,
           sourceNoteId: note.id,
           sourceNoteTitle: note.title,
           sourceUrl: note.url ?? undefined,
         },
       });
       result.suggestionsCreated++;
+      pendingNames.add(normalizeName(data.name));
+      if (data.contactId) pendingContactIds.add(data.contactId);
     } catch {
-      // @@unique([sourceNoteId, name]) — already suggested; ignore
+      // @@unique([sourceNoteId, name]) — already suggested from this note; ignore
     }
+  };
+
+  for (const p of people) {
+    const key = normalizeName(p.name);
+    if (!key || attendeeNames.has(key)) continue;
+
+    // 1. Saved alias — the user already told us who this name means.
+    const aliasedId = aliasMap.get(key);
+    const aliased = aliasedId ? byId.get(aliasedId) : undefined;
+    if (aliased) {
+      if (aliased.isCoworker) continue; // known coworker mention — drop silently
+      if (aliased.status === "to_reach_out" || pendingContactIds.has(aliased.id)) continue;
+      await createSuggestion({
+        name: aliased.name,
+        contactId: aliased.id,
+        reason: p.reason,
+        context: p.context,
+      });
+      continue;
+    }
+
+    // 2. Exact multi-token full-name match to exactly one contact — confident.
+    const { exact, candidates } = matchName(p.name, matchables);
+    if (exact) {
+      if (exact.isCoworker) continue;
+      if (exact.status === "to_reach_out" || pendingContactIds.has(exact.id)) continue;
+      await createSuggestion({
+        name: exact.name,
+        contactId: exact.id,
+        reason: p.reason,
+        context: p.context,
+      });
+      continue;
+    }
+
+    // 3. Ambiguous (first-name-only / fuzzy) — surface candidates, user picks.
+    if (pendingNames.has(key)) continue; // already awaiting review under this name
+    await createSuggestion({
+      name: p.name,
+      candidates: candidates.map((c) => c.id),
+      reason: p.reason,
+      context: p.context,
+    });
   }
   return !failed;
 }

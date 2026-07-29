@@ -18,8 +18,14 @@ export function HeaderActions() {
         setMsg(data.error ?? "Sync failed");
       } else {
         const more = data.capped ? " (more remain — sync again)" : "";
+        let ai = "";
+        if (data.extractionEnabled === false) ai = " · AI suggestions off (no ANTHROPIC_API_KEY)";
+        else if (data.extractionFailures > 0)
+          ai = ` · ${data.extractionFailures} AI call(s) failed — check key/credits`;
+        else if (data.extractionPending > 0)
+          ai = ` · ${data.extractionPending} note(s) awaiting AI — sync again`;
         setMsg(
-          `Synced ${data.notesProcessed} note(s): ${data.contactsCreated} new contact(s), ${data.suggestionsCreated} suggestion(s)${more}`,
+          `Synced ${data.notesProcessed} note(s): ${data.contactsCreated} new contact(s), ${data.suggestionsCreated} suggestion(s)${more}${ai}`,
         );
         router.refresh();
       }

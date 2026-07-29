@@ -239,3 +239,19 @@ export async function listNotes(options: ListOptions = {}): Promise<GranolaNote[
   }
   return notes;
 }
+
+/**
+ * Best-effort link to open a note in Granola. The public API doesn't return a
+ * share URL, so this builds one from GRANOLA_NOTE_URL_TEMPLATE ("{id}" is
+ * replaced with the note id). Open any note in Granola, copy its link, and
+ * set the template to match — links then appear on interactions/suggestions.
+ */
+export function granolaNoteUrl(
+  noteId: string | null | undefined,
+  stored?: string | null,
+): string | null {
+  if (stored) return stored;
+  const tpl = config.granolaNoteUrlTemplate;
+  if (!tpl || !noteId) return null;
+  return tpl.replace("{id}", noteId);
+}

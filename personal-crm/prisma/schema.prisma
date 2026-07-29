@@ -70,6 +70,14 @@ model Suggestion {
   name            String
   /// Why to reach out / what the note said about them.
   reason          String?
+  /// Verbatim quote from the note where they were mentioned.
+  context         String?
+  /// Set when the name confidently matches ONE existing contact (exact full
+  /// name or a saved alias) — accepting queues that contact, no duplicate.
+  contactId       String?
+  /// JSON array of candidate contact ids when the match is ambiguous
+  /// (first-name-only or fuzzy). You pick; your pick is remembered as an alias.
+  candidates      String?
   sourceNoteId    String?
   sourceNoteTitle String?
   sourceUrl       String?
@@ -79,6 +87,17 @@ model Suggestion {
 
   @@unique([sourceNoteId, name])
   @@index([status])
+}
+
+/// A learned name → contact mapping ("lesley" = Lesley Smith). Created when
+/// you resolve an ambiguous suggestion or merge duplicates; future mentions of
+/// the alias auto-resolve (coworkers get skipped silently).
+model ContactAlias {
+  alias     String   @id
+  contactId String
+  createdAt DateTime @default(now())
+
+  @@index([contactId])
 }
 
 /// Marks a Granola note as already imported. `extractedAt` tracks the AI

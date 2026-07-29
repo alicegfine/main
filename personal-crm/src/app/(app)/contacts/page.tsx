@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { STATUSES, STATUS_LABELS, isStatus } from "@/lib/status";
 import { StatusSelect } from "@/components/StatusSelect";
 import { ContactRowActions } from "@/components/ContactRowActions";
+import { DuplicatesCard } from "@/components/DuplicatesCard";
+import { findDuplicateGroups } from "@/lib/dedupe";
 import { formatDate, relativeDays } from "@/lib/date";
 
 export const dynamic = "force-dynamic";
@@ -37,12 +39,37 @@ export default async function ContactsPage({ searchParams }: { searchParams: Sea
     ];
   }
 
-  const [contacts, activeCount, coworkerCount, archivedCount] = await Promise.all([
+  const [contacts, activeCount, coworkerCount, archivedCount, allForDupes] = await Promise.all([
     prisma.contact.findMany({ where, orderBy: [{ updatedAt: "desc" }] }),
     prisma.contact.count({ where: { archivedAt: null, isCoworker: false } }),
     prisma.contact.count({ where: { archivedAt: null, isCoworker: true } }),
     prisma.contact.count({ where: { archivedAt: { not: null } } }),
+    prisma.contact.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        company: true,
+        isCoworker: true,
+        archivedAt: true,
+        _count: { select: { interactions: true } },
+      },
+    }),
   ]);
+
+  // Duplicate detection scans everyone (views don't matter — a "Lesley"
+  // suggestion-dupe may be archived while coworker Lesley Smith is not).
+  const dupeGroups = findDuplicateGroups(
+    allForDupes.map((c) => ({
+      id: c.id,
+      name: c.name,
+      email: c.email,
+      company: c.company,
+      isCoworker: c.isCoworker,
+      archived: c.archivedAt !== null,
+      interactions: c._count.interactions,
+    })),
+  );
 
   const tabs = [
     { key: "", label: `People (${activeCount})` },
@@ -62,6 +89,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Sea
           + Add contact
         </Link>
       </div>
+
+      <DuplicatesCard groups={dupeGroups} />
 
       <div className="flex items-center gap-2">
         {tabs.map((t) => (

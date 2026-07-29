@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/date";
 import { CHANNEL_LABELS, Channel } from "@/lib/status";
+import { granolaNoteUrl } from "@/lib/granola";
 import { StatusSelect } from "@/components/StatusSelect";
 import { ContactRowActions } from "@/components/ContactRowActions";
 import { LogInteractionForm } from "@/components/LogInteractionForm";
@@ -113,9 +114,9 @@ export default async function ContactDetailPage({
                       {CHANNEL_LABELS[i.channel as Channel] ?? i.channel}
                     </span>
                     <span className="text-slate-400">{formatDate(i.occurredAt)}</span>
-                    {i.granolaUrl && (
+                    {granolaNoteUrl(i.granolaNoteId, i.granolaUrl) && (
                       <a
-                        href={i.granolaUrl}
+                        href={granolaNoteUrl(i.granolaNoteId, i.granolaUrl)!}
                         target="_blank"
                         rel="noreferrer"
                         className="text-accent hover:underline"

@@ -28,6 +28,10 @@ export const config = {
   get granolaAutoCreateContacts() {
     return envBool("GRANOLA_AUTO_CREATE_CONTACTS", true);
   },
+  /** e.g. "https://notes.granola.ai/d/{id}" — {id} is replaced with the note id. */
+  get granolaNoteUrlTemplate() {
+    return env("GRANOLA_NOTE_URL_TEMPLATE");
+  },
   get maxNotesPerSync() {
     return envNumber("MAX_NOTES_PER_SYNC", 25);
   },

@@ -85,6 +85,7 @@ app to be actually up.
 | `CRON_SECRET` | ➖ | Bearer token so external cron / Zapier can call `/api/sync` and `/api/digest`. |
 | `GRANOLA_API_KEY` | for sync | Granola API key (`grn_…`). Needs a Granola **Business/Enterprise** plan. |
 | `GRANOLA_API_BASE` | ➖ | Defaults to `https://public-api.granola.ai/v1`. |
+| `GRANOLA_NOTE_URL_TEMPLATE` | ➖ | "Open in Granola" links: copy any note's link from the Granola app and replace the note id with `{id}` (e.g. `https://notes.granola.ai/d/{id}`). Blank = no links. |
 | `GRANOLA_AUTO_CREATE_CONTACTS` | ➖ | `true` (default) creates contacts for unmatched attendees. |
 | `OWNER_EMAIL` | ➖ | Your own email(s), comma-separated — skipped during sync/ingest so you don't become a contact. |
 | `COWORKER_DOMAINS` | ➖ | Email domains flagged as coworkers. Defaults to your `OWNER_EMAIL` domain(s). |
@@ -185,6 +186,34 @@ actively tell you who to network with.
 **Set the key later? No problem.** Notes synced before `ANTHROPIC_API_KEY` was
 configured are backfilled: each subsequent sync extracts a chunk of older
 already-imported notes until they're all covered.
+
+### How name matching works (no duplicates, no guessing)
+
+Each extracted mention is matched against your contacts:
+
+- **Saved alias or exact full-name match** (e.g. "Lesley Chen" and exactly one
+  Lesley Chen exists) → the suggestion links to that contact. Accepting queues
+  *them* — no duplicate. If they're a coworker, the mention is skipped
+  silently.
+- **Ambiguous** (first-name-only like "Lesley", or a Granola misspelling) →
+  the suggestion shows **candidate contacts** and *you* pick — there might be
+  several Lesleys, so it never guesses. Your pick is saved as an **alias**, so
+  every future mention of that name resolves automatically (coworker →
+  silently skipped; networking contact → linked).
+- **No match** → a new-person suggestion with an **editable name field**, so
+  you can fix Granola's spelling before adding.
+
+Suggestions carry a **verbatim quote** from the note (what the mention was
+about) which is folded into the contact's notes on accept, plus a link back to
+the Granola note when `GRANOLA_NOTE_URL_TEMPLATE` is set.
+
+### Merging duplicates
+
+The contacts page shows a **Possible duplicates** panel (same email, same or
+similar names, "Lesley" vs "Lesley Smith"). Pick the keeper (⦿), uncheck
+anyone who's actually a different person, and Merge: interactions move over,
+empty fields fill in, tags union, and the merged names become aliases of the
+keeper so extraction learns from your cleanup.
 
 ## Capturing forwarded emails (Zapier)
 

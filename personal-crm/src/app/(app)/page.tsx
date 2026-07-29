@@ -4,7 +4,12 @@ import { prisma } from "@/lib/db";
 import { buildDigestData } from "@/lib/digest";
 import { formatDate, relativeDays } from "@/lib/date";
 import { CHANNEL_LABELS, Channel } from "@/lib/status";
-import { SuggestionList } from "@/components/SuggestionList";
+import { granolaNoteUrl } from "@/lib/granola";
+import {
+  SuggestionList,
+  SuggestionCandidate,
+  SuggestionView,
+} from "@/components/SuggestionList";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +89,49 @@ export default async function DashboardPage() {
     }),
   ]);
 
+  // Resolve linked/candidate contacts for suggestion rows in one query.
+  const refIds = new Set<string>();
+  for (const s of suggestions) {
+    if (s.contactId) refIds.add(s.contactId);
+    if (s.candidates) {
+      try {
+        for (const cid of JSON.parse(s.candidates) as string[]) refIds.add(cid);
+      } catch {
+        // malformed candidates JSON — ignore
+      }
+    }
+  }
+  const refContacts = refIds.size
+    ? await prisma.contact.findMany({
+        where: { id: { in: [...refIds] } },
+        select: { id: true, name: true, company: true, isCoworker: true },
+      })
+    : [];
+  const refById = new Map<string, SuggestionCandidate>(refContacts.map((c) => [c.id, c]));
+
+  const suggestionViews: SuggestionView[] = suggestions.map((s) => {
+    let candidateIds: string[] = [];
+    if (s.candidates) {
+      try {
+        candidateIds = JSON.parse(s.candidates) as string[];
+      } catch {
+        candidateIds = [];
+      }
+    }
+    return {
+      id: s.id,
+      name: s.name,
+      reason: s.reason,
+      context: s.context,
+      sourceNoteTitle: s.sourceNoteTitle,
+      sourceUrl: granolaNoteUrl(s.sourceNoteId, s.sourceUrl),
+      linked: s.contactId ? (refById.get(s.contactId) ?? null) : null,
+      candidates: candidateIds
+        .map((cid) => refById.get(cid))
+        .filter((c): c is SuggestionCandidate => Boolean(c)),
+    };
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -103,9 +151,9 @@ export default async function DashboardPage() {
         <Stat label="Going cold" value={digest.goingCold.length} />
       </div>
 
-      {suggestions.length > 0 && (
+      {suggestionViews.length > 0 && (
         <Card title="✨ Follow-up suggestions from your notes" hint="from Granola">
-          <SuggestionList suggestions={suggestions} />
+          <SuggestionList suggestions={suggestionViews} />
         </Card>
       )}
 

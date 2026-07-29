@@ -5,6 +5,7 @@ import { GranolaNote } from "./granola";
 export interface ExtractedPerson {
   name: string;
   reason: string;
+  context: string;
 }
 
 let client: Anthropic | null = null;
@@ -26,10 +27,12 @@ const SYSTEM = `You read meeting notes and pull out people the note-taker should
 Rules:
 - Only include people who are NOT already attendees of this meeting (attendees are listed for you).
 - Only include a person if the notes clearly imply the note-taker should contact them.
-- Do not invent people or reasons. If nobody qualifies, return an empty list.
+- Use the person's name exactly as written in the notes (do not expand or correct it).
+- "context" must be a short VERBATIM quote from the notes — the sentence(s) where this person came up — so the note-taker remembers what it was about.
+- Do not invent people, reasons, or context. If nobody qualifies, return an empty list.
 
 Respond with ONLY a JSON object, no prose, no markdown fences, of exactly this shape:
-{"people": [{"name": "Full Name", "reason": "one short phrase on why / what to reach out about"}]}`;
+{"people": [{"name": "Name As Written", "reason": "one short phrase on why / what to reach out about", "context": "verbatim quote from the notes"}]}`;
 
 /** Best-effort JSON extraction from a model response that should be JSON. */
 function parsePeople(text: string): ExtractedPerson[] {
@@ -47,7 +50,8 @@ function parsePeople(text: string): ExtractedPerson[] {
           const o = p as Record<string, unknown>;
           const name = typeof o.name === "string" ? o.name.trim() : "";
           const reason = typeof o.reason === "string" ? o.reason.trim() : "";
-          if (name) return { name, reason };
+          const context = typeof o.context === "string" ? o.context.trim().slice(0, 500) : "";
+          if (name) return { name, reason, context };
         }
         return null;
       })
