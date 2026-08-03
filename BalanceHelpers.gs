@@ -25,14 +25,17 @@ function getAllocations_() {
     var email = data[i][CONFIG.MATH_COL.EMAIL - 1];
     if (!email) continue;
     var key = email.toString().trim().toLowerCase();
+    if (key.indexOf('@') === -1) continue;  // skip helper rows like "Year:"
 
     var pd = parseFloat(data[i][CONFIG.MATH_COL.PD_ALLOCATED - 1]);
     var wl = parseFloat(data[i][CONFIG.MATH_COL.WL_ALLOCATED - 1]);
+    var end = data[i][CONFIG.MATH_COL.END_DATE - 1];
 
     map[key] = {
       email: email.toString().trim(),
       pdAllocated: isNaN(pd) ? CONFIG.PD_FULL_ALLOCATION : pd,
-      wlAllocated: isNaN(wl) ? CONFIG.WL_FULL_ALLOCATION : wl
+      wlAllocated: isNaN(wl) ? CONFIG.WL_FULL_ALLOCATION : wl,
+      endDate: (end === '' || end === null || end === undefined) ? null : end
     };
   }
 
@@ -154,6 +157,7 @@ function getAllBalances_() {
 
   for (var key in allocations) {
     var alloc = allocations[key];
+    if (alloc.endDate) continue;  // exclude departed employees from the summary (their rows stay in the sheet)
     var b = computeBalance_(key, rows, allocations);
     if (!b) continue;
     balances.push({
