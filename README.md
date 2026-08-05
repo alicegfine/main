@@ -15,28 +15,34 @@ editing the "How it works" page.
 ## Deploying to Railway
 
 1. **Create the service.** In Railway, *New Project → Deploy from GitHub repo*,
-   pick this repository, and choose the branch. Railway detects Node, runs
+   and pick this repository. Railway detects Node from `package.json`, runs
    `npm install`, and starts the app with `npm start`. It supplies `PORT`
-   automatically.
+   automatically, and `.nvmrc` pins Node 22.
 
-2. **Add a volume — do this before people start signing up.** Railway's
+2. **Point it at the right branch.** Railway deploys the repository's *default*
+   branch unless told otherwise, and the default branch here is the unrelated
+   Flex Fund project — so a fresh service will build the wrong thing. Go to
+   *Settings → Source → Branch* and select
+   `claude/meditation-retreat-site-e3phpb`, then redeploy.
+
+3. **Add a volume — do this before people start signing up.** Railway's
    filesystem is wiped on every redeploy, so without a volume the schedule and
    all signups are lost the next time you deploy. In the service, go to
    *Settings → Volumes → Add volume* and mount it at `/data`.
 
-3. **Set the variables.** In the service's *Variables* tab:
+4. **Set the variables.** In the service's *Variables* tab:
 
    | Variable | Value |
    | --- | --- |
    | `ADMIN_PASSWORD` | The password you'll type to sign in as Alice. |
    | `SESSION_SECRET` | A long random string. Generate one with `openssl rand -hex 32`. |
-   | `DATA_DIR` | `/data` — must match the volume mount path from step 2. |
+   | `DATA_DIR` | `/data` — must match the volume mount path from step 3. |
    | `NODE_ENV` | `production` — makes the session cookie HTTPS-only. |
 
-4. **Generate a domain.** *Settings → Networking → Generate Domain* gives you a
+5. **Generate a domain.** *Settings → Networking → Generate Domain* gives you a
    `*.up.railway.app` URL to share.
 
-5. **Sign in** at `/signin` with the name `Alice` and the password you set, then
+6. **Sign in** at `/signin` with the name `Alice` and the password you set, then
    add the sessions for each day.
 
 If `ADMIN_PASSWORD` is missing the site still runs, but sign-in is disabled and
