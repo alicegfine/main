@@ -41,6 +41,7 @@ import {
   setVisitorName,
   visitorMiddleware,
 } from './visitor.js';
+import { buildIcs } from './calendar.js';
 import { errorPage, infoPage, notFoundPage, schedulePage, signInPage } from './views.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -91,6 +92,7 @@ app.get('/', (req, res) => {
     schedulePage({
       schedule: getScheduleByDay(DAYS),
       links: getLinks(),
+      siteUrl: siteUrlFor(req),
       isAdmin: req.isAdmin,
       visitorName: req.visitorName,
       notice,
@@ -183,6 +185,46 @@ app.post('/signups/:id/delete', requireVisitor, (req, res) => {
   }
   deleteSignup(signup.id);
   return res.redirect('/?ok=removed');
+});
+
+/* Calendar export --------------------------------------------------------- */
+
+function siteUrlFor(req) {
+  return `${req.protocol}://${req.get('host')}`;
+}
+
+// Serves the whole schedule, or with ?mine=1 only the sessions your name is on.
+// The same URL works as a one-off download and as a subscribed feed.
+app.get('/schedule.ics', (req, res) => {
+  const onlyMine = req.query.mine === '1' && Boolean(req.visitorName);
+
+  let schedule = getScheduleByDay(DAYS);
+  if (onlyMine) {
+    schedule = schedule.map((day) => ({
+      ...day,
+      blocks: day.blocks.filter((block) =>
+        [...block.leading, ...block.attending].some((signup) =>
+          isSamePerson(signup.name, req.visitorName),
+        ),
+      ),
+    }));
+  }
+
+  const body = buildIcs({
+    schedule,
+    siteUrl: siteUrlFor(req),
+    joinUrl: getLinks().sit,
+    stamp: new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''),
+  });
+
+  res.type('text/calendar; charset=utf-8');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${onlyMine ? 'my-retreat-sessions' : 'jhana-noting-retreat'}.ics"`,
+  );
+  // A subscribed client re-reads this URL, so it must not be served from cache.
+  res.setHeader('Cache-Control', 'no-cache');
+  res.send(body);
 });
 
 /* The two buttons at the top of the schedule ----------------------------- */

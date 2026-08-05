@@ -132,6 +132,37 @@ function linkButtons({ links, isAdmin }) {
   </div>`;
 }
 
+// Downloading and subscribing behave differently and are worth distinguishing: a
+// download is a snapshot of the sessions as they stand, while a subscription keeps
+// up with later edits — but Google refreshes subscribed feeds on its own slow
+// schedule, often many hours, which over a single weekend makes the snapshot the
+// more predictable choice.
+function calendarLinks({ visitorName, siteUrl, hasSessions }) {
+  if (!hasSessions) return '';
+
+  const feed = `${siteUrl}/schedule.ics`;
+  const webcal = feed.replace(/^https?:/, 'webcal:');
+
+  return `<details class="calendar-box">
+    <summary>Add to your calendar</summary>
+    <div class="calendar-body">
+      <p><a href="/schedule.ics">Download all sessions</a>${
+        visitorName
+          ? ` · <a href="/schedule.ics?mine=1">Download only the ones I'm on</a>`
+          : ''
+      }</p>
+      <p class="hint">A download is a snapshot. In Google Calendar, import it under
+        Settings → Import &amp; export; on a Mac or iPhone, opening the file is enough.</p>
+      <p>To subscribe instead, so it follows later changes, use this address:</p>
+      <p><code class="feed-url">${escapeHtml(feed)}</code></p>
+      <p class="hint">Paste it into Google Calendar under Other calendars → From URL, or
+        <a href="${escapeHtml(webcal)}">open it in Apple Calendar</a>. Google can take
+        several hours to notice changes to a subscribed calendar, so over a single
+        weekend a fresh download is usually more reliable.</p>
+    </div>
+  </details>`;
+}
+
 function nameList(signups, { visitorName, isAdmin }) {
   const items = signups
     .map((signup) => {
@@ -282,8 +313,10 @@ function dayCount(day) {
   return n === 1 ? '1 session' : `${n} sessions`;
 }
 
-export function schedulePage({ schedule, links, isAdmin, visitorName, notice, error }) {
+export function schedulePage({ schedule, links, siteUrl, isAdmin, visitorName, notice, error }) {
   const ctx = { isAdmin, visitorName };
+
+  const totalBlocks = schedule.reduce((sum, day) => sum + day.blocks.length, 0);
 
   const days = schedule
     .map(
@@ -308,7 +341,8 @@ export function schedulePage({ schedule, links, isAdmin, visitorName, notice, er
     <p class="timezone-note">All times Eastern</p>
     ${linkButtons({ links, isAdmin })}
     ${visitorName ? '' : namePrompt()}
-    ${days}`;
+    ${days}
+    ${calendarLinks({ visitorName, siteUrl, hasSessions: totalBlocks > 0 })}`;
 
   return layout({
     title: 'Schedule',

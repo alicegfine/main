@@ -8,6 +8,8 @@ A small site for the retreat running Friday 7 – Monday 10 August 2026.
 - **Info** (`/info`) — a page of text that only Alice can edit.
 - Two buttons at the top of the schedule, *Join the current sit* and *Join the
   Signal group*, whose links Alice can change from that page.
+- **Calendar export** (`/schedule.ics`) — the schedule as an iCalendar feed, to
+  download or subscribe to. `?mine=1` narrows it to the sessions your name is on.
 
 The whole site is readable without giving a name or signing in. There are two
 separate ideas of who you are, and it's worth keeping them apart:
@@ -36,6 +38,19 @@ wrong password keeps it too.
 *I'll lead this* button disappears once anyone is leading it, and whoever is
 leading doesn't get an *I'll attend* button. Offering to lead a session you were
 attending moves you rather than listing you twice.
+
+**Calendar times are converted, not assumed.** Sessions are stored as ET
+wall-clock with no zone attached, but a calendar needs real instants, so
+`src/calendar.js` looks up the zone's actual offset for each date rather than
+hard-coding the summer one — a session in a different part of the year still
+exports correctly. A session ending at midnight lands on the following day, as it
+should. The feed is verified against a real iCalendar parser rather than by
+reading it.
+
+**Subscribing lags.** A subscribed feed follows later edits, but Google re-reads
+subscribed URLs on its own schedule, often hours apart, so over one weekend a
+fresh download is the more predictable option. Both are offered, with that
+difference spelled out on the page.
 
 **Leaders can move their own session.** Whoever is leading a session gets a
 *Change times* control on it, which adjusts the start and end within the same day
@@ -165,5 +180,6 @@ src/assets.js     content-hashed stylesheet URL
 src/views.js      HTML
 src/retreat.js    the four days, time parsing and formatting, block validation
 src/markdown.js   the small Markdown subset used by the info page
+src/calendar.js   iCalendar export and the Eastern-to-UTC conversion
 public/styles.css styling
 ```

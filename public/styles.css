@@ -436,6 +436,52 @@ button:hover {
   font-size: 0.85rem;
 }
 
+/* Calendar export -------------------------------------------------------- */
+
+.calendar-box {
+  margin: 1rem 0 0;
+  max-width: 42rem;
+}
+
+.calendar-box > summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  width: fit-content;
+}
+
+.calendar-box > summary:hover {
+  color: var(--ink);
+}
+
+.calendar-body {
+  margin-top: 0.85rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.calendar-body p {
+  margin: 0 0 0.75rem;
+}
+
+.calendar-body p:last-child {
+  margin-bottom: 0;
+}
+
+.feed-url {
+  display: block;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
 /* Name gate -------------------------------------------------------------- */
 
 .name-gate {
