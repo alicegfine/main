@@ -80,6 +80,11 @@ const statements = {
     `SELECT id FROM signups
      WHERE block_id = ? AND role = ? AND lower(name) = lower(?)`,
   ),
+  leaderFor: db.prepare(`SELECT * FROM signups WHERE block_id = ? AND role = 'leading'`),
+  deleteRoleFor: db.prepare(
+    `DELETE FROM signups
+     WHERE block_id = ? AND role = ? AND lower(name) = lower(?)`,
+  ),
   getPage: db.prepare('SELECT body, updated_at FROM pages WHERE slug = ?'),
   updatePage: db.prepare(
     `UPDATE pages SET body = ?, updated_at = datetime('now') WHERE slug = ?`,
@@ -126,10 +131,24 @@ export function getBlock(id) {
   return statements.blockById.get(id);
 }
 
+// A session has at most one leader, and nobody holds two roles in the same
+// session: offering to lead takes you off that session's attending list.
 export function createSignup({ blockId, name, role }) {
   if (statements.duplicateSignup.get(blockId, role, name)) {
     return { ok: false, error: `${name} is already signed up to that session.` };
   }
+
+  const leader = statements.leaderFor.get(blockId);
+
+  if (role === 'leading') {
+    if (leader) {
+      return { ok: false, error: `${leader.name} is already leading that session.` };
+    }
+    statements.deleteRoleFor.run(blockId, 'attending', name);
+  } else if (leader && leader.name.toLowerCase() === name.toLowerCase()) {
+    return { ok: false, error: 'You are leading that session.' };
+  }
+
   statements.insertSignup.run({ blockId, name, role });
   return { ok: true };
 }

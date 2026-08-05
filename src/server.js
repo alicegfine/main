@@ -52,7 +52,7 @@ const MESSAGES = {
   saved: 'Page saved.',
   'signed-out': 'Signed out.',
   'name-set': 'Thanks — you can sign up for sessions now.',
-  'name-cleared': 'Name forgotten on this device.',
+  locked: 'Editing locked again.',
   'bad-password': 'That name and password did not match.',
   'name-required': 'Put in your name first.',
   'bad-role': 'Choose whether you are attending or leading.',
@@ -89,9 +89,12 @@ app.post('/visitor', (req, res) => {
   return res.redirect('/?ok=name-set');
 });
 
-app.post('/visitor/clear', (req, res) => {
+// One "Sign out" in the header, so it clears both the name and, if Alice is
+// signed in, her editing session — leaving one behind is confusing.
+app.post('/signout', (req, res) => {
   clearVisitorName(res);
-  res.redirect('/?ok=name-cleared');
+  clearSession(res);
+  res.redirect('/?ok=signed-out');
 });
 
 /* Sessions — open to anyone who has given a name ------------------------- */
@@ -186,12 +189,13 @@ app.post('/signin', (req, res) => {
     return res.redirect('/signin?error=bad-password');
   }
   issueSession(res);
-  return res.redirect('/the-spiel');
+  return res.redirect('/the-spiel?edit=1');
 });
 
-app.post('/signout', (req, res) => {
+// Give up editing rights without also forgetting your name.
+app.post('/admin/lock', (req, res) => {
   clearSession(res);
-  res.redirect('/?ok=signed-out');
+  res.redirect('/the-spiel?ok=locked');
 });
 
 app.use((req, res) => {

@@ -1,15 +1,8 @@
-import {
-  DAYS,
-  DAY_START_MIN,
-  DAY_END_MIN,
-  MAX_NAME_LENGTH,
-  formatRange,
-  formatDuration,
-  formatTime,
-} from './retreat.js';
+import { DAYS, MAX_NAME_LENGTH, formatRange, formatDuration } from './retreat.js';
 import { escapeHtml, renderMarkdown } from './markdown.js';
 import { ADMIN_USERNAME, signInEnabled } from './auth.js';
 import { isSamePerson } from './visitor.js';
+import { stylesHref } from './assets.js';
 
 const SITE_TITLE = 'Jhana Noting Retreat — August 2026';
 const SPIEL_TITLE = 'The spiel';
@@ -21,7 +14,7 @@ function layout({ title, activeNav, isAdmin, visitorName, notice, error, body })
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(title)} · ${escapeHtml(SITE_TITLE)}</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="${stylesHref}" />
 </head>
 <body>
   <header class="site-header">
@@ -31,21 +24,11 @@ function layout({ title, activeNav, isAdmin, visitorName, notice, error, body })
       <a href="/the-spiel"${activeNav === 'spiel' ? ' aria-current="page"' : ''}>${escapeHtml(SPIEL_TITLE)}</a>
       ${
         visitorName
-          ? `<form method="post" action="/visitor/clear" class="inline-form">
-               <span class="whoami">You are <strong>${escapeHtml(visitorName)}</strong></span>
-               <button type="submit" class="link-button">not you?</button>
-             </form>`
-          : ''
-      }
-      ${
-        isAdmin
           ? `<form method="post" action="/signout" class="inline-form">
-               <span class="whoami">Editing as ${escapeHtml(ADMIN_USERNAME)}</span>
+               <span class="whoami">Signed in as <strong>${escapeHtml(visitorName)}</strong></span>
                <button type="submit" class="link-button">Sign out</button>
              </form>`
-          : signInEnabled
-            ? '<a href="/signin">Sign in</a>'
-            : ''
+          : ''
       }
     </nav>
   </header>
@@ -57,7 +40,7 @@ function layout({ title, activeNav, isAdmin, visitorName, notice, error, body })
   </main>
 
   <footer class="site-footer">
-    <p>Friday 7 – Monday 10 August 2026. All times Eastern.</p>
+    <p>Friday 7 – Monday 10 August 2026. Every time on this site is Eastern (ET).</p>
   </footer>
 </body>
 </html>`;
@@ -66,9 +49,8 @@ function layout({ title, activeNav, isAdmin, visitorName, notice, error, body })
 function namePrompt() {
   return `<section class="name-gate">
     <h2>What's your name?</h2>
-    <p>Everyone puts in a name before signing up or adding a session, so the
-      schedule shows who is where. It is stored on this device only — no account,
-      no password.</p>
+    <p>Put in a name before signing up or adding a session, so the schedule shows
+      who is where. It is stored on this device only — no account, no password.</p>
     <form method="post" action="/visitor" class="name-gate-form">
       <label class="visually-hidden" for="visitor-name">Your name</label>
       <input
@@ -106,27 +88,27 @@ function nameList(signups, { visitorName, isAdmin }) {
   return `<ul class="name-list">${items}</ul>`;
 }
 
+// A session has at most one leader, and nobody holds both roles: so the "lead"
+// button disappears once anyone is leading, and the "attend" button disappears
+// for whoever is leading.
 function signupControls(block, { visitorName }) {
   if (!visitorName) {
     return `<p class="signup-hint">Put in your name at the top of the page to sign up.</p>`;
   }
 
-  const leading = block.leading.some((s) => isSamePerson(s.name, visitorName));
-  const attending = block.attending.some((s) => isSamePerson(s.name, visitorName));
-
-  if (leading && attending) {
-    return `<p class="signup-hint">You are leading this session and on the attending list.</p>`;
-  }
+  const leader = block.leading[0];
+  const youLead = Boolean(leader) && isSamePerson(leader.name, visitorName);
+  const youAttend = block.attending.some((s) => isSamePerson(s.name, visitorName));
 
   const buttons = [];
-  if (!leading) {
+  if (!leader) {
     buttons.push(`<form method="post" action="/signups" class="inline-form">
       <input type="hidden" name="block_id" value="${block.id}" />
       <input type="hidden" name="role" value="leading" />
       <button type="submit" class="secondary">I'll lead this</button>
     </form>`);
   }
-  if (!attending) {
+  if (!youLead && !youAttend) {
     buttons.push(`<form method="post" action="/signups" class="inline-form">
       <input type="hidden" name="block_id" value="${block.id}" />
       <input type="hidden" name="role" value="attending" />
@@ -134,13 +116,14 @@ function signupControls(block, { visitorName }) {
     </form>`);
   }
 
-  const status = leading
+  const status = youLead
     ? '<p class="signup-hint">You are leading this session.</p>'
-    : attending
+    : youAttend
       ? '<p class="signup-hint">You are on the attending list.</p>'
       : '';
 
-  return `${status}<div class="signup-actions">${buttons.join('')}</div>`;
+  if (!status && buttons.length === 0) return '';
+  return `${status}${buttons.length ? `<div class="signup-actions">${buttons.join('')}</div>` : ''}`;
 }
 
 function blockCard(block, ctx) {
@@ -155,6 +138,7 @@ function blockCard(block, ctx) {
       : '<p class="empty-role">No one signed up yet</p>';
 
   const canDelete = Boolean(ctx.visitorName) || ctx.isAdmin;
+  const controls = signupControls(block, ctx);
 
   return `<article class="block">
     <div class="block-head">
@@ -182,7 +166,7 @@ function blockCard(block, ctx) {
       </section>
     </div>
 
-    <div class="signup-bar">${signupControls(block, ctx)}</div>
+    ${controls ? `<div class="signup-bar">${controls}</div>` : ''}
   </article>`;
 }
 
@@ -191,52 +175,50 @@ function addBlockForm(day, { visitorName }) {
   return `<form method="post" action="/blocks" class="add-block">
     <input type="hidden" name="day" value="${escapeHtml(day.date)}" />
     <div class="field">
-      <label for="start-${day.date}">Start</label>
+      <label for="start-${day.date}">Start (ET)</label>
       <input id="start-${day.date}" name="start" type="time" value="08:00" required />
     </div>
     <div class="field">
-      <label for="end-${day.date}">End</label>
+      <label for="end-${day.date}">End (ET)</label>
       <input id="end-${day.date}" name="end" type="time" value="09:00" required />
     </div>
     <button type="submit" class="secondary">Add a session</button>
   </form>`;
 }
 
+function dayCount(day) {
+  const n = day.blocks.length;
+  if (n === 0) return 'nothing scheduled';
+  return n === 1 ? '1 session' : `${n} sessions`;
+}
+
 export function schedulePage({ schedule, isAdmin, visitorName, notice, error }) {
   const ctx = { isAdmin, visitorName };
-  const totalBlocks = schedule.reduce((sum, day) => sum + day.blocks.length, 0);
-
-  const intro =
-    totalBlocks === 0
-      ? `<p class="lede">Nothing is scheduled yet. Anyone can add a session — pick a
-           day below, choose a start and end time, and it appears for everyone.</p>`
-      : `<p class="lede">Anyone can add a session, sign up to attend one, or offer to
-           lead one. You can take your name off again at any time.</p>`;
 
   const days = schedule
     .map(
-      (day) => `<section class="day">
-        <h2>${escapeHtml(day.label)}</h2>
-        ${
-          day.blocks.length > 0
-            ? `<div class="blocks">${day.blocks.map((block) => blockCard(block, ctx)).join('')}</div>`
-            : '<p class="empty-day">No sessions scheduled.</p>'
-        }
-        ${addBlockForm(day, ctx)}
-      </section>`,
+      (day) => `<details class="day" open>
+        <summary>
+          <h2>${escapeHtml(day.label)}</h2>
+          <span class="day-count">${escapeHtml(dayCount(day))}</span>
+        </summary>
+        <div class="day-body">
+          ${
+            day.blocks.length > 0
+              ? `<div class="blocks">${day.blocks.map((block) => blockCard(block, ctx)).join('')}</div>`
+              : '<p class="empty-day">No sessions scheduled.</p>'
+          }
+          ${addBlockForm(day, ctx)}
+        </div>
+      </details>`,
     )
     .join('');
 
-  const body = `<h1>Schedule</h1>
-    ${intro}
+  const body = `<div class="page-head">
+      <h1>Schedule</h1>
+      <p class="timezone-note">All times Eastern (ET)</p>
+    </div>
     ${visitorName ? '' : namePrompt()}
-    ${
-      visitorName
-        ? `<p class="admin-hint">Sessions can be any length between
-             ${escapeHtml(formatTime(DAY_START_MIN))} and ${escapeHtml(formatTime(DAY_END_MIN))} ET,
-             and cannot overlap another session on the same day.</p>`
-        : ''
-    }
     ${days}`;
 
   return layout({
@@ -251,24 +233,41 @@ export function schedulePage({ schedule, isAdmin, visitorName, notice, error }) 
 }
 
 export function spielPage({ page, isAdmin, visitorName, editing, notice, error }) {
-  const body = editing
-    ? `<h1>${escapeHtml(SPIEL_TITLE)}</h1>
-       <form method="post" action="/the-spiel" class="page-editor">
-         <label for="page-body">Page text</label>
-         <p class="hint">Blank lines separate paragraphs. <code>##</code> starts a heading,
-           <code>-</code> starts a list item, <code>**bold**</code> and <code>*italic*</code> work,
-           and links look like <code>[text](https://example.com)</code>.</p>
-         <textarea id="page-body" name="body" rows="24" required>${escapeHtml(page.body)}</textarea>
-         <div class="editor-actions">
-           <button type="submit">Save changes</button>
-           <a href="/the-spiel" class="link-button">Cancel</a>
-         </div>
-       </form>`
-    : `<div class="page-head">
-         <h1>${escapeHtml(SPIEL_TITLE)}</h1>
-         ${isAdmin ? '<a class="link-button" href="/the-spiel?edit=1">Edit this page</a>' : ''}
-       </div>
-       <div class="prose">${renderMarkdown(page.body)}</div>`;
+  let body;
+
+  if (editing) {
+    body = `<h1>${escapeHtml(SPIEL_TITLE)}</h1>
+      <form method="post" action="/the-spiel" class="page-editor">
+        <label for="page-body">Page text</label>
+        <p class="hint">Blank lines separate paragraphs. <code>##</code> starts a heading,
+          <code>-</code> starts a list item, <code>**bold**</code> and <code>*italic*</code> work,
+          and links look like <code>[text](https://example.com)</code>.</p>
+        <textarea id="page-body" name="body" rows="24" required>${escapeHtml(page.body)}</textarea>
+        <div class="editor-actions">
+          <button type="submit">Save changes</button>
+          <a href="/the-spiel" class="link-button">Cancel</a>
+        </div>
+      </form>`;
+  } else {
+    // The edit control lives here rather than in the nav, because this page is
+    // the only thing Alice's password unlocks.
+    const editControl = isAdmin
+      ? `<div class="page-actions">
+           <a class="link-button" href="/the-spiel?edit=1">Edit this page</a>
+           <form method="post" action="/admin/lock" class="inline-form">
+             <button type="submit" class="link-button subtle">lock editing</button>
+           </form>
+         </div>`
+      : signInEnabled
+        ? `<a class="link-button" href="/signin">Edit this page</a>`
+        : '';
+
+    body = `<div class="page-head">
+        <h1>${escapeHtml(SPIEL_TITLE)}</h1>
+        ${editControl}
+      </div>
+      <div class="prose">${renderMarkdown(page.body)}</div>`;
+  }
 
   return layout({
     title: SPIEL_TITLE,
@@ -283,10 +282,10 @@ export function spielPage({ page, isAdmin, visitorName, editing, notice, error }
 
 export function signInPage({ error, visitorName }) {
   const body = signInEnabled
-    ? `<h1>Sign in</h1>
-       <p class="lede">This is only for ${escapeHtml(ADMIN_USERNAME)}, and only unlocks
-         editing the text on the ${escapeHtml(SPIEL_TITLE.toLowerCase())} page. The schedule
-         is open to everyone without signing in.</p>
+    ? `<h1>Edit the spiel</h1>
+       <p class="lede">Editing the ${escapeHtml(SPIEL_TITLE.toLowerCase())} is
+         ${escapeHtml(ADMIN_USERNAME)}-only, so it needs the password. Nothing else on
+         the site is locked.</p>
        <form method="post" action="/signin" class="signin-form">
          <div class="field">
            <label for="username">Name</label>
@@ -298,15 +297,15 @@ export function signInPage({ error, visitorName }) {
            <input id="password" name="password" type="password"
              autocomplete="current-password" required autofocus />
          </div>
-         <button type="submit">Sign in</button>
+         <button type="submit">Unlock editing</button>
        </form>`
-    : `<h1>Sign in</h1>
-       <p class="lede">Sign-in is not configured on this deployment, so the
-         ${escapeHtml(SPIEL_TITLE.toLowerCase())} page cannot be edited. Set an
+    : `<h1>Edit the spiel</h1>
+       <p class="lede">No password is configured on this deployment, so the
+         ${escapeHtml(SPIEL_TITLE.toLowerCase())} cannot be edited. Set an
          <code>ADMIN_PASSWORD</code> variable on the server to enable it.</p>`;
 
   return layout({
-    title: 'Sign in',
+    title: 'Edit the spiel',
     activeNav: null,
     isAdmin: false,
     visitorName,
