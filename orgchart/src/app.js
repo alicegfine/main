@@ -764,6 +764,36 @@ function personCard(person, scenario) {
   mgrRow.append(mgrCb, mgrText);
 
   card.append(nameRow, titleRow, catRow, statusRow, meta, mgrRow);
+
+  // Co-leader: draw this person side by side with their manager at the same tier
+  // (keeping the reporting line), offered only when they're the same organizational
+  // level — i.e. their Category matches their manager's. Grounded in title/level,
+  // not a manual nudge.
+  const mgrPerson = scenario.people.find((p) => p.id === person.managerId);
+  const sameLevel = mgrPerson && (person.category || "ic") === (mgrPerson.category || "ic");
+  if (sameLevel) {
+    const mgrName = mgrPerson.name || mgrPerson.title || "their manager";
+    const coRow = document.createElement("label");
+    coRow.className = "mgr-flag";
+    const coCb = document.createElement("input");
+    coCb.type = "checkbox";
+    coCb.checked = !!person.coLead;
+    const coText = document.createElement("span");
+    coText.textContent = `Co-leader — same tier as ${mgrName}`;
+    coRow.title = "Draw side by side with their manager at the same level, keeping the line between them.";
+    coCb.addEventListener("change", () => {
+      person.coLead = coCb.checked;
+      save();
+      renderCanvas();
+      renderRoster();
+    });
+    coRow.append(coCb, coText);
+    card.append(coRow);
+  } else if (person.coLead) {
+    // Category no longer matches the manager -> the pairing isn't principled anymore;
+    // clear the stale flag so it doesn't apply invisibly.
+    person.coLead = false;
+  }
   return card;
 }
 

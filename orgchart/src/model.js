@@ -17,6 +17,7 @@ export function newPerson(partial = {}) {
     proposed: !!partial.proposed,
     hiringStage: partial.hiringStage || "soon",
     isManager: !!partial.isManager,
+    coLead: !!partial.coLead,
     category: partial.category || "ic",
     note: partial.note || "",
   };

@@ -43,42 +43,64 @@ function layoutTopDown(roots, kidsOf, byId, sp, stack) {
 
   function measure(id, depth) {
     placed.add(id);
-    const node = { id, person: byId.get(id), depth, w: sp.nodeW, h: sp.nodeH, x: 0, y: 0, kids: [], vertical: false };
+    const node = { id, person: byId.get(id), depth, w: sp.nodeW, h: sp.nodeH, x: 0, y: 0, kids: [], coKids: [], vertical: false };
     nodes.push(node);
-    node.kids = kidsOf(id, placed).map((k) => measure(k, depth + 1));
 
-    if (node.kids.length === 0) {
-      node.subW = sp.nodeW;
-      node.subH = sp.nodeH;
-      return node;
+    // A co-leader is a direct report drawn at the SAME tier as their manager (side by
+    // side), not below — but only when they're the same organizational level (matching
+    // Category), so the rule stays principled rather than an arbitrary placement.
+    const parentCat = (node.person && node.person.category) || "ic";
+    const normalIds = [];
+    const coIds = [];
+    for (const c of kidsOf(id, placed)) {
+      const cp = byId.get(c);
+      const isCo = cp && cp.coLead && ((cp.category || "ic") === parentCat);
+      (isCo ? coIds : normalIds).push(c);
     }
-    // Stack a team vertically when every report is an individual (a leaf); spread
-    // across a row when reports have their own reports. The very top always spreads.
-    // When stacking is off, every level spreads (the classic wide tree).
-    const allLeaves = node.kids.every((k) => k.kids.length === 0);
-    node.vertical = stack && depth >= hDepth && allLeaves;
-    if (node.vertical) {
-      // Reports stacked in an indented vertical list below the parent.
-      const childrenH = node.kids.reduce((a, k) => a + k.subH, 0) + (node.kids.length - 1) * sp.stackRowGap;
-      node.subH = sp.nodeH + sp.stackTopGap + childrenH;
-      node.subW = Math.max(sp.nodeW, sp.indent + Math.max(...node.kids.map((k) => k.subW)));
+    node.kids = normalIds.map((k) => measure(k, depth + 1));
+    node.coKids = coIds.map((k) => measure(k, depth)); // peers: same depth as their manager
+
+    // --- self column: the node plus its normal reports below it ---
+    if (node.kids.length === 0) {
+      node.selfW = sp.nodeW;
+      node.selfH = sp.nodeH;
     } else {
-      // Reports spread across a horizontal row.
-      const n = node.kids.length;
-      const totalW = node.kids.reduce((a, k) => a + k.subW, 0) + (n - 1) * sp.hGap;
-      node.subW = Math.max(sp.nodeW, totalW);
-      node.subH = sp.nodeH + sp.vGap + Math.max(...node.kids.map((k) => k.subH));
+      // Stack a team vertically when every report is an individual (a leaf); spread
+      // across a row when reports have their own reports. The very top always spreads.
+      // When stacking is off, every level spreads (the classic wide tree).
+      const allLeaves = node.kids.every((k) => k.kids.length === 0 && k.coKids.length === 0);
+      node.vertical = stack && depth >= hDepth && allLeaves;
+      if (node.vertical) {
+        // Reports stacked in an indented vertical list below the parent.
+        const childrenH = node.kids.reduce((a, k) => a + k.subH, 0) + (node.kids.length - 1) * sp.stackRowGap;
+        node.selfH = sp.nodeH + sp.stackTopGap + childrenH;
+        node.selfW = Math.max(sp.nodeW, sp.indent + Math.max(...node.kids.map((k) => k.subW)));
+      } else {
+        // Reports spread across a horizontal row.
+        const n = node.kids.length;
+        const totalW = node.kids.reduce((a, k) => a + k.subW, 0) + (n - 1) * sp.hGap;
+        node.selfW = Math.max(sp.nodeW, totalW);
+        node.selfH = sp.nodeH + sp.vGap + Math.max(...node.kids.map((k) => k.subH));
+      }
+    }
+
+    // --- extend the subtree to the right for any co-leaders on the same tier ---
+    if (node.coKids.length) {
+      node.subW = node.selfW + node.coKids.reduce((a, k) => a + sp.hGap + k.subW, 0);
+      node.subH = Math.max(node.selfH, ...node.coKids.map((k) => k.subH));
+    } else {
+      node.subW = node.selfW;
+      node.subH = node.selfH;
     }
     return node;
   }
 
   function assign(node, x, y) {
     node.y = y;
+    // place the self column (node + its normal reports) within [x, x + selfW]
     if (node.kids.length === 0) {
       node.x = x;
-      return;
-    }
-    if (node.vertical) {
+    } else if (node.vertical) {
       node.x = x;
       const childX = x + sp.indent;
       let cy = y + sp.nodeH + sp.stackTopGap;
@@ -96,6 +118,14 @@ function layoutTopDown(roots, kidsOf, byId, sp, stack) {
       const last = node.kids[node.kids.length - 1];
       node.x = (first.x + sp.nodeW / 2 + last.x + sp.nodeW / 2) / 2 - sp.nodeW / 2;
     }
+    // place co-leaders to the right of the self column, on the same tier (same y)
+    if (node.coKids.length) {
+      let cx = x + node.selfW + sp.hGap;
+      for (const k of node.coKids) {
+        assign(k, cx, y);
+        cx += k.subW + sp.hGap;
+      }
+    }
   }
 
   let originX = 0;
@@ -109,6 +139,20 @@ function layoutTopDown(roots, kidsOf, byId, sp, stack) {
   // Connectors: a horizontal "bus" for spread levels, an indented spine + elbow stubs
   // for stacked levels.
   const links = [];
+  // Co-leader connectors: a horizontal line joining a manager to each same-tier peer.
+  for (const parent of nodes) {
+    for (const k of parent.coKids || []) {
+      links.push({
+        type: "co",
+        from: parent.id,
+        to: k.id,
+        x1: parent.x + parent.w,
+        y1: parent.y + parent.h / 2,
+        x2: k.x,
+        y2: k.y + k.h / 2,
+      });
+    }
+  }
   for (const parent of nodes) {
     if (!parent.kids.length) continue;
     if (parent.vertical) {

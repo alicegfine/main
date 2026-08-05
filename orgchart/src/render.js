@@ -144,12 +144,23 @@ function roundRectPath(x, y, w, h, rTop, rBot) {
 }
 
 function connectorPath(links) {
+  // Co-leader links are peer-to-peer (drawn individually); the rest group by parent.
+  const coLinks = links.filter((l) => l.type === "co");
   const byParent = new Map();
   for (const l of links) {
+    if (l.type === "co") continue;
     if (!byParent.has(l.from)) byParent.set(l.from, []);
     byParent.get(l.from).push(l);
   }
   let d = "";
+  for (const l of coLinks) {
+    if (Math.abs(l.y1 - l.y2) < 0.5) {
+      d += `M ${l.x1} ${l.y1} L ${l.x2} ${l.y2} `; // same tier: straight horizontal
+    } else {
+      const midX = (l.x1 + l.x2) / 2;
+      d += `M ${l.x1} ${l.y1} H ${midX} V ${l.y2} H ${l.x2} `;
+    }
+  }
   for (const group of byParent.values()) {
     if (group[0].type === "indent") {
       const { spineX, spineTop } = group[0];
