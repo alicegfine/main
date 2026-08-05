@@ -144,7 +144,8 @@ export function buildIcs({ schedule, siteUrl, joinUrl, stamp }) {
         `SUMMARY:${escapeText(summaryFor(block))}`,
         `DESCRIPTION:${escapeText(descriptionFor(block, siteUrl))}`,
       );
-      // The join link doubles as the location, so the calendar entry is clickable.
+      // The meeting room link doubles as the location, so the calendar entry is
+      // clickable straight into the room.
       if (joinUrl) {
         lines.push(`LOCATION:${escapeText(joinUrl)}`, `URL:${escapeText(joinUrl)}`);
       } else if (siteUrl) {

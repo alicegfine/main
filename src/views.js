@@ -89,7 +89,8 @@ function namePrompt() {
 // button, so an unset link is hidden from guests and only prompts Alice.
 function linkButtons({ links, isAdmin }) {
   const BUTTONS = [
-    { key: 'sit', label: 'Join the current sit' },
+    // The stored key stays 'sit' so the saved link survives a label change.
+    { key: 'sit', label: 'Join the meeting room' },
     { key: 'signal', label: 'Join the Signal group' },
   ];
 
@@ -110,7 +111,7 @@ function linkButtons({ links, isAdmin }) {
          <summary>Edit these links</summary>
          <form method="post" action="/links" class="links-form">
            <div class="field">
-             <label for="sit-url">Join the current sit</label>
+             <label for="sit-url">Join the meeting room</label>
              <input id="sit-url" name="sit" type="url" inputmode="url"
                placeholder="https://…" value="${escapeHtml(links.sit)}" />
            </div>

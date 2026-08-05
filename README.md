@@ -6,7 +6,7 @@ A small site for the retreat running Friday 7 – Monday 10 August 2026.
   name once, and can then add sessions, sign up to attend them, or offer to lead
   them. The roster is public.
 - **Info** (`/info`) — a page of text that only Alice can edit.
-- Two buttons at the top of the schedule, *Join the current sit* and *Join the
+- Two buttons at the top of the schedule, *Join the meeting room* and *Join the
   Signal group*, whose links Alice can change from that page.
 - **Calendar export** (`/schedule.ics`) — the schedule as an iCalendar feed, to
   download or subscribe to. `?mine=1` narrows it to the sessions your name is on.
