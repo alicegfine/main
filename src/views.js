@@ -63,8 +63,6 @@ function layout({ title, activeNav, isAdmin, visitorName, notice, error, body })
 function namePrompt() {
   return `<section class="name-gate">
     <h2>What's your name?</h2>
-    <p>Put in a name before signing up or adding a session, so the schedule shows
-      who is where. It is stored on this device only — no account, no password.</p>
     <form method="post" action="/visitor" class="name-gate-form">
       <label class="visually-hidden" for="visitor-name">Your name</label>
       <input

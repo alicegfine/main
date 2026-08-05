@@ -374,12 +374,7 @@ button:hover {
 
 .name-gate h2 {
   font-size: 1.3rem;
-}
-
-.name-gate p {
-  margin: 0.5rem 0 1.25rem;
-  color: var(--ink-soft);
-  font-size: 0.95rem;
+  margin-bottom: 1rem;
 }
 
 .name-gate-form {
