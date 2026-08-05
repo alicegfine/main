@@ -36,7 +36,7 @@ function bounds(nodes, sp) {
   };
 }
 
-function layoutTopDown(roots, kidsOf, byId, sp, stack) {
+function layoutTopDown(roots, kidsOf, byId, sp, stack, rankOf) {
   const nodes = [];
   const placed = new Set();
   const hDepth = sp.horizontalDepth || 1;
@@ -95,9 +95,9 @@ function layoutTopDown(roots, kidsOf, byId, sp, stack) {
     return node;
   }
 
-  function assign(node, x, y) {
+  // Place just the node and its normal reports (the "self column"), within [x, x+selfW].
+  function assignSelf(node, x, y) {
     node.y = y;
-    // place the self column (node + its normal reports) within [x, x + selfW]
     if (node.kids.length === 0) {
       node.x = x;
     } else if (node.vertical) {
@@ -118,14 +118,29 @@ function layoutTopDown(roots, kidsOf, byId, sp, stack) {
       const last = node.kids[node.kids.length - 1];
       node.x = (first.x + sp.nodeW / 2 + last.x + sp.nodeW / 2) / 2 - sp.nodeW / 2;
     }
-    // place co-leaders to the right of the self column, on the same tier (same y)
-    if (node.coKids.length) {
-      let cx = x + node.selfW + sp.hGap;
-      for (const k of node.coKids) {
-        assign(k, cx, y);
-        cx += k.subW + sp.hGap;
-      }
+  }
+
+  function assign(node, x, y) {
+    node.y = y;
+    if (!node.coKids.length) {
+      assignSelf(node, x, y);
+      return;
     }
+    // Co-leaders flank the manager on the same tier: earlier-ranked ones sit to the
+    // left, later-ranked ones to the right, so the manager ends up in the middle of
+    // the leadership row.
+    const cos = node.coKids.slice().sort((a, b) => rankOf(a.id) - rankOf(b.id));
+    const half = Math.floor(cos.length / 2);
+    const members = [];
+    for (let i = 0; i < half; i++) members.push({ node: cos[i], w: cos[i].subW });
+    members.push({ self: true, w: node.selfW });
+    for (let i = half; i < cos.length; i++) members.push({ node: cos[i], w: cos[i].subW });
+    let cx = x;
+    members.forEach((m, i) => {
+      if (m.self) assignSelf(node, cx, y);
+      else assign(m.node, cx, y);
+      cx += m.w + (i < members.length - 1 ? sp.hGap : 0);
+    });
   }
 
   let originX = 0;
@@ -139,16 +154,18 @@ function layoutTopDown(roots, kidsOf, byId, sp, stack) {
   // Connectors: a horizontal "bus" for spread levels, an indented spine + elbow stubs
   // for stacked levels.
   const links = [];
-  // Co-leader connectors: a horizontal line joining a manager to each same-tier peer.
+  // Co-leader connectors: a horizontal line joining a manager to each same-tier peer,
+  // drawn from whichever inner edges face each other (peer may sit left or right).
   for (const parent of nodes) {
     for (const k of parent.coKids || []) {
+      const onLeft = k.x < parent.x;
       links.push({
         type: "co",
         from: parent.id,
         to: k.id,
-        x1: parent.x + parent.w,
+        x1: onLeft ? parent.x : parent.x + parent.w,
         y1: parent.y + parent.h / 2,
-        x2: k.x,
+        x2: onLeft ? k.x + k.w : k.x,
         y2: k.y + k.h / 2,
       });
     }
@@ -180,16 +197,19 @@ export function layoutOrg(people, opts = {}) {
   // Optional stable left-to-right ordering: sort every sibling group by a caller-
   // supplied rank (e.g. position in the current org) so scenarios stay aligned.
   // Unranked people keep their existing relative order and fall in after ranked ones.
+  // The same rank decides which side of a manager each co-leader lands on.
+  const rankOf = opts.order
+    ? (id) => (opts.order.has(id) ? opts.order.get(id) : Number.MAX_SAFE_INTEGER)
+    : () => 0;
   if (opts.order) {
-    const rank = (id) => (opts.order.has(id) ? opts.order.get(id) : Number.MAX_SAFE_INTEGER);
-    const cmp = (a, b) => rank(a) - rank(b); // stable sort keeps ties in insertion order
+    const cmp = (a, b) => rankOf(a) - rankOf(b); // stable sort keeps ties in insertion order
     roots.sort(cmp);
     for (const arr of childrenOf.values()) arr.sort(cmp);
   }
 
   const kidsOf = (id, placed) => (childrenOf.get(id) || []).filter((k) => k !== id && !placed.has(k));
 
-  const { nodes, links } = layoutTopDown(roots, kidsOf, byId, sp, opts.stack !== false);
+  const { nodes, links } = layoutTopDown(roots, kidsOf, byId, sp, opts.stack !== false, rankOf);
 
   return { nodes, links, ...bounds(nodes, sp), margin: MARGIN, spacing: sp, issues };
 }
