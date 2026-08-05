@@ -28,6 +28,12 @@ your name; *Sign out* in the header clears both.
 leading doesn't get an *I'll attend* button. Offering to lead a session you were
 attending moves you rather than listing you twice.
 
+**Leaders can move their own session.** Whoever is leading a session gets a
+*Change times* control on it, which adjusts the start and end within the same day
+under the usual rules. Nobody else sees it, and the server checks it too — the
+day itself can't be changed this way, so a session that needs to move to another
+day is a delete and a re-add.
+
 ## Deploying to Railway
 
 1. **Create the service.** In Railway, *New Project → Deploy from GitHub repo*,

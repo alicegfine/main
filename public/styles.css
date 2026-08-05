@@ -143,15 +143,9 @@ main {
 }
 
 .timezone-note {
-  margin: 0;
-  padding: 0.15rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
+  margin: 0.4rem 0 2.25rem;
   color: var(--ink-soft);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.95rem;
 }
 
 .banner {
@@ -418,19 +412,27 @@ button:hover {
   font-size: 0.9rem;
 }
 
+.edit-times {
+  margin-top: 0.75rem;
+}
+
+.edit-times > summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  width: fit-content;
+}
+
+.edit-times > summary:hover {
+  color: var(--ink);
+}
+
+.edit-times .add-block {
+  margin-top: 0.75rem;
+}
+
 .signup-actions:empty {
   display: none;
-}
-
-button.secondary {
-  background: transparent;
-  color: var(--ink);
-  border-color: var(--border);
-}
-
-button.secondary:hover {
-  border-color: var(--accent);
-  filter: none;
 }
 
 .name-list li.mine > span {

@@ -10,10 +10,12 @@ import {
   deleteSignup,
   getBlock,
   getBlocksForDay,
+  getLeader,
   getPage,
   getScheduleByDay,
   getSignup,
   savePage,
+  updateBlockTimes,
 } from './db.js';
 import {
   checkCredentials,
@@ -49,6 +51,8 @@ const MESSAGES = {
   removed: 'Name removed.',
   'block-added': 'Session added.',
   'block-deleted': 'Session deleted, along with its signups.',
+  'times-changed': 'Session times updated.',
+  'not-leader': 'Only the person leading a session can change its times.',
   saved: 'Page saved.',
   'signed-out': 'Signed out.',
   'name-set': 'Thanks — you can sign up for sessions now.',
@@ -111,6 +115,27 @@ app.post('/blocks', requireVisitor, (req, res) => {
 
   createBlock({ day, startMin, endMin });
   return res.redirect('/?ok=block-added');
+});
+
+// Whoever is leading a session can move it. The day stays put; only the times
+// change, so the overlap check runs against that day's other sessions.
+app.post('/blocks/:id', requireVisitor, (req, res) => {
+  const block = getBlock(Number(req.params.id));
+  if (!block) return res.redirect('/?error=unknown-block');
+
+  const leader = getLeader(block.id);
+  const youLead = leader && isSamePerson(leader.name, req.visitorName);
+  if (!youLead && !req.isAdmin) return res.redirect('/?error=not-leader');
+
+  const startMin = parseTime(req.body.start);
+  const endMin = parseTime(req.body.end);
+  const others = getBlocksForDay(block.day).filter((other) => other.id !== block.id);
+
+  const problem = validateBlock({ day: block.day, startMin, endMin }, others);
+  if (problem) return res.redirect(`/?reason=${encodeURIComponent(problem)}`);
+
+  updateBlockTimes({ id: block.id, startMin, endMin });
+  return res.redirect('/?ok=times-changed');
 });
 
 app.post('/blocks/:id/delete', requireVisitor, (req, res) => {

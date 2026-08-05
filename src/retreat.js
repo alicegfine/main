@@ -42,6 +42,13 @@ export function parseTime(value) {
   return total === 0 ? DAY_END_MIN : total;
 }
 
+// The inverse of parseTime, for pre-filling an <input type="time">.
+export function toTimeValue(minutes) {
+  const wrapped = minutes % (24 * 60);
+  const hours = Math.floor(wrapped / 60);
+  return `${String(hours).padStart(2, '0')}:${String(wrapped % 60).padStart(2, '0')}`;
+}
+
 export function formatTime(minutes) {
   if (minutes === DAY_END_MIN) return '12:00 AM';
   const hours = Math.floor(minutes / 60);

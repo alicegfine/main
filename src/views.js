@@ -1,4 +1,10 @@
-import { DAYS, MAX_NAME_LENGTH, formatRange, formatDuration } from './retreat.js';
+import {
+  DAYS,
+  MAX_NAME_LENGTH,
+  formatRange,
+  formatDuration,
+  toTimeValue,
+} from './retreat.js';
 import { escapeHtml, renderMarkdown } from './markdown.js';
 import { ADMIN_USERNAME, signInEnabled } from './auth.js';
 import { isSamePerson } from './visitor.js';
@@ -40,7 +46,7 @@ function layout({ title, activeNav, isAdmin, visitorName, notice, error, body })
   </main>
 
   <footer class="site-footer">
-    <p>Friday 7 – Monday 10 August 2026. Every time on this site is Eastern (ET).</p>
+    <p>Friday 7 – Monday 10 August 2026. All times Eastern.</p>
   </footer>
 </body>
 </html>`;
@@ -105,7 +111,7 @@ function signupControls(block, { visitorName }) {
     buttons.push(`<form method="post" action="/signups" class="inline-form">
       <input type="hidden" name="block_id" value="${block.id}" />
       <input type="hidden" name="role" value="leading" />
-      <button type="submit" class="secondary">I'll lead this</button>
+      <button type="submit">I'll lead this</button>
     </form>`);
   }
   if (!youLead && !youAttend) {
@@ -126,6 +132,31 @@ function signupControls(block, { visitorName }) {
   return `${status}${buttons.length ? `<div class="signup-actions">${buttons.join('')}</div>` : ''}`;
 }
 
+// Only the person leading a session gets to move it, so this stays hidden for
+// everyone else rather than failing on submit.
+function editTimesForm(block, { visitorName, isAdmin }) {
+  const leader = block.leading[0];
+  const youLead = Boolean(leader) && isSamePerson(leader.name, visitorName);
+  if (!youLead && !isAdmin) return '';
+
+  return `<details class="edit-times">
+    <summary>Change times</summary>
+    <form method="post" action="/blocks/${block.id}" class="add-block">
+      <div class="field">
+        <label for="edit-start-${block.id}">Start</label>
+        <input id="edit-start-${block.id}" name="start" type="time"
+          value="${toTimeValue(block.start_min)}" required />
+      </div>
+      <div class="field">
+        <label for="edit-end-${block.id}">End</label>
+        <input id="edit-end-${block.id}" name="end" type="time"
+          value="${toTimeValue(block.end_min)}" required />
+      </div>
+      <button type="submit">Save times</button>
+    </form>
+  </details>`;
+}
+
 function blockCard(block, ctx) {
   const leaders =
     block.leading.length > 0
@@ -139,6 +170,7 @@ function blockCard(block, ctx) {
 
   const canDelete = Boolean(ctx.visitorName) || ctx.isAdmin;
   const controls = signupControls(block, ctx);
+  const timeEditor = editTimesForm(block, ctx);
 
   return `<article class="block">
     <div class="block-head">
@@ -166,7 +198,7 @@ function blockCard(block, ctx) {
       </section>
     </div>
 
-    ${controls ? `<div class="signup-bar">${controls}</div>` : ''}
+    ${controls || timeEditor ? `<div class="signup-bar">${controls}${timeEditor}</div>` : ''}
   </article>`;
 }
 
@@ -175,14 +207,14 @@ function addBlockForm(day, { visitorName }) {
   return `<form method="post" action="/blocks" class="add-block">
     <input type="hidden" name="day" value="${escapeHtml(day.date)}" />
     <div class="field">
-      <label for="start-${day.date}">Start (ET)</label>
+      <label for="start-${day.date}">Start</label>
       <input id="start-${day.date}" name="start" type="time" value="08:00" required />
     </div>
     <div class="field">
-      <label for="end-${day.date}">End (ET)</label>
+      <label for="end-${day.date}">End</label>
       <input id="end-${day.date}" name="end" type="time" value="09:00" required />
     </div>
-    <button type="submit" class="secondary">Add a session</button>
+    <button type="submit">Add a session</button>
   </form>`;
 }
 
@@ -214,10 +246,8 @@ export function schedulePage({ schedule, isAdmin, visitorName, notice, error }) 
     )
     .join('');
 
-  const body = `<div class="page-head">
-      <h1>Schedule</h1>
-      <p class="timezone-note">All times Eastern (ET)</p>
-    </div>
+  const body = `<h1>Schedule</h1>
+    <p class="timezone-note">All times Eastern</p>
     ${visitorName ? '' : namePrompt()}
     ${days}`;
 
@@ -283,9 +313,6 @@ export function spielPage({ page, isAdmin, visitorName, editing, notice, error }
 export function signInPage({ error, visitorName }) {
   const body = signInEnabled
     ? `<h1>Edit the spiel</h1>
-       <p class="lede">Editing the ${escapeHtml(SPIEL_TITLE.toLowerCase())} is
-         ${escapeHtml(ADMIN_USERNAME)}-only, so it needs the password. Nothing else on
-         the site is locked.</p>
        <form method="post" action="/signin" class="signin-form">
          <div class="field">
            <label for="username">Name</label>

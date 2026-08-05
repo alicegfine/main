@@ -67,6 +67,9 @@ const statements = {
     `INSERT INTO blocks (day, start_min, end_min, created_at)
      VALUES (@day, @startMin, @endMin, datetime('now'))`,
   ),
+  updateBlockTimes: db.prepare(
+    'UPDATE blocks SET start_min = @startMin, end_min = @endMin WHERE id = @id',
+  ),
   deleteBlock: db.prepare('DELETE FROM blocks WHERE id = ?'),
   blockById: db.prepare('SELECT * FROM blocks WHERE id = ?'),
   allSignups: db.prepare('SELECT * FROM signups ORDER BY role DESC, created_at'),
@@ -123,8 +126,16 @@ export function createBlock({ day, startMin, endMin }) {
   return statements.insertBlock.run({ day, startMin, endMin });
 }
 
+export function updateBlockTimes({ id, startMin, endMin }) {
+  return statements.updateBlockTimes.run({ id, startMin, endMin });
+}
+
 export function deleteBlock(id) {
   return statements.deleteBlock.run(id);
+}
+
+export function getLeader(blockId) {
+  return statements.leaderFor.get(blockId);
 }
 
 export function getBlock(id) {
