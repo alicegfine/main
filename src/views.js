@@ -7,7 +7,7 @@ import {
 } from './retreat.js';
 import { escapeHtml, renderMarkdown } from './markdown.js';
 import { ADMIN_USERNAME, signInEnabled } from './auth.js';
-import { storageAlert } from './db.js';
+import { storageStatus } from './db.js';
 import { isSamePerson } from './visitor.js';
 import { stylesHref } from './assets.js';
 
@@ -42,10 +42,14 @@ function layout({ title, activeNav, isAdmin, visitorName, notice, error, body })
 
   <main>
     ${
-      // Only Alice sees this: it is a deployment problem, not something a guest
+      // Only Alice sees this: it concerns the deployment, not anything a guest
       // signing up for a session can act on.
-      isAdmin && storageAlert
-        ? `<p class="banner banner-error" role="alert"><strong>Data is not being kept.</strong> ${escapeHtml(storageAlert)}</p>`
+      isAdmin && storageStatus
+        ? `<p class="banner banner-${storageStatus.level === 'error' ? 'error' : 'notice'}"${
+            storageStatus.level === 'error' ? ' role="alert"' : ''
+          }><strong>${
+            storageStatus.level === 'error' ? 'Data is not being kept.' : 'Fresh database.'
+          }</strong> ${escapeHtml(storageStatus.message)}</p>`
         : ''
     }
     ${error ? `<p class="banner banner-error" role="alert">${escapeHtml(error)}</p>` : ''}

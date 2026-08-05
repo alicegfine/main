@@ -84,12 +84,23 @@ in the database, so sign-ins survive restarts — but only for as long as the
 database does, which is another reason to attach the volume.
 
 **Checking storage is actually working.** Every boot logs the absolute path of the
-database file, followed by either `Opened an existing database.` — healthy — or a
-warning explaining what is wrong. A relative `DATA_DIR` is called out on every
-boot regardless of whether the file happens to exist, because it means the volume
-is not being used at all. Whenever there is a warning, the site also shows it as a
-banner to Alice when signed in, since it is a deployment problem rather than
-anything a guest can act on.
+database file and a boot count against that database:
+
+```
+Database file: /data/retreat.db
+Opened an existing database. This is boot 4 against it.
+```
+
+The boot count is the reliable test, because a wiped database cannot report that
+it was wiped — any single boot on an empty one looks the same whether it is a
+first run or a fresh loss. If the number climbs across deploys, the volume is
+keeping data. If every deploy logs boot 1, it is not.
+
+A misconfigured path is identifiable on its own, so a relative `DATA_DIR` is
+called out on every boot regardless of whether the file happens to exist, and
+shows as a red banner to Alice when signed in. An empty database on an
+absolute path is only a green notice asking to be confirmed on the next
+restart — that state is normal the first time a volume is used.
 
 ## Running locally
 

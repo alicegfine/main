@@ -22,9 +22,14 @@ const dbPath = path.join(dataDir, 'retreat.db');
 const existedBefore = fs.existsSync(dbPath);
 
 // Losing the database is otherwise silent from the outside — the site just comes
-// back with an empty schedule and its placeholder text — so both say so at
+// back with an empty schedule and its placeholder text — so report the state at
 // startup and surface it in the UI for whoever can fix it.
-export let storageAlert = null;
+//
+// A misconfigured path can be identified outright. An empty database cannot: on
+// the first run against a fresh volume it is entirely normal, and a wiped store
+// by definition cannot remember that it was ever written to. So that case is
+// reported as something to confirm on the next restart, not as a failure.
+export let storageStatus = null; // { level: 'error' | 'info', message }
 
 console.log(`Database file: ${path.resolve(dbPath)}`);
 
@@ -32,20 +37,36 @@ if (!path.isAbsolute(dataDir)) {
   // A relative DATA_DIR resolves against the working directory, which on a
   // container host is the deployed code — not a mounted volume. This is wrong
   // whether or not the file happens to exist right now, so it is checked first.
-  storageAlert =
-    `DATA_DIR is "${dataDir}", a relative path, so data is being written to ` +
-    `${path.resolve(dataDir)} inside the app directory rather than to your mounted ` +
-    `volume. Every deploy and restart discards it. Set DATA_DIR to the volume's ` +
-    `mount path as an absolute path, such as /data.`;
-  console.warn(storageAlert);
-} else if (existedBefore) {
-  console.log('Opened an existing database.');
+  storageStatus = {
+    level: 'error',
+    message:
+      `DATA_DIR is "${dataDir}", a relative path, so data is being written to ` +
+      `${path.resolve(dataDir)} inside the app directory rather than to your mounted ` +
+      `volume. Every deploy and restart discards it. Set DATA_DIR to the volume's ` +
+      `mount path as an absolute path, such as /data.`,
+  };
 } else if (!process.env.DATA_DIR) {
-  storageAlert = `DATA_DIR is not set, so the schedule is being stored at ${path.resolve(dbPath)}, beside the code. On Railway that filesystem is rebuilt on every deploy and restart, so sessions and the spiel will keep vanishing. Attach a volume, then set DATA_DIR to its mount path.`;
-  console.warn(storageAlert);
-} else {
-  storageAlert = `Started with an empty database at ${dbPath}. If there should have been data here, the volume mounted at ${dataDir} is not persisting between restarts.`;
-  console.warn(storageAlert);
+  storageStatus = {
+    level: 'error',
+    message:
+      `DATA_DIR is not set, so the schedule is being stored at ${path.resolve(dbPath)}, ` +
+      `beside the code. On Railway that filesystem is rebuilt on every deploy and ` +
+      `restart, so sessions and the spiel will keep vanishing. Attach a volume, then ` +
+      `set DATA_DIR to its mount path.`,
+  };
+} else if (!existedBefore) {
+  storageStatus = {
+    level: 'info',
+    message:
+      `This is a new, empty database at ${path.resolve(dbPath)}. That is expected the ` +
+      `first time after pointing DATA_DIR at a fresh volume. To confirm the volume ` +
+      `keeps data, redeploy once: the logs should then say it opened an existing ` +
+      `database on boot 2, and this notice will disappear.`,
+  };
+}
+
+if (storageStatus) {
+  console[storageStatus.level === 'error' ? 'warn' : 'log'](storageStatus.message);
 }
 
 const db = new Database(dbPath);
@@ -85,6 +106,24 @@ db.exec(`
 
 // The page was called "How it works" before it was called "The spiel"; carry any
 // text already written across to the new slug.
+// Counting boots against this database is the one honest test of whether the
+// volume persists: after a few redeploys it should be climbing. If every deploy
+// logs boot 1, the store is being thrown away each time.
+const bootCount = Number(
+  db
+    .prepare(
+      `INSERT INTO settings (key, value) VALUES ('boot_count', '1')
+       ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)
+       RETURNING value`,
+    )
+    .get().value,
+);
+console.log(
+  existedBefore
+    ? `Opened an existing database. This is boot ${bootCount} against it.`
+    : `This is boot ${bootCount} against a brand new database.`,
+);
+
 db.prepare(`UPDATE pages SET slug = 'the-spiel' WHERE slug = 'how-it-works'`).run();
 
 db.prepare(
