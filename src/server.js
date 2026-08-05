@@ -2,14 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 
-import {
-  DAYS,
-  MAX_NAME_LENGTH,
-  ROLES,
-  formatRange,
-  parseTime,
-  validateBlock,
-} from './retreat.js';
+import { DAYS, ROLES, formatRange, parseTime, validateBlock } from './retreat.js';
 import {
   createBlock,
   createSignup,
@@ -19,6 +12,7 @@ import {
   getBlocksForDay,
   getPage,
   getScheduleByDay,
+  getSignup,
   savePage,
 } from './db.js';
 import {
@@ -29,7 +23,15 @@ import {
   sessionMiddleware,
   signInEnabled,
 } from './auth.js';
-import { howItWorksPage, notFoundPage, schedulePage, signInPage } from './views.js';
+import {
+  cleanName,
+  clearVisitorName,
+  isSamePerson,
+  requireVisitor,
+  setVisitorName,
+  visitorMiddleware,
+} from './visitor.js';
+import { notFoundPage, schedulePage, signInPage, spielPage } from './views.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +39,7 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(express.urlencoded({ extended: false, limit: '64kb' }));
 app.use(sessionMiddleware);
+app.use(visitorMiddleware);
 app.use(express.static(path.join(here, '..', 'public'), { maxAge: '1h' }));
 
 // Messages are passed through the redirect so that every POST ends in a
@@ -48,11 +51,13 @@ const MESSAGES = {
   'block-deleted': 'Session deleted, along with its signups.',
   saved: 'Page saved.',
   'signed-out': 'Signed out.',
+  'name-set': 'Thanks — you can sign up for sessions now.',
+  'name-cleared': 'Name forgotten on this device.',
   'bad-password': 'That name and password did not match.',
-  'name-required': 'Enter a name to sign up.',
+  'name-required': 'Put in your name first.',
   'bad-role': 'Choose whether you are attending or leading.',
   'unknown-block': 'That session no longer exists.',
-  'name-taken': 'That name is already on the session.',
+  'not-yours': 'You can only take your own name off a session.',
 };
 
 function messagesFrom(req) {
@@ -68,38 +73,30 @@ app.get('/', (req, res) => {
     schedulePage({
       schedule: getScheduleByDay(DAYS),
       isAdmin: req.isAdmin,
+      visitorName: req.visitorName,
       notice,
       error,
     }),
   );
 });
 
-app.post('/signups', (req, res) => {
-  const blockId = Number(req.body.block_id);
-  const name = String(req.body.name ?? '')
-    .trim()
-    .slice(0, MAX_NAME_LENGTH);
-  const role = String(req.body.role ?? '');
+/* Who you are ------------------------------------------------------------- */
 
-  if (!Number.isInteger(blockId) || !getBlock(blockId)) {
-    return res.redirect('/?error=unknown-block');
-  }
+app.post('/visitor', (req, res) => {
+  const name = cleanName(req.body.name);
   if (!name) return res.redirect('/?error=name-required');
-  if (!ROLES.includes(role)) return res.redirect('/?error=bad-role');
-
-  const result = createSignup({ blockId, name, role });
-  if (!result.ok) {
-    return res.redirect(`/?reason=${encodeURIComponent(result.error)}`);
-  }
-  return res.redirect('/?ok=signed-up');
+  setVisitorName(res, name);
+  return res.redirect('/?ok=name-set');
 });
 
-app.post('/signups/:id/delete', (req, res) => {
-  deleteSignup(Number(req.params.id));
-  res.redirect('/?ok=removed');
+app.post('/visitor/clear', (req, res) => {
+  clearVisitorName(res);
+  res.redirect('/?ok=name-cleared');
 });
 
-app.post('/blocks', requireAdmin, (req, res) => {
+/* Sessions — open to anyone who has given a name ------------------------- */
+
+app.post('/blocks', requireVisitor, (req, res) => {
   const day = String(req.body.day ?? '');
   const startMin = parseTime(req.body.start);
   const endMin = parseTime(req.body.end);
@@ -113,17 +110,47 @@ app.post('/blocks', requireAdmin, (req, res) => {
   return res.redirect('/?ok=block-added');
 });
 
-app.post('/blocks/:id/delete', requireAdmin, (req, res) => {
+app.post('/blocks/:id/delete', requireVisitor, (req, res) => {
   deleteBlock(Number(req.params.id));
   res.redirect('/?ok=block-deleted');
 });
 
-app.get('/how-it-works', (req, res) => {
+app.post('/signups', requireVisitor, (req, res) => {
+  const blockId = Number(req.body.block_id);
+  const role = String(req.body.role ?? '');
+
+  if (!Number.isInteger(blockId) || !getBlock(blockId)) {
+    return res.redirect('/?error=unknown-block');
+  }
+  if (!ROLES.includes(role)) return res.redirect('/?error=bad-role');
+
+  const result = createSignup({ blockId, name: req.visitorName, role });
+  if (!result.ok) {
+    return res.redirect(`/?reason=${encodeURIComponent(result.error)}`);
+  }
+  return res.redirect('/?ok=signed-up');
+});
+
+// You can take your own name off a session. Alice can take anyone's off.
+app.post('/signups/:id/delete', requireVisitor, (req, res) => {
+  const signup = getSignup(Number(req.params.id));
+  if (!signup) return res.redirect('/?ok=removed');
+  if (!req.isAdmin && !isSamePerson(signup.name, req.visitorName)) {
+    return res.redirect('/?error=not-yours');
+  }
+  deleteSignup(signup.id);
+  return res.redirect('/?ok=removed');
+});
+
+/* The spiel — the one part only Alice can change ------------------------- */
+
+app.get('/the-spiel', (req, res) => {
   const { notice, error } = messagesFrom(req);
   res.send(
-    howItWorksPage({
-      page: getPage('how-it-works'),
+    spielPage({
+      page: getPage('the-spiel'),
       isAdmin: req.isAdmin,
+      visitorName: req.visitorName,
       editing: req.isAdmin && req.query.edit === '1',
       notice,
       error,
@@ -131,21 +158,26 @@ app.get('/how-it-works', (req, res) => {
   );
 });
 
-app.post('/how-it-works', requireAdmin, (req, res) => {
+app.post('/the-spiel', requireAdmin, (req, res) => {
   const body = String(req.body.body ?? '').slice(0, 50_000);
   if (!body.trim()) {
     return res.redirect(
-      `/how-it-works?edit=1&reason=${encodeURIComponent('The page cannot be empty.')}`,
+      `/the-spiel?edit=1&reason=${encodeURIComponent('The page cannot be empty.')}`,
     );
   }
-  savePage('how-it-works', body);
-  return res.redirect('/how-it-works?ok=saved');
+  savePage('the-spiel', body);
+  return res.redirect('/the-spiel?ok=saved');
 });
 
+// The page used to live here.
+app.get('/how-it-works', (req, res) => res.redirect(301, '/the-spiel'));
+
+/* Alice's sign-in --------------------------------------------------------- */
+
 app.get('/signin', (req, res) => {
-  if (req.isAdmin) return res.redirect('/');
+  if (req.isAdmin) return res.redirect('/the-spiel');
   const { error } = messagesFrom(req);
-  return res.send(signInPage({ error }));
+  return res.send(signInPage({ error, visitorName: req.visitorName }));
 });
 
 app.post('/signin', (req, res) => {
@@ -154,7 +186,7 @@ app.post('/signin', (req, res) => {
     return res.redirect('/signin?error=bad-password');
   }
   issueSession(res);
-  return res.redirect('/');
+  return res.redirect('/the-spiel');
 });
 
 app.post('/signout', (req, res) => {
@@ -163,7 +195,7 @@ app.post('/signout', (req, res) => {
 });
 
 app.use((req, res) => {
-  res.status(404).send(notFoundPage());
+  res.status(404).send(notFoundPage({ visitorName: req.visitorName }));
 });
 
 const port = Number(process.env.PORT) || 3000;

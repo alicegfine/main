@@ -9,10 +9,12 @@ import {
 } from './retreat.js';
 import { escapeHtml, renderMarkdown } from './markdown.js';
 import { ADMIN_USERNAME, signInEnabled } from './auth.js';
+import { isSamePerson } from './visitor.js';
 
-const SITE_TITLE = 'August Meditation Retreat';
+const SITE_TITLE = 'Jhana Noting Retreat — August 2026';
+const SPIEL_TITLE = 'The spiel';
 
-function layout({ title, activeNav, isAdmin, notice, error, body }) {
+function layout({ title, activeNav, isAdmin, visitorName, notice, error, body }) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -26,11 +28,19 @@ function layout({ title, activeNav, isAdmin, notice, error, body }) {
     <a class="wordmark" href="/">${escapeHtml(SITE_TITLE)}</a>
     <nav>
       <a href="/"${activeNav === 'schedule' ? ' aria-current="page"' : ''}>Schedule</a>
-      <a href="/how-it-works"${activeNav === 'how-it-works' ? ' aria-current="page"' : ''}>How it works</a>
+      <a href="/the-spiel"${activeNav === 'spiel' ? ' aria-current="page"' : ''}>${escapeHtml(SPIEL_TITLE)}</a>
+      ${
+        visitorName
+          ? `<form method="post" action="/visitor/clear" class="inline-form">
+               <span class="whoami">You are <strong>${escapeHtml(visitorName)}</strong></span>
+               <button type="submit" class="link-button">not you?</button>
+             </form>`
+          : ''
+      }
       ${
         isAdmin
           ? `<form method="post" action="/signout" class="inline-form">
-               <span class="signed-in">Signed in as ${escapeHtml(ADMIN_USERNAME)}</span>
+               <span class="whoami">Editing as ${escapeHtml(ADMIN_USERNAME)}</span>
                <button type="submit" class="link-button">Sign out</button>
              </form>`
           : signInEnabled
@@ -53,52 +63,98 @@ function layout({ title, activeNav, isAdmin, notice, error, body }) {
 </html>`;
 }
 
-function nameList(signups, isAdmin) {
-  if (signups.length === 0) return '';
+function namePrompt() {
+  return `<section class="name-gate">
+    <h2>What's your name?</h2>
+    <p>Everyone puts in a name before signing up or adding a session, so the
+      schedule shows who is where. It is stored on this device only — no account,
+      no password.</p>
+    <form method="post" action="/visitor" class="name-gate-form">
+      <label class="visually-hidden" for="visitor-name">Your name</label>
+      <input
+        id="visitor-name"
+        name="name"
+        type="text"
+        placeholder="Your name"
+        maxlength="${MAX_NAME_LENGTH}"
+        autocomplete="name"
+        required
+        autofocus
+      />
+      <button type="submit">Continue</button>
+    </form>
+  </section>`;
+}
+
+function nameList(signups, { visitorName, isAdmin }) {
   const items = signups
-    .map(
-      (signup) => `<li>
+    .map((signup) => {
+      const mine = isSamePerson(signup.name, visitorName);
+      const canRemove = mine || isAdmin;
+      return `<li${mine ? ' class="mine"' : ''}>
         <span>${escapeHtml(signup.name)}</span>
-        <form method="post" action="/signups/${signup.id}/delete" class="inline-form">
-          <button type="submit" class="link-button subtle" title="Remove ${escapeHtml(signup.name)}">remove</button>
-        </form>
-      </li>`,
-    )
+        ${
+          canRemove
+            ? `<form method="post" action="/signups/${signup.id}/delete" class="inline-form">
+                 <button type="submit" class="link-button subtle" title="Remove ${escapeHtml(signup.name)}">remove</button>
+               </form>`
+            : ''
+        }
+      </li>`;
+    })
     .join('');
   return `<ul class="name-list">${items}</ul>`;
 }
 
-function signupForm(block) {
-  return `<form method="post" action="/signups" class="signup-form">
-    <input type="hidden" name="block_id" value="${block.id}" />
-    <label class="visually-hidden" for="name-${block.id}">Your name</label>
-    <input
-      id="name-${block.id}"
-      name="name"
-      type="text"
-      placeholder="Your name"
-      maxlength="${MAX_NAME_LENGTH}"
-      required
-    />
-    <label class="visually-hidden" for="role-${block.id}">Joining as</label>
-    <select id="role-${block.id}" name="role">
-      <option value="attending">Attending</option>
-      <option value="leading">Leading</option>
-    </select>
-    <button type="submit">Sign up</button>
-  </form>`;
+function signupControls(block, { visitorName }) {
+  if (!visitorName) {
+    return `<p class="signup-hint">Put in your name at the top of the page to sign up.</p>`;
+  }
+
+  const leading = block.leading.some((s) => isSamePerson(s.name, visitorName));
+  const attending = block.attending.some((s) => isSamePerson(s.name, visitorName));
+
+  if (leading && attending) {
+    return `<p class="signup-hint">You are leading this session and on the attending list.</p>`;
+  }
+
+  const buttons = [];
+  if (!leading) {
+    buttons.push(`<form method="post" action="/signups" class="inline-form">
+      <input type="hidden" name="block_id" value="${block.id}" />
+      <input type="hidden" name="role" value="leading" />
+      <button type="submit" class="secondary">I'll lead this</button>
+    </form>`);
+  }
+  if (!attending) {
+    buttons.push(`<form method="post" action="/signups" class="inline-form">
+      <input type="hidden" name="block_id" value="${block.id}" />
+      <input type="hidden" name="role" value="attending" />
+      <button type="submit">I'll attend</button>
+    </form>`);
+  }
+
+  const status = leading
+    ? '<p class="signup-hint">You are leading this session.</p>'
+    : attending
+      ? '<p class="signup-hint">You are on the attending list.</p>'
+      : '';
+
+  return `${status}<div class="signup-actions">${buttons.join('')}</div>`;
 }
 
-function blockCard(block, isAdmin) {
+function blockCard(block, ctx) {
   const leaders =
     block.leading.length > 0
-      ? nameList(block.leading, isAdmin)
+      ? nameList(block.leading, ctx)
       : '<p class="empty-role">No one leading yet</p>';
 
   const attendees =
     block.attending.length > 0
-      ? nameList(block.attending, isAdmin)
+      ? nameList(block.attending, ctx)
       : '<p class="empty-role">No one signed up yet</p>';
+
+  const canDelete = Boolean(ctx.visitorName) || ctx.isAdmin;
 
   return `<article class="block">
     <div class="block-head">
@@ -107,7 +163,7 @@ function blockCard(block, isAdmin) {
         <p class="duration">${escapeHtml(formatDuration(block.start_min, block.end_min))}</p>
       </div>
       ${
-        isAdmin
+        canDelete
           ? `<form method="post" action="/blocks/${block.id}/delete" class="inline-form">
                <button type="submit" class="link-button subtle">Delete session</button>
              </form>`
@@ -126,11 +182,12 @@ function blockCard(block, isAdmin) {
       </section>
     </div>
 
-    ${signupForm(block)}
+    <div class="signup-bar">${signupControls(block, ctx)}</div>
   </article>`;
 }
 
-function addBlockForm(day) {
+function addBlockForm(day, { visitorName }) {
+  if (!visitorName) return '';
   return `<form method="post" action="/blocks" class="add-block">
     <input type="hidden" name="day" value="${escapeHtml(day.date)}" />
     <div class="field">
@@ -141,22 +198,20 @@ function addBlockForm(day) {
       <label for="end-${day.date}">End</label>
       <input id="end-${day.date}" name="end" type="time" value="09:00" required />
     </div>
-    <button type="submit">Add session</button>
+    <button type="submit" class="secondary">Add a session</button>
   </form>`;
 }
 
-export function schedulePage({ schedule, isAdmin, notice, error }) {
+export function schedulePage({ schedule, isAdmin, visitorName, notice, error }) {
+  const ctx = { isAdmin, visitorName };
   const totalBlocks = schedule.reduce((sum, day) => sum + day.blocks.length, 0);
 
   const intro =
     totalBlocks === 0
-      ? `<p class="lede">The schedule is still empty.${
-          isAdmin
-            ? ' Add the first session below.'
-            : ' Sessions will appear here once they are added.'
-        }</p>`
-      : `<p class="lede">Add your name to any session, either to attend it or to lead it.
-           You can take your name off again at any time.</p>`;
+      ? `<p class="lede">Nothing is scheduled yet. Anyone can add a session — pick a
+           day below, choose a start and end time, and it appears for everyone.</p>`
+      : `<p class="lede">Anyone can add a session, sign up to attend one, or offer to
+           lead one. You can take your name off again at any time.</p>`;
 
   const days = schedule
     .map(
@@ -164,32 +219,41 @@ export function schedulePage({ schedule, isAdmin, notice, error }) {
         <h2>${escapeHtml(day.label)}</h2>
         ${
           day.blocks.length > 0
-            ? `<div class="blocks">${day.blocks.map((block) => blockCard(block, isAdmin)).join('')}</div>`
+            ? `<div class="blocks">${day.blocks.map((block) => blockCard(block, ctx)).join('')}</div>`
             : '<p class="empty-day">No sessions scheduled.</p>'
         }
-        ${isAdmin ? addBlockForm(day) : ''}
+        ${addBlockForm(day, ctx)}
       </section>`,
     )
     .join('');
 
   const body = `<h1>Schedule</h1>
     ${intro}
+    ${visitorName ? '' : namePrompt()}
     ${
-      isAdmin
-        ? `<p class="admin-hint">Sessions can run any length between
+      visitorName
+        ? `<p class="admin-hint">Sessions can be any length between
              ${escapeHtml(formatTime(DAY_START_MIN))} and ${escapeHtml(formatTime(DAY_END_MIN))} ET,
              and cannot overlap another session on the same day.</p>`
         : ''
     }
     ${days}`;
 
-  return layout({ title: 'Schedule', activeNav: 'schedule', isAdmin, notice, error, body });
+  return layout({
+    title: 'Schedule',
+    activeNav: 'schedule',
+    isAdmin,
+    visitorName,
+    notice,
+    error,
+    body,
+  });
 }
 
-export function howItWorksPage({ page, isAdmin, editing, notice, error }) {
+export function spielPage({ page, isAdmin, visitorName, editing, notice, error }) {
   const body = editing
-    ? `<h1>How it works</h1>
-       <form method="post" action="/how-it-works" class="page-editor">
+    ? `<h1>${escapeHtml(SPIEL_TITLE)}</h1>
+       <form method="post" action="/the-spiel" class="page-editor">
          <label for="page-body">Page text</label>
          <p class="hint">Blank lines separate paragraphs. <code>##</code> starts a heading,
            <code>-</code> starts a list item, <code>**bold**</code> and <code>*italic*</code> work,
@@ -197,30 +261,32 @@ export function howItWorksPage({ page, isAdmin, editing, notice, error }) {
          <textarea id="page-body" name="body" rows="24" required>${escapeHtml(page.body)}</textarea>
          <div class="editor-actions">
            <button type="submit">Save changes</button>
-           <a href="/how-it-works" class="link-button">Cancel</a>
+           <a href="/the-spiel" class="link-button">Cancel</a>
          </div>
        </form>`
     : `<div class="page-head">
-         <h1>How it works</h1>
-         ${isAdmin ? '<a class="link-button" href="/how-it-works?edit=1">Edit this page</a>' : ''}
+         <h1>${escapeHtml(SPIEL_TITLE)}</h1>
+         ${isAdmin ? '<a class="link-button" href="/the-spiel?edit=1">Edit this page</a>' : ''}
        </div>
        <div class="prose">${renderMarkdown(page.body)}</div>`;
 
   return layout({
-    title: 'How it works',
-    activeNav: 'how-it-works',
+    title: SPIEL_TITLE,
+    activeNav: 'spiel',
     isAdmin,
+    visitorName,
     notice,
     error,
     body,
   });
 }
 
-export function signInPage({ error }) {
+export function signInPage({ error, visitorName }) {
   const body = signInEnabled
     ? `<h1>Sign in</h1>
-       <p class="lede">Signing in shows the controls for editing the schedule and the
-         "How it works" page. Everyone else sees the site as it is.</p>
+       <p class="lede">This is only for ${escapeHtml(ADMIN_USERNAME)}, and only unlocks
+         editing the text on the ${escapeHtml(SPIEL_TITLE.toLowerCase())} page. The schedule
+         is open to everyone without signing in.</p>
        <form method="post" action="/signin" class="signin-form">
          <div class="field">
            <label for="username">Name</label>
@@ -235,17 +301,24 @@ export function signInPage({ error }) {
          <button type="submit">Sign in</button>
        </form>`
     : `<h1>Sign in</h1>
-       <p class="lede">Sign-in is not configured on this deployment, so the schedule and
-         the "How it works" page cannot be edited. Set an <code>ADMIN_PASSWORD</code>
-         variable on the server to enable it.</p>`;
+       <p class="lede">Sign-in is not configured on this deployment, so the
+         ${escapeHtml(SPIEL_TITLE.toLowerCase())} page cannot be edited. Set an
+         <code>ADMIN_PASSWORD</code> variable on the server to enable it.</p>`;
 
-  return layout({ title: 'Sign in', activeNav: null, isAdmin: false, error, body });
+  return layout({
+    title: 'Sign in',
+    activeNav: null,
+    isAdmin: false,
+    visitorName,
+    error,
+    body,
+  });
 }
 
-export function notFoundPage() {
+export function notFoundPage({ visitorName } = {}) {
   const body = `<h1>Not found</h1>
     <p class="lede">That page does not exist. Try the <a href="/">schedule</a>.</p>`;
-  return layout({ title: 'Not found', activeNav: null, isAdmin: false, body });
+  return layout({ title: 'Not found', activeNav: null, isAdmin: false, visitorName, body });
 }
 
 export { DAYS };

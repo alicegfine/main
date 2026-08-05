@@ -1,16 +1,22 @@
-# August Meditation Retreat
+# Jhana Noting Retreat — August 2026
 
 A small site for the retreat running Friday 7 – Monday 10 August 2026.
 
-- **Schedule** (`/`) — the sessions for each of the four days. Anyone can add their
-  name to a session as *attending* or *leading*, and anyone can take a name off
-  again. The roster is public.
-- **How it works** (`/how-it-works`) — a page of text that Alice can edit in the
-  browser.
+- **Schedule** (`/`) — the sessions for each of the four days. Everyone puts in a
+  name once, and can then add sessions, sign up to attend them, or offer to lead
+  them. The roster is public.
+- **The spiel** (`/the-spiel`) — a page of text that only Alice can edit.
 
-Everything on the site is readable without signing in. Signing in as Alice adds
-two things: the controls for adding and deleting sessions, and the button for
-editing the "How it works" page.
+The whole site is readable without giving a name or signing in. There are two
+separate ideas of who you are, and it's worth keeping them apart:
+
+| | What it is | What it unlocks |
+| --- | --- | --- |
+| **Your name** | A name in a cookie. No password, no account. | Adding sessions and signing up for them — everything on the schedule. |
+| **Alice's sign-in** | A shared password (`ADMIN_PASSWORD`). | Editing the spiel, and removing other people's names. |
+
+The spiel is the only locked part. The schedule is deliberately open: anyone who
+has given a name can add or delete a session there.
 
 ## Deploying to Railway
 
@@ -71,16 +77,21 @@ its signups.
 
 **Sign-in is a shared password, not real accounts.** It compares what you type
 against `ADMIN_PASSWORD` and stores the result in a signed, HTTP-only cookie for
-30 days. It's enough to keep the editing controls out of visitors' way and to
-stop a passer-by from rewriting the schedule. It is not account security, so
-don't put anything sensitive behind it, and don't reuse a password you use
-elsewhere.
+30 days. It's enough to keep the spiel from being rewritten by a passer-by. It is
+not account security, so don't put anything sensitive behind it, and don't reuse
+a password you use elsewhere.
 
-**Signups are unauthenticated on purpose.** There are no accounts for attendees:
-you type a name and you're on the list. That also means anyone can remove anyone
-else's name, which is the tradeoff for letting people cancel without an account.
-For a small retreat where everyone knows each other, that's usually the right
-trade — but if you'd rather only you could remove names, that's a small change.
+**Names are identity, not authentication.** Giving a name sets a cookie that
+lasts a year, so signing up is one click rather than retyping your name each
+time, and the site can tell which entries are yours — you can take your own name
+off a session, and Alice can take anyone's off. Nothing stops someone from typing
+a name that isn't theirs; this is a retreat roster, not an access-control system.
+
+**Anyone can delete a session, including one with signups.** That follows from
+the schedule being open, and deleting a session also deletes the names on it,
+with no undo. It's fine among people who know each other, but if a stray click
+starts costing you a full roster, restricting deletion to Alice — or to sessions
+with nobody signed up — is a couple of lines in `src/server.js`.
 
 **No JavaScript.** Every action is a plain form submission followed by a
 redirect, so the site works with JavaScript disabled and refreshing never
@@ -92,8 +103,10 @@ resubmits anything.
 src/server.js     routes
 src/db.js         SQLite schema and queries
 src/auth.js       Alice's sign-in and the session cookie
+src/visitor.js    everyone else's name cookie
+src/cookies.js    cookie header parsing, shared by the two above
 src/views.js      HTML
 src/retreat.js    the four days, time parsing and formatting, block validation
-src/markdown.js   the small Markdown subset used by "How it works"
+src/markdown.js   the small Markdown subset used by the spiel
 public/styles.css styling
 ```

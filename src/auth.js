@@ -1,10 +1,12 @@
-// Sign-in for Alice, so that editing controls appear only for her.
+// Sign-in for Alice, which unlocks editing the spiel.
 //
 // This is a single shared password checked against ADMIN_PASSWORD, held in a
-// signed cookie. It keeps the edit controls out of the way of visitors; it is not
-// meant to protect anything sensitive, so don't put anything sensitive behind it.
+// signed cookie. It is the only locked part of the site: the schedule is open to
+// everyone. It is not meant to protect anything sensitive, so don't put anything
+// sensitive behind it.
 
 import crypto from 'node:crypto';
+import { parseCookies } from './cookies.js';
 
 const COOKIE_NAME = 'retreat_session';
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -45,18 +47,6 @@ export function checkCredentials(username, submittedPassword) {
   }
   if (username.trim().toLowerCase() !== ADMIN_USERNAME.toLowerCase()) return false;
   return safeEqual(submittedPassword, password);
-}
-
-function parseCookies(header = '') {
-  const jar = {};
-  for (const part of header.split(';')) {
-    const index = part.indexOf('=');
-    if (index === -1) continue;
-    const key = part.slice(0, index).trim();
-    if (!key) continue;
-    jar[key] = decodeURIComponent(part.slice(index + 1).trim());
-  }
-  return jar;
 }
 
 export function issueSession(res) {

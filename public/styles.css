@@ -110,9 +110,14 @@ main a {
   text-underline-offset: 4px;
 }
 
-.signed-in {
+.whoami {
   color: var(--ink-soft);
   font-size: 0.9rem;
+}
+
+.whoami strong {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 /* Layout ----------------------------------------------------------------- */
@@ -319,17 +324,74 @@ button:hover {
   font-size: 0.8rem;
 }
 
-.signup-form {
+/* Name gate -------------------------------------------------------------- */
+
+.name-gate {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  margin: 0 0 2.5rem;
+  max-width: 34rem;
+}
+
+.name-gate h2 {
+  font-size: 1.3rem;
+}
+
+.name-gate p {
+  margin: 0.5rem 0 1.25rem;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+.name-gate-form {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.name-gate-form input[type="text"] {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+/* Signing up ------------------------------------------------------------- */
+
+.signup-bar {
   padding-top: 1rem;
   border-top: 1px dashed var(--border);
 }
 
-.signup-form input[type="text"] {
-  flex: 1 1 12rem;
-  min-width: 0;
+.signup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.signup-hint {
+  margin: 0 0 0.5rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.signup-actions:empty {
+  display: none;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--border);
+}
+
+button.secondary:hover {
+  border-color: var(--accent);
+  filter: none;
+}
+
+.name-list li.mine > span {
+  font-weight: 600;
 }
 
 .add-block {

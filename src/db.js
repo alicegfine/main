@@ -48,9 +48,13 @@ db.exec(`
   );
 `);
 
+// The page was called "How it works" before it was called "The spiel"; carry any
+// text already written across to the new slug.
+db.prepare(`UPDATE pages SET slug = 'the-spiel' WHERE slug = 'how-it-works'`).run();
+
 db.prepare(
   `INSERT INTO pages (slug, body, updated_at)
-   VALUES ('how-it-works', ?, datetime('now'))
+   VALUES ('the-spiel', ?, datetime('now'))
    ON CONFLICT(slug) DO NOTHING`,
 ).run(DEFAULT_PAGE_BODY);
 
@@ -70,6 +74,7 @@ const statements = {
     `INSERT INTO signups (block_id, name, role, created_at)
      VALUES (@blockId, @name, @role, datetime('now'))`,
   ),
+  signupById: db.prepare('SELECT * FROM signups WHERE id = ?'),
   deleteSignup: db.prepare('DELETE FROM signups WHERE id = ?'),
   duplicateSignup: db.prepare(
     `SELECT id FROM signups
@@ -127,6 +132,10 @@ export function createSignup({ blockId, name, role }) {
   }
   statements.insertSignup.run({ blockId, name, role });
   return { ok: true };
+}
+
+export function getSignup(id) {
+  return statements.signupById.get(id);
 }
 
 export function deleteSignup(id) {
