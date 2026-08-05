@@ -361,6 +361,81 @@ button:hover {
   font-size: 0.8rem;
 }
 
+/* The two link buttons --------------------------------------------------- */
+
+.cta-block {
+  margin: 0 0 2.5rem;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.cta {
+  display: inline-block;
+  padding: 0.6rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 1rem;
+  text-decoration: none;
+}
+
+.cta:hover {
+  filter: brightness(1.06);
+}
+
+/* Shown only to Alice, for a button whose link hasn't been set yet. */
+.cta-unset {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--border);
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.edit-links {
+  margin-top: 0.85rem;
+}
+
+.edit-links > summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  width: fit-content;
+}
+
+.edit-links > summary:hover {
+  color: var(--ink);
+}
+
+.links-form {
+  display: grid;
+  gap: 0.85rem;
+  justify-items: start;
+  max-width: 30rem;
+  margin-top: 0.85rem;
+  padding: 1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.links-form .field {
+  width: 100%;
+}
+
+.links-form input {
+  width: 100%;
+}
+
+.links-form .hint {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
 /* Name gate -------------------------------------------------------------- */
 
 .name-gate {

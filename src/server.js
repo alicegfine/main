@@ -18,9 +18,11 @@ import {
   getBlock,
   getBlocksForDay,
   getLeader,
+  getLinks,
   getPage,
   getScheduleByDay,
   getSignup,
+  saveLinks,
   savePage,
   updateBlockTimes,
 } from './db.js';
@@ -39,14 +41,14 @@ import {
   setVisitorName,
   visitorMiddleware,
 } from './visitor.js';
-import { errorPage, notFoundPage, schedulePage, signInPage, spielPage } from './views.js';
+import { errorPage, infoPage, notFoundPage, schedulePage, signInPage } from './views.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 app.set('trust proxy', 1);
 // Comfortably above MAX_PAGE_LENGTH even once the text is URL-encoded, so a long
-// spiel is truncated by an explicit rule rather than rejected by the parser.
+// info page is truncated by an explicit rule rather than rejected by the parser.
 app.use(express.urlencoded({ extended: false, limit: '512kb' }));
 app.use(sessionMiddleware);
 app.use(visitorMiddleware);
@@ -62,6 +64,7 @@ const MESSAGES = {
   'times-changed': 'Session times updated.',
   'not-leader': 'Only the person leading a session can change its times.',
   saved: 'Page saved.',
+  'links-saved': 'Links updated.',
   'saved-after-signin': 'Signed in, and the text you had written is saved.',
   'session-lapsed':
     'You had been signed out, so that save did not go through. Your text is safe — enter the password and it will be saved.',
@@ -87,6 +90,7 @@ app.get('/', (req, res) => {
   res.send(
     schedulePage({
       schedule: getScheduleByDay(DAYS),
+      links: getLinks(),
       isAdmin: req.isAdmin,
       visitorName: req.visitorName,
       notice,
@@ -181,13 +185,44 @@ app.post('/signups/:id/delete', requireVisitor, (req, res) => {
   return res.redirect('/?ok=removed');
 });
 
-/* The spiel — the one part only Alice can change ------------------------- */
+/* The two buttons at the top of the schedule ----------------------------- */
 
-app.get('/the-spiel', (req, res) => {
+// Only http(s) is accepted: these end up in an href, and a javascript: or data:
+// URL there would run when someone clicked the button.
+function cleanUrl(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+app.post('/links', (req, res) => {
+  if (!req.isAdmin) return res.redirect('/signin');
+
+  const sit = cleanUrl(req.body.sit);
+  const signal = cleanUrl(req.body.signal);
+
+  if (sit === null || signal === null) {
+    return res.redirect(
+      `/?reason=${encodeURIComponent('Links need to start with http:// or https://')}`,
+    );
+  }
+
+  saveLinks({ sit, signal });
+  return res.redirect('/?ok=links-saved');
+});
+
+/* The info page — the one part only Alice can change --------------------- */
+
+app.get('/info', (req, res) => {
   const { notice, error } = messagesFrom(req);
   res.send(
-    spielPage({
-      page: getPage('the-spiel'),
+    infoPage({
+      page: getPage('info'),
       isAdmin: req.isAdmin,
       visitorName: req.visitorName,
       editing: req.isAdmin && req.query.edit === '1',
@@ -201,7 +236,7 @@ app.get('/the-spiel', (req, res) => {
 // which a restart or a redeploy can do while the page sits open — redirecting to
 // the password form would throw away everything typed. Instead the text is
 // carried into that form and saved as soon as the password is accepted.
-app.post('/the-spiel', (req, res) => {
+app.post('/info', (req, res) => {
   const body = String(req.body.body ?? '').slice(0, MAX_PAGE_LENGTH);
 
   if (!req.isAdmin) {
@@ -216,20 +251,21 @@ app.post('/the-spiel', (req, res) => {
 
   if (!body.trim()) {
     return res.redirect(
-      `/the-spiel?edit=1&reason=${encodeURIComponent('The page cannot be empty.')}`,
+      `/info?edit=1&reason=${encodeURIComponent('The page cannot be empty.')}`,
     );
   }
-  savePage('the-spiel', body);
-  return res.redirect('/the-spiel?ok=saved');
+  savePage('info', body);
+  return res.redirect('/info?ok=saved');
 });
 
-// The page used to live here.
-app.get('/how-it-works', (req, res) => res.redirect(301, '/the-spiel'));
+// The page has lived at both of these before.
+app.get('/how-it-works', (req, res) => res.redirect(301, '/info'));
+app.get('/the-spiel', (req, res) => res.redirect(301, '/info'));
 
 /* Alice's sign-in --------------------------------------------------------- */
 
 app.get('/signin', (req, res) => {
-  if (req.isAdmin) return res.redirect('/the-spiel');
+  if (req.isAdmin) return res.redirect('/info');
   const { error } = messagesFrom(req);
   return res.send(signInPage({ error, visitorName: req.visitorName }));
 });
@@ -254,16 +290,16 @@ app.post('/signin', (req, res) => {
   issueSession(res);
 
   if (resumeBody.trim()) {
-    savePage('the-spiel', resumeBody);
-    return res.redirect('/the-spiel?ok=saved-after-signin');
+    savePage('info', resumeBody);
+    return res.redirect('/info?ok=saved-after-signin');
   }
-  return res.redirect('/the-spiel?edit=1');
+  return res.redirect('/info?edit=1');
 });
 
 // Give up editing rights without also forgetting your name.
 app.post('/admin/lock', (req, res) => {
   clearSession(res);
-  res.redirect('/the-spiel?ok=locked');
+  res.redirect('/info?ok=locked');
 });
 
 app.use((req, res) => {

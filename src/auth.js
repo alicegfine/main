@@ -1,4 +1,4 @@
-// Sign-in for Alice, which unlocks editing the spiel.
+// Sign-in for Alice, which unlocks editing the info page and the link buttons.
 //
 // This is a single shared password checked against ADMIN_PASSWORD, held in a
 // signed cookie. It is the only locked part of the site: the schedule is open to
@@ -16,7 +16,7 @@ export const ADMIN_USERNAME = 'Alice';
 const password = process.env.ADMIN_PASSWORD || '';
 
 // Without a stable secret, every restart invalidates the signed-in session — and
-// a restart in the middle of editing the spiel would reject the save. So when no
+// a restart in the middle of editing the info page would reject the save. So when no
 // SESSION_SECRET is configured, generate one once and keep it in the database
 // rather than in memory.
 let secret = process.env.SESSION_SECRET || '';

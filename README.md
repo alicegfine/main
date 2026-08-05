@@ -5,7 +5,9 @@ A small site for the retreat running Friday 7 – Monday 10 August 2026.
 - **Schedule** (`/`) — the sessions for each of the four days. Everyone puts in a
   name once, and can then add sessions, sign up to attend them, or offer to lead
   them. The roster is public.
-- **The spiel** (`/the-spiel`) — a page of text that only Alice can edit.
+- **Info** (`/info`) — a page of text that only Alice can edit.
+- Two buttons at the top of the schedule, *Join the current sit* and *Join the
+  Signal group*, whose links Alice can change from that page.
 
 The whole site is readable without giving a name or signing in. There are two
 separate ideas of who you are, and it's worth keeping them apart:
@@ -13,15 +15,17 @@ separate ideas of who you are, and it's worth keeping them apart:
 | | What it is | What it unlocks |
 | --- | --- | --- |
 | **Your name** | A name in a cookie. No password, no account. | Adding sessions and signing up for them — everything on the schedule. |
-| **The password** | A shared password (`ADMIN_PASSWORD`). | Editing the spiel, and removing other people's names. |
+| **The password** | A shared password (`ADMIN_PASSWORD`). | Editing the info page and the two link buttons, and removing other people's names. |
 
-The spiel is the only locked part. The schedule is deliberately open: anyone who
-has given a name can add or delete a session there.
+The info page and the two links are the only locked parts. The schedule is
+deliberately open: anyone who has given a name can add or delete a session there.
 
-**To edit the spiel:** open the spiel page and click *Edit this page*. If you
-aren't unlocked yet it asks for the password first, then drops you straight into
-the editor. *Lock editing* on that page gives up editing rights while keeping
-your name; *Sign out* in the header clears both.
+**To edit the info page:** open it and click *Edit this page*. If you aren't
+unlocked yet it asks for the password first, then drops you straight into the
+editor. *Lock editing* on that page gives up editing rights while keeping
+your name; *Sign out* in the header clears both. The two link buttons are edited
+from *Edit these links* at the top of the schedule, which appears once signed in;
+emptying a field hides that button.
 
 If the editing session lapses while the page is open — which a restart or a
 redeploy will do — saving does not discard what you wrote. The text is carried
@@ -44,8 +48,8 @@ day is a delete and a re-add.
 > **The volume in step 3 is not optional.** Railway rebuilds the filesystem on
 > every deploy *and* every container restart. Without a volume, the SQLite file is
 > destroyed and recreated empty each time — the schedule comes back with no
-> sessions and the spiel reverts to its placeholder text, with no error anywhere.
-> If sessions or spiel text keep disappearing, this is why.
+> sessions and the info page reverts to its placeholder text, with no error
+> anywhere. If sessions or info text keep disappearing, this is why.
 
 1. **Create the service.** In Railway, *New Project → Deploy from GitHub repo*,
    and pick this repository. Railway detects Node from `package.json`, runs
@@ -124,7 +128,7 @@ its signups.
 
 **Sign-in is a shared password, not real accounts.** It compares what you type
 against `ADMIN_PASSWORD` and stores the result in a signed, HTTP-only cookie for
-30 days. It's enough to keep the spiel from being rewritten by a passer-by. It is
+30 days. It's enough to keep the info page from being rewritten by a passer-by. It is
 not account security, so don't put anything sensitive behind it, and don't reuse
 a password you use elsewhere.
 
@@ -160,6 +164,6 @@ src/cookies.js    cookie header parsing, shared by the two above
 src/assets.js     content-hashed stylesheet URL
 src/views.js      HTML
 src/retreat.js    the four days, time parsing and formatting, block validation
-src/markdown.js   the small Markdown subset used by the spiel
+src/markdown.js   the small Markdown subset used by the info page
 public/styles.css styling
 ```

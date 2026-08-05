@@ -3,7 +3,7 @@
 // This is just a name in a cookie, not an account and not a password. It exists
 // so that signing up is one click instead of retyping your name each time, and so
 // that the site knows which entries on the schedule are yours. It is separate
-// from Alice's sign-in, which is what unlocks editing the spiel.
+// from Alice's sign-in, which is what unlocks editing the info page.
 
 import { MAX_NAME_LENGTH } from './retreat.js';
 import { parseCookies } from './cookies.js';
@@ -42,8 +42,7 @@ export function visitorMiddleware(req, res, next) {
 // Anything that writes to the schedule needs a name attached to it.
 export function requireVisitor(req, res, next) {
   if (req.visitorName) return next();
-  const back = req.body?.return_to === 'spiel' ? '/the-spiel' : '/';
-  return res.redirect(`${back}?error=name-required`);
+  return res.redirect('/?error=name-required');
 }
 
 export function isSamePerson(a, b) {

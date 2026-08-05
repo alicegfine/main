@@ -1,4 +1,4 @@
-// A deliberately tiny subset of Markdown for the spiel page, so that
+// A deliberately tiny subset of Markdown for the info page, so that
 // Alice can write headings, lists, links and emphasis without the site depending
 // on a Markdown library. Everything is HTML-escaped before any formatting is
 // applied, so the page cannot inject markup.

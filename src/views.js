@@ -12,7 +12,7 @@ import { isSamePerson } from './visitor.js';
 import { stylesHref } from './assets.js';
 
 const SITE_TITLE = 'Jhana Noting Retreat — August 2026';
-const SPIEL_TITLE = 'The spiel';
+const INFO_TITLE = 'Info';
 
 function layout({ title, activeNav, isAdmin, visitorName, notice, error, body }) {
   return `<!doctype html>
@@ -28,7 +28,7 @@ function layout({ title, activeNav, isAdmin, visitorName, notice, error, body })
     <a class="wordmark" href="/">${escapeHtml(SITE_TITLE)}</a>
     <nav>
       <a href="/"${activeNav === 'schedule' ? ' aria-current="page"' : ''}>Schedule</a>
-      <a href="/the-spiel"${activeNav === 'spiel' ? ' aria-current="page"' : ''}>${escapeHtml(SPIEL_TITLE)}</a>
+      <a href="/info"${activeNav === 'info' ? ' aria-current="page"' : ''}>${escapeHtml(INFO_TITLE)}</a>
       ${
         visitorName
           ? `<form method="post" action="/signout" class="inline-form">
@@ -82,6 +82,54 @@ function namePrompt() {
       <button type="submit">Continue</button>
     </form>
   </section>`;
+}
+
+// The sit link changes from session to session, so both are stored and editable
+// rather than baked into the page. A button with nowhere to go is worse than no
+// button, so an unset link is hidden from guests and only prompts Alice.
+function linkButtons({ links, isAdmin }) {
+  const BUTTONS = [
+    { key: 'sit', label: 'Join the current sit' },
+    { key: 'signal', label: 'Join the Signal group' },
+  ];
+
+  const rendered = BUTTONS.map(({ key, label }) => {
+    const href = links[key];
+    if (href) {
+      return `<a class="cta" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+    }
+    return isAdmin
+      ? `<span class="cta cta-unset">${escapeHtml(label)} — no link set</span>`
+      : '';
+  })
+    .filter(Boolean)
+    .join('');
+
+  const editor = isAdmin
+    ? `<details class="edit-links">
+         <summary>Edit these links</summary>
+         <form method="post" action="/links" class="links-form">
+           <div class="field">
+             <label for="sit-url">Join the current sit</label>
+             <input id="sit-url" name="sit" type="url" inputmode="url"
+               placeholder="https://…" value="${escapeHtml(links.sit)}" />
+           </div>
+           <div class="field">
+             <label for="signal-url">Join the Signal group</label>
+             <input id="signal-url" name="signal" type="url" inputmode="url"
+               placeholder="https://signal.group/…" value="${escapeHtml(links.signal)}" />
+           </div>
+           <button type="submit">Save links</button>
+           <p class="hint">Leave a field empty to hide that button.</p>
+         </form>
+       </details>`
+    : '';
+
+  if (!rendered && !editor) return '';
+  return `<div class="cta-block">
+    ${rendered ? `<div class="cta-row">${rendered}</div>` : ''}
+    ${editor}
+  </div>`;
 }
 
 function nameList(signups, { visitorName, isAdmin }) {
@@ -234,7 +282,7 @@ function dayCount(day) {
   return n === 1 ? '1 session' : `${n} sessions`;
 }
 
-export function schedulePage({ schedule, isAdmin, visitorName, notice, error }) {
+export function schedulePage({ schedule, links, isAdmin, visitorName, notice, error }) {
   const ctx = { isAdmin, visitorName };
 
   const days = schedule
@@ -258,6 +306,7 @@ export function schedulePage({ schedule, isAdmin, visitorName, notice, error }) 
 
   const body = `<h1>Schedule</h1>
     <p class="timezone-note">All times Eastern</p>
+    ${linkButtons({ links, isAdmin })}
     ${visitorName ? '' : namePrompt()}
     ${days}`;
 
@@ -272,12 +321,12 @@ export function schedulePage({ schedule, isAdmin, visitorName, notice, error }) 
   });
 }
 
-export function spielPage({ page, isAdmin, visitorName, editing, notice, error }) {
+export function infoPage({ page, isAdmin, visitorName, editing, notice, error }) {
   let body;
 
   if (editing) {
-    body = `<h1>${escapeHtml(SPIEL_TITLE)}</h1>
-      <form method="post" action="/the-spiel" class="page-editor">
+    body = `<h1>${escapeHtml(INFO_TITLE)}</h1>
+      <form method="post" action="/info" class="page-editor">
         <label for="page-body">Page text</label>
         <p class="hint">Blank lines separate paragraphs. <code>##</code> starts a heading,
           <code>-</code> starts a list item, <code>**bold**</code> and <code>*italic*</code> work,
@@ -285,7 +334,7 @@ export function spielPage({ page, isAdmin, visitorName, editing, notice, error }
         <textarea id="page-body" name="body" rows="24" required>${escapeHtml(page.body)}</textarea>
         <div class="editor-actions">
           <button type="submit">Save changes</button>
-          <a href="/the-spiel" class="link-button">Cancel</a>
+          <a href="/info" class="link-button">Cancel</a>
         </div>
       </form>`;
   } else {
@@ -293,7 +342,7 @@ export function spielPage({ page, isAdmin, visitorName, editing, notice, error }
     // the only thing Alice's password unlocks.
     const editControl = isAdmin
       ? `<div class="page-actions">
-           <a class="link-button" href="/the-spiel?edit=1">Edit this page</a>
+           <a class="link-button" href="/info?edit=1">Edit this page</a>
            <form method="post" action="/admin/lock" class="inline-form">
              <button type="submit" class="link-button subtle">lock editing</button>
            </form>
@@ -303,15 +352,15 @@ export function spielPage({ page, isAdmin, visitorName, editing, notice, error }
         : '';
 
     body = `<div class="page-head">
-        <h1>${escapeHtml(SPIEL_TITLE)}</h1>
+        <h1>${escapeHtml(INFO_TITLE)}</h1>
         ${editControl}
       </div>
       <div class="prose">${renderMarkdown(page.body)}</div>`;
   }
 
   return layout({
-    title: SPIEL_TITLE,
-    activeNav: 'spiel',
+    title: INFO_TITLE,
+    activeNav: 'info',
     isAdmin,
     visitorName,
     notice,
@@ -328,7 +377,7 @@ export function signInPage({ error, visitorName, resumeBody = '' }) {
     : '';
 
   const body = signInEnabled
-    ? `<h1>Edit the spiel</h1>
+    ? `<h1>Edit the info page</h1>
        ${
          resumeBody
            ? `<p class="lede">Your ${resumeBody.length.toLocaleString()} characters of text are
@@ -349,13 +398,13 @@ export function signInPage({ error, visitorName, resumeBody = '' }) {
          </div>
          <button type="submit">Unlock editing</button>
        </form>`
-    : `<h1>Edit the spiel</h1>
+    : `<h1>Edit the info page</h1>
        <p class="lede">No password is configured on this deployment, so the
-         ${escapeHtml(SPIEL_TITLE.toLowerCase())} cannot be edited. Set an
+         ${escapeHtml(INFO_TITLE.toLowerCase())} cannot be edited. Set an
          <code>ADMIN_PASSWORD</code> variable on the server to enable it.</p>`;
 
   return layout({
-    title: 'Edit the spiel',
+    title: 'Edit the info page',
     activeNav: null,
     isAdmin: false,
     visitorName,

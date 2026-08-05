@@ -34,25 +34,19 @@ export let storageStatus = null; // { level: 'error' | 'info', message }
 console.log(`Database file: ${path.resolve(dbPath)}`);
 
 if (!path.isAbsolute(dataDir)) {
-  // A relative DATA_DIR resolves against the working directory, which on a
-  // container host is the deployed code — not a mounted volume. This is wrong
-  // whether or not the file happens to exist right now, so it is checked first.
+  // A relative path — whether set explicitly or left to default — resolves against
+  // the working directory, which on a container host is the deployed code rather
+  // than a mounted volume. That is wrong regardless of whether the file happens to
+  // exist at this moment, so it is checked before anything else.
+  const how = process.env.DATA_DIR
+    ? `DATA_DIR is "${dataDir}", a relative path`
+    : `DATA_DIR is not set and falls back to the relative "${dataDir}"`;
   storageStatus = {
     level: 'error',
     message:
-      `DATA_DIR is "${dataDir}", a relative path, so data is being written to ` +
-      `${path.resolve(dataDir)} inside the app directory rather than to your mounted ` +
-      `volume. Every deploy and restart discards it. Set DATA_DIR to the volume's ` +
-      `mount path as an absolute path, such as /data.`,
-  };
-} else if (!process.env.DATA_DIR) {
-  storageStatus = {
-    level: 'error',
-    message:
-      `DATA_DIR is not set, so the schedule is being stored at ${path.resolve(dbPath)}, ` +
-      `beside the code. On Railway that filesystem is rebuilt on every deploy and ` +
-      `restart, so sessions and the spiel will keep vanishing. Attach a volume, then ` +
-      `set DATA_DIR to its mount path.`,
+      `${how}, so data is being written to ${path.resolve(dataDir)} inside the app ` +
+      `directory rather than to a mounted volume. Every deploy and restart discards ` +
+      `it. Set DATA_DIR to the volume's mount path as an absolute path, such as /data.`,
   };
 } else if (!existedBefore) {
   storageStatus = {
@@ -104,8 +98,6 @@ db.exec(`
   );
 `);
 
-// The page was called "How it works" before it was called "The spiel"; carry any
-// text already written across to the new slug.
 // Counting boots against this database is the one honest test of whether the
 // volume persists: after a few redeploys it should be climbing. If every deploy
 // logs boot 1, the store is being thrown away each time.
@@ -124,11 +116,14 @@ console.log(
     : `This is boot ${bootCount} against a brand new database.`,
 );
 
+// The page has been renamed twice — "How it works", then "The spiel", now "Info".
+// Applying both steps in order carries across text written under either old name.
 db.prepare(`UPDATE pages SET slug = 'the-spiel' WHERE slug = 'how-it-works'`).run();
+db.prepare(`UPDATE pages SET slug = 'info' WHERE slug = 'the-spiel'`).run();
 
 db.prepare(
   `INSERT INTO pages (slug, body, updated_at)
-   VALUES ('the-spiel', ?, datetime('now'))
+   VALUES ('info', ?, datetime('now'))
    ON CONFLICT(slug) DO NOTHING`,
 ).run(DEFAULT_PAGE_BODY);
 
@@ -253,6 +248,20 @@ export function deleteSignup(id) {
 
 export function getSetting(key) {
   return statements.getSetting.get(key)?.value ?? null;
+}
+
+// The two buttons at the top of the schedule. The sit link in particular changes
+// often, so both are stored rather than hard-coded.
+export function getLinks() {
+  return {
+    sit: getSetting('link_sit_url') ?? '',
+    signal: getSetting('link_signal_url') ?? '',
+  };
+}
+
+export function saveLinks({ sit, signal }) {
+  putSetting('link_sit_url', sit);
+  putSetting('link_signal_url', signal);
 }
 
 export function putSetting(key, value) {
