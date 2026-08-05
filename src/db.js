@@ -26,10 +26,22 @@ const existedBefore = fs.existsSync(dbPath);
 // startup and surface it in the UI for whoever can fix it.
 export let storageAlert = null;
 
-if (existedBefore) {
-  console.log(`Opened existing database at ${dbPath}`);
+console.log(`Database file: ${path.resolve(dbPath)}`);
+
+if (!path.isAbsolute(dataDir)) {
+  // A relative DATA_DIR resolves against the working directory, which on a
+  // container host is the deployed code — not a mounted volume. This is wrong
+  // whether or not the file happens to exist right now, so it is checked first.
+  storageAlert =
+    `DATA_DIR is "${dataDir}", a relative path, so data is being written to ` +
+    `${path.resolve(dataDir)} inside the app directory rather than to your mounted ` +
+    `volume. Every deploy and restart discards it. Set DATA_DIR to the volume's ` +
+    `mount path as an absolute path, such as /data.`;
+  console.warn(storageAlert);
+} else if (existedBefore) {
+  console.log('Opened an existing database.');
 } else if (!process.env.DATA_DIR) {
-  storageAlert = `DATA_DIR is not set, so the schedule is being stored at ${dbPath}, beside the code. On Railway that filesystem is rebuilt on every deploy and restart, so sessions and the spiel will keep vanishing. Attach a volume, then set DATA_DIR to its mount path.`;
+  storageAlert = `DATA_DIR is not set, so the schedule is being stored at ${path.resolve(dbPath)}, beside the code. On Railway that filesystem is rebuilt on every deploy and restart, so sessions and the spiel will keep vanishing. Attach a volume, then set DATA_DIR to its mount path.`;
   console.warn(storageAlert);
 } else {
   storageAlert = `Started with an empty database at ${dbPath}. If there should have been data here, the volume mounted at ${dataDir} is not persisting between restarts.`;

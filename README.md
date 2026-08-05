@@ -69,7 +69,7 @@ day is a delete and a re-add.
    | --- | --- |
    | `ADMIN_PASSWORD` | The password you'll type to sign in as Alice. |
    | `SESSION_SECRET` | A long random string. Generate one with `openssl rand -hex 32`. |
-   | `DATA_DIR` | `/data` — must match the volume mount path from step 3. |
+   | `DATA_DIR` | The volume's mount path from step 3, as an **absolute** path — `/data`, not `./data`. A relative value resolves inside the app directory instead of the volume, leaving the volume unused and the data discarded on every deploy. |
    | `NODE_ENV` | `production` — makes the session cookie HTTPS-only. |
 
 5. **Generate a domain.** *Settings → Networking → Generate Domain* gives you a
@@ -83,11 +83,13 @@ nothing can be edited. If `SESSION_SECRET` is missing, one is generated and kept
 in the database, so sign-ins survive restarts — but only for as long as the
 database does, which is another reason to attach the volume.
 
-**Checking storage is actually working.** The logs say which case you are in on
-every boot: `Opened existing database at …` is healthy, and `Created a NEW empty
-database` or `Started with an empty database` means the previous data is gone. In
-that state the site also shows a warning banner, visible only when signed in as
-Alice, since it is a deployment problem rather than anything a guest can act on.
+**Checking storage is actually working.** Every boot logs the absolute path of the
+database file, followed by either `Opened an existing database.` — healthy — or a
+warning explaining what is wrong. A relative `DATA_DIR` is called out on every
+boot regardless of whether the file happens to exist, because it means the volume
+is not being used at all. Whenever there is a warning, the site also shows it as a
+banner to Alice when signed in, since it is a deployment problem rather than
+anything a guest can act on.
 
 ## Running locally
 
