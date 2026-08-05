@@ -7,6 +7,7 @@ import {
 } from './retreat.js';
 import { escapeHtml, renderMarkdown } from './markdown.js';
 import { ADMIN_USERNAME, signInEnabled } from './auth.js';
+import { storageAlert } from './db.js';
 import { isSamePerson } from './visitor.js';
 import { stylesHref } from './assets.js';
 
@@ -40,6 +41,13 @@ function layout({ title, activeNav, isAdmin, visitorName, notice, error, body })
   </header>
 
   <main>
+    ${
+      // Only Alice sees this: it is a deployment problem, not something a guest
+      // signing up for a session can act on.
+      isAdmin && storageAlert
+        ? `<p class="banner banner-error" role="alert"><strong>Data is not being kept.</strong> ${escapeHtml(storageAlert)}</p>`
+        : ''
+    }
     ${error ? `<p class="banner banner-error" role="alert">${escapeHtml(error)}</p>` : ''}
     ${notice ? `<p class="banner banner-notice">${escapeHtml(notice)}</p>` : ''}
     ${body}
@@ -310,10 +318,23 @@ export function spielPage({ page, isAdmin, visitorName, editing, notice, error }
   });
 }
 
-export function signInPage({ error, visitorName }) {
+export function signInPage({ error, visitorName, resumeBody = '' }) {
+  // When a save was rejected because the session had lapsed, the text rides along
+  // in this form so that accepting the password saves it immediately.
+  const carried = resumeBody
+    ? `<input type="hidden" name="body" value="${escapeHtml(resumeBody)}" />`
+    : '';
+
   const body = signInEnabled
     ? `<h1>Edit the spiel</h1>
+       ${
+         resumeBody
+           ? `<p class="lede">Your ${resumeBody.length.toLocaleString()} characters of text are
+                held in this form and will be saved as soon as the password is accepted.</p>`
+           : ''
+       }
        <form method="post" action="/signin" class="signin-form">
+         ${carried}
          <div class="field">
            <label for="username">Name</label>
            <input id="username" name="username" type="text" autocomplete="username"
@@ -339,6 +360,13 @@ export function signInPage({ error, visitorName }) {
     error,
     body,
   });
+}
+
+export function errorPage({ visitorName, message } = {}) {
+  const body = `<h1>That didn't work</h1>
+    <p class="lede">${escapeHtml(message ?? 'Something went wrong.')}</p>
+    <p><a href="/">Back to the schedule</a></p>`;
+  return layout({ title: 'Error', activeNav: null, isAdmin: false, visitorName, body });
 }
 
 export function notFoundPage({ visitorName } = {}) {

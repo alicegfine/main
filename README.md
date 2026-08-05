@@ -23,6 +23,11 @@ aren't unlocked yet it asks for the password first, then drops you straight into
 the editor. *Lock editing* on that page gives up editing rights while keeping
 your name; *Sign out* in the header clears both.
 
+If the editing session lapses while the page is open — which a restart or a
+redeploy will do — saving does not discard what you wrote. The text is carried
+into the password form and written as soon as the password is accepted, and a
+wrong password keeps it too.
+
 **One role per person per session.** A session has at most one leader, so the
 *I'll lead this* button disappears once anyone is leading it, and whoever is
 leading doesn't get an *I'll attend* button. Offering to lead a session you were
@@ -35,6 +40,12 @@ day itself can't be changed this way, so a session that needs to move to another
 day is a delete and a re-add.
 
 ## Deploying to Railway
+
+> **The volume in step 3 is not optional.** Railway rebuilds the filesystem on
+> every deploy *and* every container restart. Without a volume, the SQLite file is
+> destroyed and recreated empty each time — the schedule comes back with no
+> sessions and the spiel reverts to its placeholder text, with no error anywhere.
+> If sessions or spiel text keep disappearing, this is why.
 
 1. **Create the service.** In Railway, *New Project → Deploy from GitHub repo*,
    and pick this repository. Railway detects Node from `package.json`, runs
@@ -68,8 +79,15 @@ day is a delete and a re-add.
    add the sessions for each day.
 
 If `ADMIN_PASSWORD` is missing the site still runs, but sign-in is disabled and
-nothing can be edited. If `SESSION_SECRET` is missing a temporary one is
-generated at each startup, which signs you out on every restart and redeploy.
+nothing can be edited. If `SESSION_SECRET` is missing, one is generated and kept
+in the database, so sign-ins survive restarts — but only for as long as the
+database does, which is another reason to attach the volume.
+
+**Checking storage is actually working.** The logs say which case you are in on
+every boot: `Opened existing database at …` is healthy, and `Created a NEW empty
+database` or `Started with an empty database` means the previous data is gone. In
+that state the site also shows a warning banner, visible only when signed in as
+Alice, since it is a deployment problem rather than anything a guest can act on.
 
 ## Running locally
 

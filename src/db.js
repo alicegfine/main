@@ -18,7 +18,25 @@ const DEFAULT_PAGE_BODY = [
 const dataDir = process.env.DATA_DIR || './data';
 fs.mkdirSync(dataDir, { recursive: true });
 
-const db = new Database(path.join(dataDir, 'retreat.db'));
+const dbPath = path.join(dataDir, 'retreat.db');
+const existedBefore = fs.existsSync(dbPath);
+
+// Losing the database is otherwise silent from the outside — the site just comes
+// back with an empty schedule and its placeholder text — so both say so at
+// startup and surface it in the UI for whoever can fix it.
+export let storageAlert = null;
+
+if (existedBefore) {
+  console.log(`Opened existing database at ${dbPath}`);
+} else if (!process.env.DATA_DIR) {
+  storageAlert = `DATA_DIR is not set, so the schedule is being stored at ${dbPath}, beside the code. On Railway that filesystem is rebuilt on every deploy and restart, so sessions and the spiel will keep vanishing. Attach a volume, then set DATA_DIR to its mount path.`;
+  console.warn(storageAlert);
+} else {
+  storageAlert = `Started with an empty database at ${dbPath}. If there should have been data here, the volume mounted at ${dataDir} is not persisting between restarts.`;
+  console.warn(storageAlert);
+}
+
+const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
@@ -45,6 +63,11 @@ db.exec(`
     slug TEXT PRIMARY KEY,
     body TEXT NOT NULL,
     updated_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
   );
 `);
 
@@ -87,6 +110,11 @@ const statements = {
   deleteRoleFor: db.prepare(
     `DELETE FROM signups
      WHERE block_id = ? AND role = ? AND lower(name) = lower(?)`,
+  ),
+  getSetting: db.prepare('SELECT value FROM settings WHERE key = ?'),
+  putSetting: db.prepare(
+    `INSERT INTO settings (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
   ),
   getPage: db.prepare('SELECT body, updated_at FROM pages WHERE slug = ?'),
   updatePage: db.prepare(
@@ -170,6 +198,14 @@ export function getSignup(id) {
 
 export function deleteSignup(id) {
   return statements.deleteSignup.run(id);
+}
+
+export function getSetting(key) {
+  return statements.getSetting.get(key)?.value ?? null;
+}
+
+export function putSetting(key, value) {
+  return statements.putSetting.run(key, value);
 }
 
 export function getPage(slug) {

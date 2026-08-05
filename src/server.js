@@ -2,7 +2,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 
-import { DAYS, ROLES, formatRange, parseTime, validateBlock } from './retreat.js';
+import {
+  DAYS,
+  MAX_PAGE_LENGTH,
+  ROLES,
+  formatRange,
+  parseTime,
+  validateBlock,
+} from './retreat.js';
 import {
   createBlock,
   createSignup,
@@ -21,7 +28,6 @@ import {
   checkCredentials,
   clearSession,
   issueSession,
-  requireAdmin,
   sessionMiddleware,
   signInEnabled,
 } from './auth.js';
@@ -33,13 +39,15 @@ import {
   setVisitorName,
   visitorMiddleware,
 } from './visitor.js';
-import { notFoundPage, schedulePage, signInPage, spielPage } from './views.js';
+import { errorPage, notFoundPage, schedulePage, signInPage, spielPage } from './views.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(express.urlencoded({ extended: false, limit: '64kb' }));
+// Comfortably above MAX_PAGE_LENGTH even once the text is URL-encoded, so a long
+// spiel is truncated by an explicit rule rather than rejected by the parser.
+app.use(express.urlencoded({ extended: false, limit: '512kb' }));
 app.use(sessionMiddleware);
 app.use(visitorMiddleware);
 app.use(express.static(path.join(here, '..', 'public'), { maxAge: '1h' }));
@@ -54,6 +62,9 @@ const MESSAGES = {
   'times-changed': 'Session times updated.',
   'not-leader': 'Only the person leading a session can change its times.',
   saved: 'Page saved.',
+  'saved-after-signin': 'Signed in, and the text you had written is saved.',
+  'session-lapsed':
+    'You had been signed out, so that save did not go through. Your text is safe — enter the password and it will be saved.',
   'signed-out': 'Signed out.',
   'name-set': 'Thanks — you can sign up for sessions now.',
   locked: 'Editing locked again.',
@@ -186,8 +197,23 @@ app.get('/the-spiel', (req, res) => {
   );
 });
 
-app.post('/the-spiel', requireAdmin, (req, res) => {
-  const body = String(req.body.body ?? '').slice(0, 50_000);
+// Deliberately not behind requireAdmin: if the editing session has lapsed —
+// which a restart or a redeploy can do while the page sits open — redirecting to
+// the password form would throw away everything typed. Instead the text is
+// carried into that form and saved as soon as the password is accepted.
+app.post('/the-spiel', (req, res) => {
+  const body = String(req.body.body ?? '').slice(0, MAX_PAGE_LENGTH);
+
+  if (!req.isAdmin) {
+    return res.status(200).send(
+      signInPage({
+        visitorName: req.visitorName,
+        resumeBody: body,
+        error: MESSAGES['session-lapsed'],
+      }),
+    );
+  }
+
   if (!body.trim()) {
     return res.redirect(
       `/the-spiel?edit=1&reason=${encodeURIComponent('The page cannot be empty.')}`,
@@ -210,10 +236,27 @@ app.get('/signin', (req, res) => {
 
 app.post('/signin', (req, res) => {
   if (!signInEnabled) return res.redirect('/signin');
+
+  // Text carried over from a save that was rejected because the session lapsed.
+  const resumeBody = String(req.body.body ?? '').slice(0, MAX_PAGE_LENGTH);
+
   if (!checkCredentials(req.body.username, req.body.password)) {
-    return res.redirect('/signin?error=bad-password');
+    // Re-render rather than redirect, so a wrong password doesn't lose the text.
+    return res.status(200).send(
+      signInPage({
+        visitorName: req.visitorName,
+        resumeBody,
+        error: MESSAGES['bad-password'],
+      }),
+    );
   }
+
   issueSession(res);
+
+  if (resumeBody.trim()) {
+    savePage('the-spiel', resumeBody);
+    return res.redirect('/the-spiel?ok=saved-after-signin');
+  }
   return res.redirect('/the-spiel?edit=1');
 });
 
@@ -225,6 +268,20 @@ app.post('/admin/lock', (req, res) => {
 
 app.use((req, res) => {
   res.status(404).send(notFoundPage({ visitorName: req.visitorName }));
+});
+
+// A failed write should say so rather than showing a blank or a stack trace.
+app.use((err, req, res, _next) => {
+  console.error('Request failed:', err);
+  const tooBig = err.type === 'entity.too.large' || err.status === 413;
+  res.status(tooBig ? 413 : 500).send(
+    errorPage({
+      visitorName: req.visitorName,
+      message: tooBig
+        ? 'That was too much text to send in one go, so nothing was saved. Shorten it and try again.'
+        : 'Something went wrong and your change may not have been saved. Go back and check before retyping it.',
+    }),
+  );
 });
 
 const port = Number(process.env.PORT) || 3000;

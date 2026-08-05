@@ -19,6 +19,9 @@ export const ROLES = ['leading', 'attending'];
 
 export const MAX_NAME_LENGTH = 60;
 
+// Generous enough for any plausible spiel; the request body limit is well above it.
+export const MAX_PAGE_LENGTH = 50_000;
+
 export function isValidDay(date) {
   return DAYS.some((day) => day.date === date);
 }
