@@ -1,0 +1,30 @@
+<%- include('partials/head', { pageTitle: 'FAQ', navActive: 'faq', user, officeName }) %>
+
+<div class="page-head">
+  <div>
+    <h1>Office FAQ</h1>
+    <p class="sub">The things people ask most about the <%= officeName %>.</p>
+  </div>
+</div>
+
+<% if (showPlaceholderNotice) { %>
+  <div class="callout warn">
+    <strong>Some answers still need filling in.</strong>
+    Entries marked <code>[FILL IN]</code> are placeholders &mdash; edit
+    <code>src/faq.js</code> to replace them.
+  </div>
+<% } %>
+
+<% sections.forEach(function (section) { %>
+  <section class="faq-section">
+    <h2><%= section.title %></h2>
+    <% section.items.forEach(function (item) { %>
+      <details class="faq-item">
+        <summary><%= item.q %></summary>
+        <div class="faq-answer"><%- item.a %></div>
+      </details>
+    <% }) %>
+  </section>
+<% }) %>
+
+<%- include('partials/foot', { officeName }) %>
