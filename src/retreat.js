@@ -17,6 +17,25 @@ export const DAY_END_MIN = 24 * 60;
 
 export const ROLES = ['leading', 'attending'];
 
+// Every session is followed by a short debrief. It is derived from the session's
+// end rather than stored, so moving a session carries its debrief along.
+export const DEBRIEF_MINUTES = 10;
+
+export function debriefFor(block) {
+  return { startMin: block.end_min, endMin: block.end_min + DEBRIEF_MINUTES };
+}
+
+// Today's date in the retreat's timezone, as YYYY-MM-DD, so that a day counts as
+// past according to Eastern rather than wherever the server happens to be.
+export function todayInEastern(now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
 export const MAX_NAME_LENGTH = 60;
 
 // Generous enough for any plausible info page; the request body limit is above it.
@@ -53,9 +72,11 @@ export function toTimeValue(minutes) {
 }
 
 export function formatTime(minutes) {
-  if (minutes === DAY_END_MIN) return '12:00 AM';
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
+  // A debrief can run past midnight into the next day, so wrap before formatting
+  // rather than treating hour 24 as the afternoon.
+  const wrapped = ((minutes % 1440) + 1440) % 1440;
+  const hours = Math.floor(wrapped / 60);
+  const mins = wrapped % 60;
   const suffix = hours < 12 ? 'AM' : 'PM';
   const displayHour = hours % 12 === 0 ? 12 : hours % 12;
   return `${displayHour}:${String(mins).padStart(2, '0')} ${suffix}`;

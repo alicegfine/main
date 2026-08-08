@@ -8,6 +8,7 @@ import {
   ROLES,
   formatRange,
   parseTime,
+  todayInEastern,
   validateBlock,
 } from './retreat.js';
 import {
@@ -93,6 +94,7 @@ app.get('/', (req, res) => {
       schedule: getScheduleByDay(DAYS),
       links: getLinks(),
       siteUrl: siteUrlFor(req),
+      today: todayInEastern(),
       isAdmin: req.isAdmin,
       visitorName: req.visitorName,
       notice,

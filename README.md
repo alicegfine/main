@@ -34,6 +34,18 @@ redeploy will do — saving does not discard what you wrote. The text is carried
 into the password form and written as soon as the password is accepted, and a
 wrong password keeps it too.
 
+**Every session is followed by a 10-minute debrief**, shown as a distinct strip
+along the bottom of each session card. It is derived from the session's end time
+rather than stored, so moving a session carries its debrief with it, and it needs
+no signups of its own. Note that session validation does not know about debriefs:
+two sessions scheduled back to back are still allowed, and the first one's debrief
+will overlap the second. Leave a ten-minute gap if that matters.
+
+**Past days start collapsed.** A day earlier than today in Eastern renders
+collapsed and marked *done*, rather than any particular day being hard-coded — so
+Saturday folds away on Sunday without another change. It can still be expanded by
+clicking it.
+
 **One role per person per session.** A session has at most one leader, so the
 *I'll lead this* button disappears once anyone is leading it, and whoever is
 leading doesn't get an *I'll attend* button. Offering to lead a session you were

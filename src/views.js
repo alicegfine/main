@@ -1,6 +1,8 @@
 import {
   DAYS,
+  DEBRIEF_MINUTES,
   MAX_NAME_LENGTH,
+  debriefFor,
   formatRange,
   formatDuration,
   toTimeValue,
@@ -261,6 +263,7 @@ function blockCard(block, ctx) {
   const canDelete = Boolean(ctx.visitorName) || ctx.isAdmin;
   const controls = signupControls(block, ctx);
   const timeEditor = editTimesForm(block, ctx);
+  const debrief = debriefFor(block);
 
   return `<article class="block">
     <div class="block-head">
@@ -289,6 +292,12 @@ function blockCard(block, ctx) {
     </div>
 
     ${controls || timeEditor ? `<div class="signup-bar">${controls}${timeEditor}</div>` : ''}
+
+    <div class="debrief">
+      <span class="debrief-label">Debrief</span>
+      <span class="debrief-time">${escapeHtml(formatRange(debrief.startMin, debrief.endMin))}</span>
+      <span class="debrief-length">${DEBRIEF_MINUTES} min</span>
+    </div>
   </article>`;
 }
 
@@ -314,17 +323,27 @@ function dayCount(day) {
   return n === 1 ? '1 session' : `${n} sessions`;
 }
 
-export function schedulePage({ schedule, links, siteUrl, isAdmin, visitorName, notice, error }) {
+export function schedulePage({
+  schedule,
+  links,
+  siteUrl,
+  today,
+  isAdmin,
+  visitorName,
+  notice,
+  error,
+}) {
   const ctx = { isAdmin, visitorName };
 
   const totalBlocks = schedule.reduce((sum, day) => sum + day.blocks.length, 0);
 
   const days = schedule
-    .map(
-      (day) => `<details class="day" open>
+    .map((day) => {
+      const isPast = day.date < today;
+      return `<details class="day${isPast ? ' day-past' : ''}"${isPast ? '' : ' open'}>
         <summary>
           <h2>${escapeHtml(day.label)}</h2>
-          <span class="day-count">${escapeHtml(dayCount(day))}</span>
+          <span class="day-count">${escapeHtml(isPast ? `${dayCount(day)} · done` : dayCount(day))}</span>
         </summary>
         <div class="day-body">
           ${
@@ -334,8 +353,8 @@ export function schedulePage({ schedule, links, siteUrl, isAdmin, visitorName, n
           }
           ${addBlockForm(day, ctx)}
         </div>
-      </details>`,
-    )
+      </details>`;
+    })
     .join('');
 
   const body = `<h1>Schedule</h1>

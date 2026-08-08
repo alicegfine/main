@@ -5,6 +5,8 @@
 // converted to UTC using the zone's actual offset for that date — which is what
 // keeps this correct across a daylight-saving change rather than only in August.
 
+import { DEBRIEF_MINUTES, debriefFor } from './retreat.js';
+
 const TIME_ZONE = 'America/New_York';
 const CALENDAR_NAME = 'Jhana Noting Retreat — August 2026';
 const UID_DOMAIN = 'jhana-noting-retreat';
@@ -110,6 +112,7 @@ function summaryFor(block) {
 
 function descriptionFor(block, siteUrl) {
   const lines = [
+    `Ends with a ${DEBRIEF_MINUTES}-minute debrief.`,
     block.leading.length ? `Leading: ${block.leading.map((s) => s.name).join(', ')}` : 'No one leading yet',
     block.attending.length
       ? `Attending: ${block.attending.map((s) => s.name).join(', ')}`
@@ -140,7 +143,9 @@ export function buildIcs({ schedule, siteUrl, joinUrl, stamp }) {
         `UID:session-${block.id}@${UID_DOMAIN}`,
         `DTSTAMP:${stamp}`,
         `DTSTART:${utcStampFor(day.date, block.start_min)}`,
-        `DTEND:${utcStampFor(day.date, block.end_min)}`,
+        // The event covers the debrief too, so the time blocked out is the whole
+        // commitment rather than just the sit.
+        `DTEND:${utcStampFor(day.date, debriefFor(block).endMin)}`,
         `SUMMARY:${escapeText(summaryFor(block))}`,
         `DESCRIPTION:${escapeText(descriptionFor(block, siteUrl))}`,
       );

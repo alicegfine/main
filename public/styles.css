@@ -10,6 +10,9 @@
   --error-ink: #8a3324;
   --notice-bg: #eef2ea;
   --notice-ink: #3f5442;
+  --debrief-bg: #f1ece2;
+  --debrief-border: #ded5c6;
+  --debrief-ink: #8a6d3b;
   --radius: 10px;
 }
 
@@ -26,6 +29,9 @@
     --error-ink: #f0b3a6;
     --notice-bg: #26302a;
     --notice-ink: #bdd3c1;
+    --debrief-bg: #2e2a24;
+    --debrief-border: #453e33;
+    --debrief-ink: #d0ad70;
   }
 }
 
@@ -293,6 +299,51 @@ main {
 
 .empty-day {
   color: var(--ink-soft);
+  font-style: italic;
+}
+
+/* The debrief that follows every session. Deliberately reads as a strip attached
+   to the bottom of the card rather than as another session card. */
+
+.debrief {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  margin: 1.25rem -1.25rem -1.25rem;
+  padding: 0.6rem 1.25rem;
+  border-top: 1px solid var(--debrief-border);
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--debrief-bg);
+  font-size: 0.9rem;
+}
+
+.debrief-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--debrief-ink);
+}
+
+.debrief-time {
+  color: var(--ink);
+}
+
+.debrief-length {
+  margin-left: auto;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+/* Days already past ------------------------------------------------------ */
+
+.day-past > summary h2,
+.day-past > summary .day-count {
+  color: var(--ink-soft);
+}
+
+.day-past > summary h2 {
   font-style: italic;
 }
 
