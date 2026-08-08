@@ -5,7 +5,7 @@
 // converted to UTC using the zone's actual offset for that date — which is what
 // keeps this correct across a daylight-saving change rather than only in August.
 
-import { DEBRIEF_MINUTES, debriefFor } from './retreat.js';
+import { DEBRIEF_MINUTES, debriefApplies, debriefFor } from './retreat.js';
 
 const TIME_ZONE = 'America/New_York';
 const CALENDAR_NAME = 'Jhana Noting Retreat — August 2026';
@@ -106,13 +106,14 @@ function foldLine(line) {
 }
 
 function summaryFor(block) {
+  const what = block.title || 'Sit';
   const leader = block.leading[0];
-  return leader ? `Sit — led by ${leader.name}` : 'Sit — no leader yet';
+  return leader ? `${what} — led by ${leader.name}` : `${what} — no leader yet`;
 }
 
-function descriptionFor(block, siteUrl) {
+function descriptionFor(block, siteUrl, hasDebrief) {
   const lines = [
-    `Ends with a ${DEBRIEF_MINUTES}-minute debrief.`,
+    ...(hasDebrief ? [`Ends with a ${DEBRIEF_MINUTES}-minute debrief.`] : []),
     block.leading.length ? `Leading: ${block.leading.map((s) => s.name).join(', ')}` : 'No one leading yet',
     block.attending.length
       ? `Attending: ${block.attending.map((s) => s.name).join(', ')}`
@@ -122,7 +123,10 @@ function descriptionFor(block, siteUrl) {
   return lines.join('\n');
 }
 
-export function buildIcs({ schedule, siteUrl, joinUrl, stamp }) {
+// `include` filters which sessions are emitted, while adjacency is still judged
+// against the full day — otherwise a filtered feed would show a debrief that the
+// full schedule says is displaced by the next session.
+export function buildIcs({ schedule, siteUrl, joinUrl, stamp, include = () => true }) {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -137,7 +141,10 @@ export function buildIcs({ schedule, siteUrl, joinUrl, stamp }) {
   ];
 
   for (const day of schedule) {
-    for (const block of day.blocks) {
+    for (const [index, block] of day.blocks.entries()) {
+      if (!include(block)) continue;
+      const hasDebrief = debriefApplies(block, day.blocks[index + 1]);
+      const endsAt = hasDebrief ? debriefFor(block).endMin : block.end_min;
       lines.push(
         'BEGIN:VEVENT',
         `UID:session-${block.id}@${UID_DOMAIN}`,
@@ -145,9 +152,9 @@ export function buildIcs({ schedule, siteUrl, joinUrl, stamp }) {
         `DTSTART:${utcStampFor(day.date, block.start_min)}`,
         // The event covers the debrief too, so the time blocked out is the whole
         // commitment rather than just the sit.
-        `DTEND:${utcStampFor(day.date, debriefFor(block).endMin)}`,
+        `DTEND:${utcStampFor(day.date, endsAt)}`,
         `SUMMARY:${escapeText(summaryFor(block))}`,
-        `DESCRIPTION:${escapeText(descriptionFor(block, siteUrl))}`,
+        `DESCRIPTION:${escapeText(descriptionFor(block, siteUrl, hasDebrief))}`,
       );
       // The meeting room link doubles as the location, so the calendar entry is
       // clickable straight into the room.

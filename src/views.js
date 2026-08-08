@@ -2,6 +2,8 @@ import {
   DAYS,
   DEBRIEF_MINUTES,
   MAX_NAME_LENGTH,
+  MAX_TITLE_LENGTH,
+  debriefApplies,
   debriefFor,
   formatRange,
   formatDuration,
@@ -249,7 +251,7 @@ function editTimesForm(block, { visitorName, isAdmin }) {
   </details>`;
 }
 
-function blockCard(block, ctx) {
+function blockCard(block, ctx, nextBlock) {
   const leaders =
     block.leading.length > 0
       ? nameList(block.leading, ctx)
@@ -264,10 +266,12 @@ function blockCard(block, ctx) {
   const controls = signupControls(block, ctx);
   const timeEditor = editTimesForm(block, ctx);
   const debrief = debriefFor(block);
+  const showDebrief = debriefApplies(block, nextBlock);
 
-  return `<article class="block">
+  return `<article class="block${block.title ? ' block-labelled' : ''}">
     <div class="block-head">
       <div>
+        ${block.title ? `<p class="block-title">${escapeHtml(block.title)}</p>` : ''}
         <h3>${escapeHtml(formatRange(block.start_min, block.end_min))}</h3>
         <p class="duration">${escapeHtml(formatDuration(block.start_min, block.end_min))}</p>
       </div>
@@ -293,11 +297,15 @@ function blockCard(block, ctx) {
 
     ${controls || timeEditor ? `<div class="signup-bar">${controls}${timeEditor}</div>` : ''}
 
-    <div class="debrief">
-      <span class="debrief-label">Debrief</span>
-      <span class="debrief-time">${escapeHtml(formatRange(debrief.startMin, debrief.endMin))}</span>
-      <span class="debrief-length">${DEBRIEF_MINUTES} min</span>
-    </div>
+    ${
+      showDebrief
+        ? `<div class="debrief">
+             <span class="debrief-label">Debrief</span>
+             <span class="debrief-time">${escapeHtml(formatRange(debrief.startMin, debrief.endMin))}</span>
+             <span class="debrief-length">${DEBRIEF_MINUTES} min</span>
+           </div>`
+        : ''
+    }
   </article>`;
 }
 
@@ -312,6 +320,11 @@ function addBlockForm(day, { visitorName }) {
     <div class="field">
       <label for="end-${day.date}">End</label>
       <input id="end-${day.date}" name="end" type="time" value="09:00" required />
+    </div>
+    <div class="field field-wide">
+      <label for="title-${day.date}">Label (optional)</label>
+      <input id="title-${day.date}" name="title" type="text"
+        maxlength="${MAX_TITLE_LENGTH}" placeholder="Leave empty for a plain sit" />
     </div>
     <button type="submit">Add a session</button>
   </form>`;
@@ -348,7 +361,9 @@ export function schedulePage({
         <div class="day-body">
           ${
             day.blocks.length > 0
-              ? `<div class="blocks">${day.blocks.map((block) => blockCard(block, ctx)).join('')}</div>`
+              ? `<div class="blocks">${day.blocks
+                  .map((block, index) => blockCard(block, ctx, day.blocks[index + 1]))
+                  .join('')}</div>`
               : '<p class="empty-day">No sessions scheduled.</p>'
           }
           ${addBlockForm(day, ctx)}

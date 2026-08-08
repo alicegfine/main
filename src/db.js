@@ -98,6 +98,13 @@ db.exec(`
   );
 `);
 
+// A session may carry a label, which marks it as something other than a plain
+// sit. Added after the fact, so the column is created only when missing.
+const blockColumns = db.prepare('PRAGMA table_info(blocks)').all();
+if (!blockColumns.some((column) => column.name === 'title')) {
+  db.prepare('ALTER TABLE blocks ADD COLUMN title TEXT').run();
+}
+
 // Counting boots against this database is the one honest test of whether the
 // volume persists: after a few redeploys it should be climbing. If every deploy
 // logs boot 1, the store is being thrown away each time.
@@ -133,8 +140,8 @@ const statements = {
   ),
   allBlocks: db.prepare('SELECT * FROM blocks ORDER BY day, start_min, end_min'),
   insertBlock: db.prepare(
-    `INSERT INTO blocks (day, start_min, end_min, created_at)
-     VALUES (@day, @startMin, @endMin, datetime('now'))`,
+    `INSERT INTO blocks (day, start_min, end_min, title, created_at)
+     VALUES (@day, @startMin, @endMin, @title, datetime('now'))`,
   ),
   updateBlockTimes: db.prepare(
     'UPDATE blocks SET start_min = @startMin, end_min = @endMin WHERE id = @id',
@@ -172,6 +179,38 @@ export function getBlocksForDay(day) {
   return statements.blocksForDay.all(day);
 }
 
+// The closing session was asked for directly, and the schedule lives in the
+// deployed database rather than in this repository, so it is added here once. The
+// attempt is recorded either way, so deleting it afterwards does not bring it back
+// on the next deploy.
+const CLOSING_SESSION = {
+  day: '2026-08-10',
+  startMin: 21 * 60,
+  endMin: 21 * 60 + 30,
+  title: 'Debrief and retreat close',
+};
+
+if (statements.getSetting.get('seeded_closing_session') === undefined) {
+  const clash = statements.blocksForDay
+    .all(CLOSING_SESSION.day)
+    .find(
+      (block) =>
+        block.start_min < CLOSING_SESSION.endMin && block.end_min > CLOSING_SESSION.startMin,
+    );
+
+  if (clash) {
+    console.warn(
+      `Did not add the "${CLOSING_SESSION.title}" session: 9:00–9:30 PM on Monday ` +
+        `overlaps a session already scheduled from ${clash.start_min} to ${clash.end_min} ` +
+        `minutes past midnight. Add it by hand once that is resolved.`,
+    );
+  } else {
+    statements.insertBlock.run(CLOSING_SESSION);
+    console.log(`Added the "${CLOSING_SESSION.title}" session on Monday, 9:00–9:30 PM.`);
+  }
+  statements.putSetting.run('seeded_closing_session', 'done');
+}
+
 // Returns every block, each with its signups attached, grouped by day in
 // retreat order.
 export function getScheduleByDay(days) {
@@ -196,8 +235,8 @@ export function getScheduleByDay(days) {
   }));
 }
 
-export function createBlock({ day, startMin, endMin }) {
-  return statements.insertBlock.run({ day, startMin, endMin });
+export function createBlock({ day, startMin, endMin, title = null }) {
+  return statements.insertBlock.run({ day, startMin, endMin, title: title || null });
 }
 
 export function updateBlockTimes({ id, startMin, endMin }) {

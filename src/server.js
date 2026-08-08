@@ -5,6 +5,7 @@ import express from 'express';
 import {
   DAYS,
   MAX_PAGE_LENGTH,
+  MAX_TITLE_LENGTH,
   ROLES,
   formatRange,
   parseTime,
@@ -126,13 +127,17 @@ app.post('/blocks', requireVisitor, (req, res) => {
   const day = String(req.body.day ?? '');
   const startMin = parseTime(req.body.start);
   const endMin = parseTime(req.body.end);
+  const title = String(req.body.title ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_TITLE_LENGTH);
 
   const problem = validateBlock({ day, startMin, endMin }, getBlocksForDay(day));
   if (problem) {
     return res.redirect(`/?reason=${encodeURIComponent(problem)}`);
   }
 
-  createBlock({ day, startMin, endMin });
+  createBlock({ day, startMin, endMin, title });
   return res.redirect('/?ok=block-added');
 });
 
@@ -200,23 +205,17 @@ function siteUrlFor(req) {
 app.get('/schedule.ics', (req, res) => {
   const onlyMine = req.query.mine === '1' && Boolean(req.visitorName);
 
-  let schedule = getScheduleByDay(DAYS);
-  if (onlyMine) {
-    schedule = schedule.map((day) => ({
-      ...day,
-      blocks: day.blocks.filter((block) =>
-        [...block.leading, ...block.attending].some((signup) =>
-          isSamePerson(signup.name, req.visitorName),
-        ),
-      ),
-    }));
-  }
-
   const body = buildIcs({
-    schedule,
+    schedule: getScheduleByDay(DAYS),
     siteUrl: siteUrlFor(req),
     joinUrl: getLinks().sit,
     stamp: new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''),
+    include: onlyMine
+      ? (block) =>
+          [...block.leading, ...block.attending].some((signup) =>
+            isSamePerson(signup.name, req.visitorName),
+          )
+      : undefined,
   });
 
   res.type('text/calendar; charset=utf-8');

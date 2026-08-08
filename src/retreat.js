@@ -25,6 +25,20 @@ export function debriefFor(block) {
   return { startMin: block.end_min, endMin: block.end_min + DEBRIEF_MINUTES };
 }
 
+export const MAX_TITLE_LENGTH = 60;
+
+// A labelled session is something other than a plain sit — a closing circle, say —
+// and carries no debrief of its own. Nor does a session whose debrief would run
+// into whatever comes next that day: the following session takes precedence.
+export function debriefApplies(block, nextBlock) {
+  if (block.title) return false;
+  if (!nextBlock) return true;
+  // A labelled session stands in for the debrief of the session before it, whether
+  // or not it follows immediately — a closing circle is the debrief.
+  if (nextBlock.title) return false;
+  return nextBlock.start_min >= debriefFor(block).endMin;
+}
+
 // Today's date in the retreat's timezone, as YYYY-MM-DD, so that a day counts as
 // past according to Eastern rather than wherever the server happens to be.
 export function todayInEastern(now = new Date()) {

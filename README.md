@@ -34,12 +34,21 @@ redeploy will do — saving does not discard what you wrote. The text is carried
 into the password form and written as soon as the password is accepted, and a
 wrong password keeps it too.
 
-**Every session is followed by a 10-minute debrief**, shown as a distinct strip
-along the bottom of each session card. It is derived from the session's end time
-rather than stored, so moving a session carries its debrief with it, and it needs
-no signups of its own. Note that session validation does not know about debriefs:
-two sessions scheduled back to back are still allowed, and the first one's debrief
-will overlap the second. Leave a ten-minute gap if that matters.
+**Sessions are followed by a 10-minute debrief**, shown as a distinct strip along
+the bottom of the card. It is derived from the session's end time rather than
+stored, so moving a session carries its debrief with it, and it needs no signups
+of its own. It is left off in three cases: the session carries a label, the next
+session that day is labelled, or the debrief would run into whatever comes next.
+That last rule means back-to-back sessions no longer produce an overlapping
+debrief.
+
+**A session can carry a label**, entered in the optional field on the add-session
+form. A labelled session is a session in its own right — people sign up to lead
+and attend it exactly as usual — but it reads as something other than a plain sit
+and stands in for the debrief of whatever precedes it. Monday's *Debrief and
+retreat close* at 9:00 PM is one of these, added to the database on first start
+after this change; the attempt is recorded so deleting it does not bring it back
+on the next deploy.
 
 **Past days start collapsed.** A day earlier than today in Eastern renders
 collapsed and marked *done*, rather than any particular day being hard-coded — so

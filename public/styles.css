@@ -13,6 +13,9 @@
   --debrief-bg: #f1ece2;
   --debrief-border: #ded5c6;
   --debrief-ink: #8a6d3b;
+  --special-bg: #f3f0f7;
+  --special-border: #8b7aa8;
+  --special-ink: #6b5a88;
   --radius: 10px;
 }
 
@@ -32,6 +35,9 @@
     --debrief-bg: #2e2a24;
     --debrief-border: #453e33;
     --debrief-ink: #d0ad70;
+    --special-bg: #2a2733;
+    --special-border: #8b7aa8;
+    --special-ink: #b9a8d6;
   }
 }
 
@@ -300,6 +306,25 @@ main {
 .empty-day {
   color: var(--ink-soft);
   font-style: italic;
+}
+
+/* A labelled session — a closing circle rather than a plain sit. Distinct from
+   both an ordinary card and the debrief strip, since it is a session in its own
+   right that people sign up to. */
+
+.block-labelled {
+  border-color: var(--special-border);
+  border-left-width: 4px;
+  background: var(--special-bg);
+}
+
+.block-title {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--special-ink);
 }
 
 /* The debrief that follows every session. Deliberately reads as a strip attached
@@ -620,6 +645,11 @@ button:hover {
 .field {
   display: grid;
   gap: 0.25rem;
+}
+
+.field-wide {
+  flex: 1 1 16rem;
+  min-width: 0;
 }
 
 .field label {
