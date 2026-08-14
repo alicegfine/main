@@ -325,27 +325,65 @@ function drawNode(g, node, theme, margin) {
   if (p.note) el("title", {}, grp).textContent = p.note;
 }
 
-function drawHeader(svg, branding, theme, width) {
-  const title = (branding.title || "").trim();
-  const logo = branding.logo;
-  if (!title && !logo) return 0;
-  const padX = MARGIN;
-  const logoH = 40;
-  const headerH = 76;
-  let cursorX = padX;
+const HEADER_BAND = 84; // reserved top strip for the title and/or a top-corner logo
+const FOOTER_BAND = 60; // reserved bottom strip for a bottom-corner logo
+
+// How much vertical space the branding reserves at the top and bottom of the image.
+function brandBands(branding) {
+  const hasTitle = !!(branding.title && branding.title.trim());
+  const logo = branding.logo && branding.logo.dataURL ? branding.logo : null;
+  const corner = branding.logoCorner || "tr";
+  const topLogo = logo && (corner === "tl" || corner === "tr");
+  const botLogo = logo && (corner === "bl" || corner === "br");
+  return {
+    top: hasTitle || topLogo ? HEADER_BAND : 0,
+    bottom: botLogo ? FOOTER_BAND : 0,
+    hasTitle,
+    logo,
+    corner,
+  };
+}
+
+// Draw the optional chart title (top header) and the optional logo pinned to a corner.
+function drawBranding(svg, branding, theme, width, totalH, bands) {
+  const { top, bottom, hasTitle, logo, corner } = bands;
+  if (!hasTitle && !logo) return;
+  const pad = MARGIN;
   const g = el("g", {}, svg);
-  if (logo && logo.dataURL) {
-    const img = el("image", { x: padX, y: (headerH - logoH) / 2, height: logoH, width: logo.w || logoH, preserveAspectRatio: "xMinYMid meet" }, g);
+
+  if (logo) {
+    const lw = logo.w || 120;
+    const lh = logo.h || 40;
+    const right = corner === "tr" || corner === "br";
+    const lx = right ? width - lw - pad : pad;
+    const ly = corner === "bl" || corner === "br" ? totalH - bottom + (bottom - lh) / 2 : (top - lh) / 2;
+    const img = el("image", { x: lx, y: ly, width: lw, height: lh, preserveAspectRatio: "xMidYMid meet" }, g);
     img.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", logo.dataURL);
     img.setAttribute("href", logo.dataURL);
-    cursorX += (logo.w || logoH) + 16;
   }
-  if (title) {
-    const t = el("text", { x: cursorX, y: headerH / 2 + 6, "font-family": HEADER_FONT, "font-size": 20, "font-weight": 700, fill: theme.ink }, g);
-    t.textContent = title;
+
+  if (hasTitle) {
+    // Left-aligned in the header; nudged right if a top-left logo shares the corner.
+    const tx = logo && corner === "tl" ? pad + (logo.w || 120) + 16 : pad;
+    const t = el("text", { x: tx, y: top / 2 + 7, "font-family": HEADER_FONT, "font-size": 20, "font-weight": 700, fill: theme.ink }, g);
+    t.textContent = branding.title.trim();
+    el("line", { x1: pad, y1: top, x2: width - pad, y2: top, stroke: theme.cardBorder, "stroke-width": 1 }, g);
   }
-  el("line", { x1: padX, y1: headerH, x2: width - padX, y2: headerH, stroke: theme.cardBorder, "stroke-width": 1 }, g);
-  return headerH + 12;
+}
+
+// Minimum image width so the title and a top-corner logo don't collide on a narrow
+// chart. ~11px/char is a generous estimate for the 20px Georgia-bold title.
+function brandMinWidth(branding, bands) {
+  const pad = MARGIN;
+  const logoW = bands.logo ? bands.logo.w || 120 : 0;
+  let need = 0;
+  if (bands.hasTitle) {
+    const titleW = branding.title.trim().length * 11 + 8;
+    const topLogoW = bands.logo && (bands.corner === "tl" || bands.corner === "tr") ? logoW + 24 : 0;
+    need = Math.max(need, pad + titleW + topLogoW + pad);
+  }
+  if (bands.logo) need = Math.max(need, logoW + pad * 2);
+  return need;
 }
 
 // Returns an <svg> element. opts: { spacing, report, theme, branding, background }
@@ -355,31 +393,34 @@ export function renderOrgSvg(people, opts = {}) {
   const canvas = opts.background || theme.canvas;
   const lay = layoutOrg(people, opts);
 
-  const totalW = lay.width;
-  const svg = el("svg", { xmlns: SVG_NS, width: totalW, height: lay.height, "font-family": NODE_FONT });
+  // Reserve top/bottom bands for the optional title and corner logo. Widen the image
+  // (and center the chart under the header) if the branding needs more room than the
+  // chart itself, so a title and corner logo never overlap.
+  const bands = brandBands(branding);
+  const totalW = Math.max(lay.width, brandMinWidth(branding, bands));
+  const offsetX = Math.round((totalW - lay.width) / 2);
+  const totalH = lay.height + bands.top + bands.bottom;
+
+  const svg = el("svg", { xmlns: SVG_NS, width: totalW, height: totalH, viewBox: `0 0 ${totalW} ${totalH}`, "font-family": NODE_FONT });
 
   // soft drop shadow for cards
   const defs = el("defs", {}, svg);
   const filter = el("filter", { id: "cardShadow", x: "-20%", y: "-20%", width: "140%", height: "150%" }, defs);
   el("feDropShadow", { dx: 0, dy: 1.5, stdDeviation: 3, "flood-color": "#0b1f3a", "flood-opacity": "0.16" }, filter);
 
-  const bg = el("rect", { x: 0, y: 0, width: totalW, height: lay.height, fill: canvas }, svg);
+  el("rect", { x: 0, y: 0, width: totalW, height: totalH, fill: canvas }, svg);
 
-  const headerH = drawHeader(svg, branding, theme, totalW);
-  const totalH = lay.height + headerH;
-  svg.setAttribute("height", totalH);
-  svg.setAttribute("viewBox", `0 0 ${totalW} ${totalH}`);
-  bg.setAttribute("height", totalH);
-
-  const content = el("g", headerH ? { transform: `translate(0,${headerH})` } : {}, svg);
+  const content = el("g", bands.top ? { transform: `translate(0,${bands.top})` } : {}, svg);
 
   // Connectors AND nodes share one origin (the margin offset) so lines always meet boxes.
-  const plot = el("g", { transform: `translate(${lay.margin},${lay.margin})` }, content);
+  const plot = el("g", { transform: `translate(${lay.margin + offsetX},${lay.margin})` }, content);
 
   el("path", { d: connectorPath(lay.links), fill: "none", stroke: theme.link, "stroke-width": 1.6, "stroke-linecap": "round", "stroke-linejoin": "round" }, plot);
 
   const nodesG = el("g", {}, plot);
   for (const node of lay.nodes) drawNode(nodesG, node, theme, 0);
+
+  drawBranding(svg, branding, theme, totalW, totalH, bands);
 
   return { svg, layout: lay };
 }

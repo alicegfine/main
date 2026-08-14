@@ -522,6 +522,36 @@ input[type="text"]:focus, select:focus {
 }
 .bg-control .bg-hex { flex: 1; min-width: 0; font-family: var(--mono); text-transform: lowercase; }
 
+/* logo + title branding controls */
+.logo-control { display: flex; align-items: center; gap: 8px; }
+.logo-preview {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 6px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--faint);
+  font-size: 12px;
+  overflow: hidden;
+}
+.logo-preview.has-logo { border-style: solid; background: #fff; }
+.logo-preview img { max-height: 26px; max-width: 100%; object-fit: contain; }
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.field-inline span { flex: none; }
+.field-inline .cat-select { flex: 1; min-width: 0; }
+
 .empty-roster {
   text-align: center;
   color: var(--muted);

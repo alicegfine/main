@@ -25,6 +25,9 @@ let state = {
   spacing: "compact",
   report: "grid",
   bg: DEFAULT_BG,
+  // Optional chart title + corner logo (shared across everyone on the link, and
+  // baked into exports). logo = { dataURL, w, h } or null.
+  branding: { title: "", logo: null, logoCorner: "tr" },
   compare: { on: false, ids: [] },
 };
 let zoom = null; // null => fit-to-width on next render
@@ -59,11 +62,69 @@ function chartOpts(scenario, extra) {
   return {
     spacing: state.spacing,
     report: state.report,
-    branding: brandingForRender(),
+    branding: chartBranding(),
     background: state.bg,
     stack: (scenario && scenario.layout) !== "wide",
     order: baselineOrder(),
     ...extra,
+  };
+}
+
+// Read a chosen logo image, size it to a small display height, and store a compact,
+// self-contained data URL (so it exports and syncs without any network reference).
+function loadLogoFile(file) {
+  if (file.size > 4 * 1024 * 1024) {
+    toast("That image is too large (max 4 MB).", true);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const src = reader.result;
+    const isSvg = /^data:image\/svg\+xml/i.test(src);
+    const img = new Image();
+    img.onload = () => {
+      let h = 40;
+      let w = Math.round((img.naturalWidth || h) * (h / (img.naturalHeight || h)));
+      const MAXW = 220;
+      if (w > MAXW) {
+        h = Math.round(h * (MAXW / w));
+        w = MAXW;
+      }
+      let dataURL = src;
+      if (!isSvg) {
+        // Rasterize at 2x the display size for crisp exports while keeping data small.
+        const c = document.createElement("canvas");
+        c.width = w * 2;
+        c.height = h * 2;
+        try {
+          c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+          dataURL = c.toDataURL("image/png");
+        } catch (e) {
+          dataURL = src;
+        }
+      }
+      state.branding.logo = { dataURL, w, h };
+      save();
+      renderRail();
+      renderCanvas();
+      toast("Logo added.");
+    };
+    img.onerror = () => toast("Couldn't read that image.", true);
+    img.src = src;
+  };
+  reader.onerror = () => toast("Couldn't read that file.", true);
+  reader.readAsDataURL(file);
+}
+
+// Fixed brand colors (from the brand guide) plus the user's optional title/logo.
+function chartBranding() {
+  const b = state.branding || {};
+  return {
+    accent: BRAND.accent,
+    proposed: BRAND.proposed,
+    title: (b.title || "").trim(),
+    logo: b.logo || null,
+    logoCorner: b.logoCorner || "tr",
   };
 }
 
@@ -86,7 +147,19 @@ const remote = { available: false, rev: 0, dirty: false, pushing: false, pushTim
 
 // Private scenarios never leave the browser, so the shared copy excludes them.
 function snapshot() {
-  return { scenarios: state.scenarios.filter((s) => !s.private), spacing: state.spacing, report: state.report, bg: state.bg };
+  return {
+    scenarios: state.scenarios.filter((s) => !s.private),
+    spacing: state.spacing,
+    report: state.report,
+    bg: state.bg,
+    branding: normalizedBranding(),
+  };
+}
+
+// A safe branding object with defaults filled in.
+function normalizedBranding() {
+  const b = state.branding || {};
+  return { title: (b.title || "").trim(), logo: b.logo || null, logoCorner: b.logoCorner || "tr" };
 }
 
 // Apply a data payload (from server or file) into state, keeping a valid active tab.
@@ -100,6 +173,13 @@ function applyData(data) {
   state.spacing = "compact"; // layout is fixed
   state.report = "grid";
   state.bg = data.bg || DEFAULT_BG;
+  if (data.branding && typeof data.branding === "object") {
+    state.branding = {
+      title: (data.branding.title || "").trim(),
+      logo: data.branding.logo || null,
+      logoCorner: data.branding.logoCorner || "tr",
+    };
+  }
   normalizeLayouts(data.layout);
   if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
     state.activeId = state.scenarios[0].id;
@@ -195,6 +275,7 @@ function load() {
     state.spacing = "compact"; // layout is fixed
     state.report = "grid";
     state.bg = state.bg || DEFAULT_BG;
+    state.branding = { title: "", logo: null, logoCorner: "tr", ...(parsed.branding || {}) };
     normalizeLayouts(parsed.layout);
     if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
       state.activeId = state.scenarios[0].id;
@@ -593,6 +674,31 @@ function renderRail() {
   const bgSwatch = $("#bgSwatch");
   if (bgSwatch) bgSwatch.style.background = state.bg;
 
+  // brand title + logo controls
+  const b = state.branding || {};
+  const titleInput = $("#brandTitle");
+  if (titleInput && document.activeElement !== titleInput) titleInput.value = b.title || "";
+  const preview = $("#logoPreview");
+  const clearBtn = $("#logoClearBtn");
+  const cornerRow = $("#logoCornerRow");
+  if (preview) {
+    preview.textContent = "";
+    if (b.logo && b.logo.dataURL) {
+      const im = document.createElement("img");
+      im.src = b.logo.dataURL;
+      im.alt = "Logo";
+      preview.appendChild(im);
+      preview.classList.add("has-logo");
+    } else {
+      preview.textContent = "No logo";
+      preview.classList.remove("has-logo");
+    }
+  }
+  if (clearBtn) clearBtn.hidden = !(b.logo && b.logo.dataURL);
+  if (cornerRow) cornerRow.hidden = !(b.logo && b.logo.dataURL);
+  const cornerSel = $("#logoCorner");
+  if (cornerSel) cornerSel.value = b.logoCorner || "tr";
+
   renderBulk();
   renderRoster();
 }
@@ -958,7 +1064,8 @@ function renderCompare(stage) {
     col.appendChild(head);
 
     if (s.people.length) {
-      const { frame, svg } = buildChartFrame(s);
+      // Compare tiles carry their own scenario header, so drop the title/logo here.
+      const { frame, svg } = buildChartFrame(s, { branding: { accent: BRAND.accent, proposed: BRAND.proposed, title: "", logo: null } });
       const natW = Number(svg.getAttribute("width"));
       const scale = Math.min(1, COL_W / natW);
       svg.style.width = natW * scale + "px";
@@ -1157,6 +1264,30 @@ function wire() {
     state.bg = DEFAULT_BG;
     $("#bgColor").value = DEFAULT_BG;
     $("#bgSwatch").style.background = DEFAULT_BG;
+    save();
+    renderCanvas();
+  });
+
+  // --- brand title + corner logo (optional, shared, baked into exports) ---
+  $("#brandTitle").addEventListener("input", (e) => {
+    state.branding.title = e.target.value;
+    save();
+    renderCanvas();
+  });
+  $("#logoUploadBtn").addEventListener("click", () => $("#logoInput").click());
+  $("#logoInput").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) loadLogoFile(file);
+    e.target.value = "";
+  });
+  $("#logoClearBtn").addEventListener("click", () => {
+    state.branding.logo = null;
+    save();
+    renderRail();
+    renderCanvas();
+  });
+  $("#logoCorner").addEventListener("change", (e) => {
+    state.branding.logoCorner = e.target.value;
     save();
     renderCanvas();
   });

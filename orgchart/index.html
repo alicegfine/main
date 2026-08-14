@@ -96,6 +96,28 @@
               <button class="btn btn-small btn-ghost" id="bgReset">Reset</button>
             </div>
           </label>
+          <label class="field">
+            <span>Chart title (optional)</span>
+            <input type="text" id="brandTitle" placeholder="e.g. Blueprint Biosecurity" spellcheck="false" autocomplete="off" maxlength="80" />
+          </label>
+          <div class="field">
+            <span>Logo</span>
+            <div class="logo-control">
+              <span class="logo-preview" id="logoPreview">No logo</span>
+              <button class="btn btn-small btn-ghost" id="logoUploadBtn">Upload…</button>
+              <button class="btn btn-small btn-ghost" id="logoClearBtn" hidden>Remove</button>
+            </div>
+            <input type="file" id="logoInput" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden />
+            <label class="field-inline" id="logoCornerRow" hidden>
+              <span>Corner</span>
+              <select id="logoCorner" class="cat-select">
+                <option value="tl">Top-left</option>
+                <option value="tr">Top-right</option>
+                <option value="bl">Bottom-left</option>
+                <option value="br">Bottom-right</option>
+              </select>
+            </label>
+          </div>
         </section>
 
         <footer class="rail-foot">
@@ -200,6 +222,7 @@
           <ul>
             <li><b>Layout</b> (remembered per version): Stacked teams for a full org on a slide, or Wide rows for a small/simple org.</li>
             <li><b>Chart background:</b> Type your slide's hex color so screenshots and exports match your deck.</li>
+            <li><b>Title &amp; logo:</b> Add an optional chart title and upload a logo to pin in any corner — both appear on screen and in every export.</li>
           </ul>
 
           <h3>Exporting to a deck</h3>
