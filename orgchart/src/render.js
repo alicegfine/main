@@ -5,18 +5,23 @@
 import { layoutOrg, MARGIN } from "./layout.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const NODE_FONT =
-  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+// Brand fonts (Blueprint Biosecurity guide): Georgia for headers (the role band and
+// the chart title), Inter for body (names, captions). Inter falls back to the system
+// UI sans when it isn't installed, so exports stay self-contained.
+const HEADER_FONT = "Georgia, 'Times New Roman', serif";
+const BODY_FONT =
+  "'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+const NODE_FONT = BODY_FONT;
 
 export const THEME = {
-  ink: "#16212B",
-  muted: "#5A6B78",
-  accent: "#04103f",
+  ink: "#1A1A1A", // brand "Ink" — primary body text
+  muted: "#6B7280", // brand "Body Gray" — captions, metadata
+  accent: "#0A1F44", // brand "Deep Navy" — headings / dark bands
   link: "#9AAAB6",
   canvas: "#FFFFFF",
   cardBorder: "#E4E9EF",
   // header band color by depth (exec -> director -> team -> deeper). White text on all.
-  levels: ["#04103f", "#274b73", "#3f6c9c", "#6285a8"],
+  levels: ["#0A1F44", "#274b73", "#3f6c9c", "#6285a8"],
 };
 
 function hexToRgb(hex) {
@@ -123,6 +128,49 @@ function wrapLines(text, max, maxLines = 2) {
   return lines.slice(0, maxLines);
 }
 
+// Word-wrap into at most `maxLines` lines of `cpl` chars, WITHOUT truncating. Returns
+// the lines, or null if the text can't fit (a word is too wide, or it needs more
+// lines) — the caller then tries a smaller font.
+function wrapWithin(text, cpl, maxLines) {
+  const words = (text || "").trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    if (word.length > cpl) return null; // single word wider than the box
+    const next = line ? line + " " + word : word;
+    if (next.length > cpl) {
+      lines.push(line);
+      if (lines.length >= maxLines) return null; // would overflow past the last line
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length <= maxLines ? lines : null;
+}
+
+// Pick the largest font size (down to a floor) at which the title fits the card width
+// on at most two lines, with side padding — so long titles shrink to fit instead of
+// being cut off with an ellipsis. ~0.553 is the observed width-per-point for the bold
+// header face; padPx is reserved on each side.
+function fitTitle(title, w, { maxFs = 17, minFs = 7.5, padPx = 9 } = {}) {
+  const text = ((title || "").trim()) || "Role";
+  const usable = w - padPx * 2;
+  // Prefer the largest size that fits on two lines; only drop to three lines if even
+  // the smallest two-line size can't hold it. Truncation is the last resort.
+  for (const maxLines of [2, 3]) {
+    for (let fs = maxFs; fs >= minFs; fs -= 0.5) {
+      const cpl = Math.max(3, Math.floor(usable / (fs * 0.553)));
+      const lines = wrapWithin(text, cpl, maxLines);
+      if (lines) return { fs, lines };
+    }
+  }
+  const cpl = Math.max(3, Math.floor(usable / (minFs * 0.553)));
+  return { fs: minFs, lines: wrapLines(text, cpl, 3).map((ln) => truncate(ln, cpl)) };
+}
+
 // Split a name into first name (line 1) and the rest (line 2). Single-token names
 // stay on one line.
 function splitName(name) {
@@ -220,20 +268,18 @@ function drawNode(g, node, theme, margin) {
   // The title band is a little under half the card height so the role reads as the
   // headline. (Card height is fixed; only the band/body split changes.)
   const BAND_REF = Math.round(h * 0.44);
-  // Budget ~9.4px per char at 17px bold and keep ~8px of breathing room on each side
-  // so centered title text never touches the rounded border.
-  const titleMax = Math.floor((w - 16) / 9.4);
-  // Clamp every line (not just the overflow) so a long single word can't spill past
-  // the card edge at this larger title size.
-  const titleLines = wrapLines(p.title || "Role", titleMax, 2).map((ln) => truncate(ln, titleMax));
   const bandH = BAND_REF;
   el("path", { d: roundRectPath(0, 0, w, bandH, r, 2), fill: bandColor }, grp);
-  // Center the title in the band whether it's one line or two.
-  const titleStartY = titleLines.length > 1 ? bandH / 2 - 6 : bandH / 2 + 6;
+  // Auto-fit: shrink the title until it fits the card width on up to two lines (with
+  // padding) instead of truncating it. Line height and vertical centering scale with
+  // the chosen size so the block stays centered in the band.
+  const { fs: titleFs, lines: titleLines } = fitTitle(p.title || "Role", w);
+  const titleLh = titleFs * 1.06;
+  const blockTop = bandH / 2 - ((titleLines.length - 1) * titleLh) / 2;
   titleLines.forEach((ln, i) => {
     const role = el(
       "text",
-      { x: cx, y: titleStartY + i * 18, "font-family": NODE_FONT, "font-size": 17, "font-weight": 700, "letter-spacing": "0.01em", "text-anchor": "middle", fill: bandText },
+      { x: cx, y: blockTop + i * titleLh + titleFs * 0.34, "font-family": HEADER_FONT, "font-size": titleFs, "font-weight": 700, "letter-spacing": "0.01em", "text-anchor": "middle", fill: bandText },
       grp
     );
     role.textContent = ln;
@@ -295,7 +341,7 @@ function drawHeader(svg, branding, theme, width) {
     cursorX += (logo.w || logoH) + 16;
   }
   if (title) {
-    const t = el("text", { x: cursorX, y: headerH / 2 + 6, "font-family": NODE_FONT, "font-size": 19, "font-weight": 700, fill: theme.ink }, g);
+    const t = el("text", { x: cursorX, y: headerH / 2 + 6, "font-family": HEADER_FONT, "font-size": 20, "font-weight": 700, fill: theme.ink }, g);
     t.textContent = title;
   }
   el("line", { x1: padX, y1: headerH, x2: width - padX, y2: headerH, stroke: theme.cardBorder, "stroke-width": 1 }, g);

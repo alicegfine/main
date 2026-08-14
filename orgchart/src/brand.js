@@ -11,9 +11,12 @@
 //                  base64 -w0 logo.png   ->  prefix with "data:image/png;base64,"
 //              logoW/logoH set its drawn size in px (keep the logo's aspect ratio).
 
+// Colors follow the Blueprint Biosecurity brand guide:
+//   accent   = Deep Navy  (#0A1F44) — headings / dark card bands / connectors
+//   proposed = Blueprint Blue (#027EB6) — primary brand color for open roles
 export const BRAND = {
-  accent: "#04103f",
-  proposed: "#057eb6",
+  accent: "#0A1F44",
+  proposed: "#027EB6",
   title: "",
   logo: null,
   logoW: 120,
