@@ -25,11 +25,16 @@ let state = {
   spacing: "compact",
   report: "grid",
   bg: DEFAULT_BG,
-  // Optional chart title + corner logo (shared across everyone on the link, and
-  // baked into exports). logo = { dataURL, w, h } or null.
-  branding: { title: "", logo: null, logoCorner: "tr" },
+  // Global logo settings (shared across everyone on the link, baked into exports).
+  // The chart title lives per-scenario (scenario.title), so each tab has its own.
+  //   logo       = a custom uploaded { dataURL, w, h }, or null to use the default.
+  //   logoHidden = true to show no logo at all.
+  branding: { logo: null, logoCorner: "br", logoHidden: false },
   compare: { on: false, ids: [] },
 };
+
+// The Blueprint Biosecurity logo ships as the default on every chart.
+const DEFAULT_LOGO = BRAND.logo ? { dataURL: BRAND.logo, w: BRAND.logoW, h: BRAND.logoH } : null;
 let zoom = null; // null => fit-to-width on next render
 let rosterFilter = ""; // roster search text
 
@@ -62,7 +67,7 @@ function chartOpts(scenario, extra) {
   return {
     spacing: state.spacing,
     report: state.report,
-    branding: chartBranding(),
+    branding: chartBranding(scenario),
     background: state.bg,
     stack: (scenario && scenario.layout) !== "wide",
     order: baselineOrder(),
@@ -104,10 +109,11 @@ function loadLogoFile(file) {
         }
       }
       state.branding.logo = { dataURL, w, h };
+      state.branding.logoHidden = false;
       save();
       renderRail();
       renderCanvas();
-      toast("Logo added.");
+      toast("Logo updated.");
     };
     img.onerror = () => toast("Couldn't read that image.", true);
     img.src = src;
@@ -116,15 +122,16 @@ function loadLogoFile(file) {
   reader.readAsDataURL(file);
 }
 
-// Fixed brand colors (from the brand guide) plus the user's optional title/logo.
-function chartBranding() {
+// Fixed brand colors, the per-scenario title, and the logo (custom, default, or off).
+function chartBranding(scenario) {
   const b = state.branding || {};
+  const custom = b.logo && b.logo.dataURL ? b.logo : null;
   return {
     accent: BRAND.accent,
     proposed: BRAND.proposed,
-    title: (b.title || "").trim(),
-    logo: b.logo || null,
-    logoCorner: b.logoCorner || "tr",
+    title: scenario ? (scenario.title || "").trim() : "",
+    logo: b.logoHidden ? null : custom || DEFAULT_LOGO,
+    logoCorner: b.logoCorner || "br",
   };
 }
 
@@ -156,10 +163,10 @@ function snapshot() {
   };
 }
 
-// A safe branding object with defaults filled in.
+// A safe (global) branding object with defaults filled in. Title is per-scenario.
 function normalizedBranding() {
   const b = state.branding || {};
-  return { title: (b.title || "").trim(), logo: b.logo || null, logoCorner: b.logoCorner || "tr" };
+  return { logo: b.logo || null, logoCorner: b.logoCorner || "br", logoHidden: !!b.logoHidden };
 }
 
 // Apply a data payload (from server or file) into state, keeping a valid active tab.
@@ -175,9 +182,9 @@ function applyData(data) {
   state.bg = data.bg || DEFAULT_BG;
   if (data.branding && typeof data.branding === "object") {
     state.branding = {
-      title: (data.branding.title || "").trim(),
       logo: data.branding.logo || null,
-      logoCorner: data.branding.logoCorner || "tr",
+      logoCorner: data.branding.logoCorner || "br",
+      logoHidden: !!data.branding.logoHidden,
     };
   }
   normalizeLayouts(data.layout);
@@ -275,7 +282,7 @@ function load() {
     state.spacing = "compact"; // layout is fixed
     state.report = "grid";
     state.bg = state.bg || DEFAULT_BG;
-    state.branding = { title: "", logo: null, logoCorner: "tr", ...(parsed.branding || {}) };
+    state.branding = { logo: null, logoCorner: "br", logoHidden: false, ...(parsed.branding || {}) };
     normalizeLayouts(parsed.layout);
     if (!state.activeId || !state.scenarios.some((s) => s.id === state.activeId)) {
       state.activeId = state.scenarios[0].id;
@@ -485,6 +492,7 @@ function duplicateScenario() {
   const src = activeScenario();
   const copy = newScenario(`${src.name} (copy)`, src.people, src.layout);
   copy.private = !!src.private; // a copy of a private draft stays private
+  copy.title = src.title || ""; // and keeps its chart title
   state.scenarios.push(copy);
   state.activeId = copy.id;
   zoom = null;
@@ -674,18 +682,19 @@ function renderRail() {
   const bgSwatch = $("#bgSwatch");
   if (bgSwatch) bgSwatch.style.background = state.bg;
 
-  // brand title + logo controls
+  // title (per tab) + logo (global) controls
   const b = state.branding || {};
   const titleInput = $("#brandTitle");
-  if (titleInput && document.activeElement !== titleInput) titleInput.value = b.title || "";
+  if (titleInput && document.activeElement !== titleInput) titleInput.value = (s && s.title) || "";
+  const effectiveLogo = b.logoHidden ? null : b.logo && b.logo.dataURL ? b.logo : DEFAULT_LOGO;
   const preview = $("#logoPreview");
   const clearBtn = $("#logoClearBtn");
   const cornerRow = $("#logoCornerRow");
   if (preview) {
     preview.textContent = "";
-    if (b.logo && b.logo.dataURL) {
+    if (effectiveLogo) {
       const im = document.createElement("img");
-      im.src = b.logo.dataURL;
+      im.src = effectiveLogo.dataURL;
       im.alt = "Logo";
       preview.appendChild(im);
       preview.classList.add("has-logo");
@@ -694,10 +703,13 @@ function renderRail() {
       preview.classList.remove("has-logo");
     }
   }
-  if (clearBtn) clearBtn.hidden = !(b.logo && b.logo.dataURL);
-  if (cornerRow) cornerRow.hidden = !(b.logo && b.logo.dataURL);
+  if (clearBtn) {
+    clearBtn.hidden = false;
+    clearBtn.textContent = effectiveLogo ? "Hide" : "Show";
+  }
+  if (cornerRow) cornerRow.hidden = !effectiveLogo;
   const cornerSel = $("#logoCorner");
-  if (cornerSel) cornerSel.value = b.logoCorner || "tr";
+  if (cornerSel) cornerSel.value = b.logoCorner || "br";
 
   renderBulk();
   renderRoster();
@@ -1064,8 +1076,9 @@ function renderCompare(stage) {
     col.appendChild(head);
 
     if (s.people.length) {
-      // Compare tiles carry their own scenario header, so drop the title/logo here.
-      const { frame, svg } = buildChartFrame(s, { branding: { accent: BRAND.accent, proposed: BRAND.proposed, title: "", logo: null } });
+      // Compare tiles carry their own scenario header, so drop the title but keep
+      // the (unobtrusive) logo so every chart still shows it.
+      const { frame, svg } = buildChartFrame(s, { branding: { ...chartBranding(s), title: "" } });
       const natW = Number(svg.getAttribute("width"));
       const scale = Math.min(1, COL_W / natW);
       svg.style.width = natW * scale + "px";
@@ -1268,9 +1281,9 @@ function wire() {
     renderCanvas();
   });
 
-  // --- brand title + corner logo (optional, shared, baked into exports) ---
+  // --- per-tab chart title + global corner logo (baked into exports) ---
   $("#brandTitle").addEventListener("input", (e) => {
-    state.branding.title = e.target.value;
+    activeScenario().title = e.target.value; // title is per-scenario (per tab)
     save();
     renderCanvas();
   });
@@ -1281,7 +1294,8 @@ function wire() {
     e.target.value = "";
   });
   $("#logoClearBtn").addEventListener("click", () => {
-    state.branding.logo = null;
+    // Toggle the logo off/on (the default Blueprint logo shows when not hidden).
+    state.branding.logoHidden = !state.branding.logoHidden;
     save();
     renderRail();
     renderCanvas();

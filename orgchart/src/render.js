@@ -159,7 +159,7 @@ function wrapWithin(text, cpl, maxLines) {
 // so the chart stays uniform in practice. ~0.553 is the width-per-point of the bold
 // header face; padPx is reserved on each side.
 const TITLE_FS = 16;
-function fitTitle(title, w, { size = TITLE_FS, minFs = 8, padPx = 8, maxLines = 3 } = {}) {
+function fitTitle(title, w, { size = TITLE_FS, minFs = 8, padPx = 12, maxLines = 3 } = {}) {
   const text = ((title || "").trim()) || "Role";
   const usable = w - padPx * 2;
   const cplAt = (fs) => Math.max(3, Math.floor(usable / (fs * 0.553)));
@@ -272,7 +272,7 @@ function drawNode(g, node, theme, margin) {
   // The band is a FIXED height so every card looks the same and names share a baseline.
   // The title band is a little under half the card height so the role reads as the
   // headline. (Card height is fixed; only the band/body split changes.)
-  const BAND_REF = Math.round(h * 0.44);
+  const BAND_REF = Math.round(h * 0.46);
   const bandH = BAND_REF;
   el("path", { d: roundRectPath(0, 0, w, bandH, r, 2), fill: bandColor }, grp);
   // Auto-fit: shrink the title until it fits the card width on up to two lines (with
@@ -330,23 +330,22 @@ function drawNode(g, node, theme, margin) {
   if (p.note) el("title", {}, grp).textContent = p.note;
 }
 
-const HEADER_BAND = 84; // reserved top strip for the title and/or a top-corner logo
-const FOOTER_BAND = 60; // reserved bottom strip for a bottom-corner logo
+const CHART_TITLE_FS = 24; // fixed, uniform size for the optional chart title
 
 // How much vertical space the branding reserves at the top and bottom of the image.
+// Bands size to their content so a small corner logo doesn't leave a big empty strip.
 function brandBands(branding) {
   const hasTitle = !!(branding.title && branding.title.trim());
   const logo = branding.logo && branding.logo.dataURL ? branding.logo : null;
-  const corner = branding.logoCorner || "tr";
+  const corner = branding.logoCorner || "br";
+  const logoH = logo ? logo.h || 40 : 0;
   const topLogo = logo && (corner === "tl" || corner === "tr");
   const botLogo = logo && (corner === "bl" || corner === "br");
-  return {
-    top: hasTitle || topLogo ? HEADER_BAND : 0,
-    bottom: botLogo ? FOOTER_BAND : 0,
-    hasTitle,
-    logo,
-    corner,
-  };
+  let top = 0;
+  if (hasTitle) top = Math.max(top, CHART_TITLE_FS + 30);
+  if (topLogo) top = Math.max(top, logoH + 26);
+  const bottom = botLogo ? logoH + 26 : 0;
+  return { top, bottom, hasTitle, logo, corner };
 }
 
 // Draw the optional chart title (top header) and the optional logo pinned to a corner.
@@ -370,7 +369,7 @@ function drawBranding(svg, branding, theme, width, totalH, bands) {
   if (hasTitle) {
     // Left-aligned in the header; nudged right if a top-left logo shares the corner.
     const tx = logo && corner === "tl" ? pad + (logo.w || 120) + 16 : pad;
-    const t = el("text", { x: tx, y: top / 2 + 7, "font-family": HEADER_FONT, "font-size": 20, "font-weight": 700, fill: theme.ink }, g);
+    const t = el("text", { x: tx, y: top / 2 + CHART_TITLE_FS * 0.34, "font-family": HEADER_FONT, "font-size": CHART_TITLE_FS, "font-weight": 700, fill: theme.ink }, g);
     t.textContent = branding.title.trim();
     el("line", { x1: pad, y1: top, x2: width - pad, y2: top, stroke: theme.cardBorder, "stroke-width": 1 }, g);
   }
@@ -383,7 +382,7 @@ function brandMinWidth(branding, bands) {
   const logoW = bands.logo ? bands.logo.w || 120 : 0;
   let need = 0;
   if (bands.hasTitle) {
-    const titleW = branding.title.trim().length * 11 + 8;
+    const titleW = Math.ceil(branding.title.trim().length * CHART_TITLE_FS * 0.55) + 8;
     const topLogoW = bands.logo && (bands.corner === "tl" || bands.corner === "tr") ? logoW + 24 : 0;
     need = Math.max(need, pad + titleW + topLogoW + pad);
   }
