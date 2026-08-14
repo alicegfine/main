@@ -64,10 +64,12 @@ export function categoryColor(theme, category) {
 
 // Proposed (unfilled) roles are colored by how soon they're being hired, mirroring the
 // "hiring now / soon / later" buckets used in board decks.
+// Hiring stages use the brand accent colors (Signal Rust / Blueprint Blue / Teal),
+// most-urgent to least. Deep Navy is reserved for the category bands.
 export const HIRING_STAGES = [
-  { key: "now", label: "Hiring now", short: "HIRING NOW", color: "#7ed957" },
-  { key: "soon", label: "Hiring soon", short: "HIRING SOON", color: "#ffd400" },
-  { key: "later", label: "Hiring later", short: "HIRING LATER", color: "#ff9f1c" },
+  { key: "now", label: "Hiring now", short: "HIRING NOW", color: "#C0461E" },
+  { key: "soon", label: "Hiring soon", short: "HIRING SOON", color: "#027EB6" },
+  { key: "later", label: "Hiring later", short: "HIRING LATER", color: "#117A65" },
 ];
 const HIRING_BY_KEY = Object.fromEntries(HIRING_STAGES.map((s) => [s.key, s]));
 export function hiringStage(key) {
@@ -151,24 +153,27 @@ function wrapWithin(text, cpl, maxLines) {
   return lines.length <= maxLines ? lines : null;
 }
 
-// Pick the largest font size (down to a floor) at which the title fits the card width
-// on at most two lines, with side padding — so long titles shrink to fit instead of
-// being cut off with an ellipsis. ~0.553 is the observed width-per-point for the bold
+// Titles share ONE font size across every card for a consistent look. The title wraps
+// onto as many lines as it needs (up to three) at that size. Only a title too long to
+// fit even then (a very long single word, or > 3 lines) shrinks — a rare fallback —
+// so the chart stays uniform in practice. ~0.553 is the width-per-point of the bold
 // header face; padPx is reserved on each side.
-function fitTitle(title, w, { maxFs = 17, minFs = 7.5, padPx = 9 } = {}) {
+const TITLE_FS = 16;
+function fitTitle(title, w, { size = TITLE_FS, minFs = 8, padPx = 8, maxLines = 3 } = {}) {
   const text = ((title || "").trim()) || "Role";
   const usable = w - padPx * 2;
-  // Prefer the largest size that fits on two lines; only drop to three lines if even
-  // the smallest two-line size can't hold it. Truncation is the last resort.
-  for (const maxLines of [2, 3]) {
-    for (let fs = maxFs; fs >= minFs; fs -= 0.5) {
-      const cpl = Math.max(3, Math.floor(usable / (fs * 0.553)));
-      const lines = wrapWithin(text, cpl, maxLines);
-      if (lines) return { fs, lines };
-    }
+  const cplAt = (fs) => Math.max(3, Math.floor(usable / (fs * 0.553)));
+
+  // Standard, uniform size first.
+  const uniform = wrapWithin(text, cplAt(size), maxLines);
+  if (uniform) return { fs: size, lines: uniform };
+
+  // Fallback: shrink just this one until it fits (keeps overlong titles legible).
+  for (let fs = size - 0.5; fs >= minFs; fs -= 0.5) {
+    const lines = wrapWithin(text, cplAt(fs), maxLines);
+    if (lines) return { fs, lines };
   }
-  const cpl = Math.max(3, Math.floor(usable / (minFs * 0.553)));
-  return { fs: minFs, lines: wrapLines(text, cpl, 3).map((ln) => truncate(ln, cpl)) };
+  return { fs: minFs, lines: wrapLines(text, cplAt(minFs), maxLines).map((ln) => truncate(ln, cplAt(minFs))) };
 }
 
 // Split a name into first name (line 1) and the rest (line 2). Single-token names
