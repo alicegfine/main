@@ -1342,6 +1342,17 @@ function wire() {
     renderRoster();
   });
 
+  $("#copyViewLink").addEventListener("click", async () => {
+    const url = location.origin + "/view";
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("View-only link copied — anyone with it can view the current org (not edit).");
+    } catch (e) {
+      window.prompt("Copy this read-only link:", url); // clipboard blocked; show it
+    }
+  });
+  $("#openViewLink").addEventListener("click", () => window.open("/view", "_blank", "noopener"));
+
   $("#saveProject").addEventListener("click", saveProject);
   $("#openProjectBtn").addEventListener("click", () => $("#openProjectInput").click());
   $("#openProjectInput").addEventListener("change", (e) => {

@@ -119,6 +119,8 @@ const server = createServer(async (req, res) => {
     }
 
     let filePath = pathname === "/" || pathname.endsWith("/") ? pathname + "index.html" : pathname;
+    // Read-only team view lives at /view (no editing UI, GET-only).
+    if (pathname === "/view" || pathname === "/view/") filePath = "/view.html";
     filePath = normalize(join(ROOT, filePath));
     if (!filePath.startsWith(ROOT)) {
       res.writeHead(403).end("Forbidden");

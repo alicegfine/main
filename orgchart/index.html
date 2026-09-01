@@ -126,6 +126,11 @@
             <button class="btn btn-small" id="saveProject">Save file</button>
             <button class="btn btn-small btn-ghost" id="openProjectBtn">Open file</button>
           </div>
+          <p class="rail-hint">Share a read-only view of the current org (no editing):</p>
+          <div class="rail-toolbar">
+            <button class="btn btn-small btn-ghost" id="copyViewLink">Copy view-only link</button>
+            <button class="btn btn-small btn-ghost" id="openViewLink">Open</button>
+          </div>
           <input type="file" id="openProjectInput" accept=".json,application/json" hidden />
           <button class="btn btn-small btn-ghost danger" id="startFresh">Clear everything</button>
         </footer>
@@ -227,6 +232,9 @@
 
           <h3>Exporting to a deck</h3>
           <p>Click <b>Export ▾</b> → PNG (picture), SVG (editable), or Copy image (paste straight into a slide).</p>
+
+          <h3>Share a read-only view</h3>
+          <p>Use <b>Copy view-only link</b> (bottom of the left panel) to give your team a live, read-only view of the current org at a separate URL — they can see it but not edit it, and it updates automatically as you make changes.</p>
         </div>
       </div>
     </div>
