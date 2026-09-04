@@ -30,12 +30,14 @@ function getAllocations_() {
     var pd = parseFloat(data[i][CONFIG.MATH_COL.PD_ALLOCATED - 1]);
     var wl = parseFloat(data[i][CONFIG.MATH_COL.WL_ALLOCATED - 1]);
     var end = data[i][CONFIG.MATH_COL.END_DATE - 1];
+    var mgr = data[i][CONFIG.MATH_COL.MANAGER_EMAIL - 1];
 
     map[key] = {
       email: email.toString().trim(),
       pdAllocated: isNaN(pd) ? CONFIG.PD_FULL_ALLOCATION : pd,
       wlAllocated: isNaN(wl) ? CONFIG.WL_FULL_ALLOCATION : wl,
-      endDate: (end === '' || end === null || end === undefined) ? null : end
+      endDate: (end === '' || end === null || end === undefined) ? null : end,
+      managerEmail: (mgr === '' || mgr === null || mgr === undefined) ? '' : mgr.toString().trim().toLowerCase()
     };
   }
 

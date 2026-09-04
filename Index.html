@@ -143,10 +143,7 @@
           <textarea id="explanation" name="explanation" maxlength="1000" required></textarea>
 
           <div id="approvalBlock" class="approval hidden">
-            <label>
-              <input type="checkbox" id="managerApproval">
-              <span>This purchase is <strong>$500 or more</strong>, so it requires <strong>manager approval</strong>. I confirm I've obtained my manager's approval before submitting.</span>
-            </label>
+            <span>This purchase is <strong>$500 or more</strong>, so it will be sent to your <strong>manager</strong> for approval before it goes to the ops team.</span>
           </div>
 
           <button type="submit" id="submitBtn">Submit request</button>
@@ -218,12 +215,10 @@
       // --- Manager-approval prompt for $500+ ---
       document.getElementById('amount').addEventListener('input', function() {
         var block = document.getElementById('approvalBlock');
-        var chk = document.getElementById('managerApproval');
         if (parseFloat(this.value) >= MANAGER_APPROVAL_THRESHOLD) {
           block.classList.remove('hidden');
         } else {
           block.classList.add('hidden');
-          chk.checked = false;
         }
       });
 
@@ -256,17 +251,6 @@
           result.classList.remove('hidden');
         }
 
-        // Manager approval gate for $500+ purchases.
-        var needsMgr = parseFloat(document.getElementById('amount').value) >= MANAGER_APPROVAL_THRESHOLD;
-        if (needsMgr && !document.getElementById('managerApproval').checked) {
-          fail('This purchase is $500 or more and requires manager approval — please confirm you have it by checking the box.');
-          return;
-        }
-        var explanationText = document.getElementById('explanation').value;
-        if (needsMgr) {
-          explanationText += '\n\n[Manager approval confirmed by submitter — required for $500+ purchases]';
-        }
-
         btn.disabled = true;
         btn.textContent = 'Submitting…';
 
@@ -276,7 +260,7 @@
             description: document.getElementById('description').value,
             amount: document.getElementById('amount').value,
             category: document.getElementById('category').value,
-            explanation: explanationText,
+            explanation: document.getElementById('explanation').value,
             receiptData: receiptData || '',
             receiptName: receiptName || '',
             receiptType: receiptType || ''
@@ -313,16 +297,23 @@
           return;
         }
 
-        var msg = 'Request submitted and sent to Jake & Siobhan for approval. ';
-        if (resp.needsGrossUp) {
-          msg += 'Estimated gross-up: ' + money(resp.grossUpEstimate) + ' (est. total ' + money(resp.totalCost) + '). ';
-        }
-        if (resp.isOverBudget) {
-          result.className = 'note warn';
-          msg += 'Heads up: this would put you ' + money(Math.abs(resp.remainingAfter)) +
-                 ' over your available budget, so it may be declined.';
-        } else {
+        var msg;
+        if (resp.managerPending) {
           result.className = 'note ok';
+          msg = 'Submitted — sent to your manager (' + resp.managerEmail + ') for approval. ' +
+                'Once they approve, it goes to Jake & Siobhan.';
+        } else {
+          msg = 'Request submitted and sent to Jake & Siobhan for approval. ';
+          if (resp.needsGrossUp) {
+            msg += 'Estimated gross-up: ' + money(resp.grossUpEstimate) + ' (est. total ' + money(resp.totalCost) + '). ';
+          }
+          if (resp.isOverBudget) {
+            result.className = 'note warn';
+            msg += 'Heads up: this would put you ' + money(Math.abs(resp.remainingAfter)) +
+                   ' over your available budget, so it may be declined.';
+          } else {
+            result.className = 'note ok';
+          }
         }
         result.textContent = msg;
         result.classList.remove('hidden');

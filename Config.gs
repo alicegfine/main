@@ -51,7 +51,9 @@ var CONFIG = {
     STATUS: 10,             // J — pending | approved | declined
     ACTUAL_GROSS_UP: 11,    // K — actual gross-up from payroll (overrides estimate)
     PAID: 12,               // L — date/flag set when payroll confirms payment
-    REQUEST_ID: 13          // M — unique id for this request
+    REQUEST_ID: 13,         // M — unique id for this request
+    MANAGER_STATUS: 14,     // N — pending | approved | declined (manager gate for $500+)
+    MANAGER_APPROVER: 15    // O — email of the manager this request was routed to
   },
 
   // Column indices in the Math sheet (1-based)
@@ -67,7 +69,8 @@ var CONFIG = {
     WL_USED: 9,
     PD_REMAINING: 10,
     WL_REMAINING: 11,
-    TOTAL_REMAINING: 12
+    TOTAL_REMAINING: 12,
+    MANAGER_EMAIL: 15    // O — the person's manager (email) for $500+ approval routing
   },
 
   // --- Gross-Up ---
@@ -84,6 +87,13 @@ var CONFIG = {
   // full-year reference values and a fallback when the sheet is blank.
   WL_FULL_ALLOCATION: 3000,   // Work-life improvement (taxable; may also fund prof dev)
   PD_FULL_ALLOCATION: 2000,   // Professional development only (not taxable)
+
+  // --- Manager approval ---
+  // Purchases at/above this amount are routed to the submitter's manager for
+  // approval before going to the #flex-fund-approvals channel.
+  MANAGER_APPROVAL_THRESHOLD: 500,
+  // Used when a submitter has no manager on file (blank) or is top of the chart.
+  FALLBACK_MANAGER_EMAIL: 'siobhan.brenton@blueprintbiosecurity.org',
 
   // --- Categories ---
   CATEGORY_WORK_LIFE: 'Work-life improvement',

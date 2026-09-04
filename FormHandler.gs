@@ -82,21 +82,65 @@ function processNewRequest_(submission) {
     isOverBudget = (remainingAfter < 0);
   }
 
-  var message = buildApprovalMessage_(submission, needsGrossUp, grossUpEstimate, totalCost, balance, remainingAfter, isOverBudget);
-  var messageTs = postToSlack_(CONFIG.APPROVAL_CHANNEL_ID, message);
-
-  if (messageTs) {
-    storeMessageMapping_(messageTs, submission, grossUpEstimate, totalCost);
-  }
-
-  return {
+  var result = {
     grossUpEstimate: grossUpEstimate,
     totalCost: totalCost,
     balance: balance,
     remainingAfter: remainingAfter,
     isOverBudget: isOverBudget,
-    requestId: requestId
+    requestId: requestId,
+    managerPending: false
   };
+
+  // Purchases at/above the threshold go to the person's manager first; the
+  // channel post is held until the manager approves (see Managers.gs).
+  if (submission.amount >= CONFIG.MANAGER_APPROVAL_THRESHOLD) {
+    var manager = getManagerEmail_(submission.email);
+    sheet.getRange(submission.row, CONFIG.FORM_COL.MANAGER_STATUS).setValue(CONFIG.STATUS_PENDING);
+    sheet.getRange(submission.row, CONFIG.FORM_COL.MANAGER_APPROVER).setValue(manager);
+    sendManagerApprovalEmail_(submission, manager, needsGrossUp, grossUpEstimate, totalCost);
+    result.managerPending = true;
+    result.managerEmail = manager;
+    return result;
+  }
+
+  // Under the threshold: straight to the approval channel.
+  postApprovalMessage_(submission, needsGrossUp, grossUpEstimate, totalCost, balance, remainingAfter, isOverBudget);
+  return result;
+}
+
+/**
+ * Post the approval message to #flex-fund-approvals and store the Slack
+ * mapping. Used for under-threshold requests and, via
+ * postApprovalForSubmission_, after a manager approves a $500+ request.
+ */
+function postApprovalMessage_(submission, needsGrossUp, grossUpEstimate, totalCost, balance, remainingAfter, isOverBudget) {
+  var message = buildApprovalMessage_(submission, needsGrossUp, grossUpEstimate, totalCost, balance, remainingAfter, isOverBudget);
+  var messageTs = postToSlack_(CONFIG.APPROVAL_CHANNEL_ID, message);
+  if (messageTs) {
+    storeMessageMapping_(messageTs, submission, grossUpEstimate, totalCost);
+  }
+}
+
+/**
+ * Recompute gross-up + balance for an existing request and post it to the
+ * approval channel. Called after a manager approves a $500+ request.
+ */
+function postApprovalForSubmission_(submission) {
+  var needsGrossUp = (submission.category === CONFIG.CATEGORY_WORK_LIFE);
+  var grossUpEstimate = needsGrossUp ? calculateGrossUp_(submission.amount) : 0;
+  var totalCost = round2_(submission.amount + grossUpEstimate);
+
+  var balance = computeBalance_(submission.email, null, null, submission.row);
+  var remainingAfter = null;
+  var isOverBudget = false;
+  if (balance) {
+    var available = availableFor_(submission.category, balance);
+    remainingAfter = round2_(available - totalCost);
+    isOverBudget = (remainingAfter < 0);
+  }
+
+  postApprovalMessage_(submission, needsGrossUp, grossUpEstimate, totalCost, balance, remainingAfter, isOverBudget);
 }
 
 /**

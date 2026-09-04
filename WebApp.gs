@@ -14,9 +14,13 @@
 // ============================================================
 
 /**
- * Serve the web app. Renders Index.html for the signed-in employee.
+ * Serve the web app. Renders Index.html for the signed-in employee, or
+ * handles a manager approve/decline link when an ?action= param is present.
  */
 function doGet(e) {
+  if (e && e.parameter && e.parameter.action) {
+    return handleManagerAction_(e);  // see Managers.gs
+  }
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('Flex Fund')
@@ -146,6 +150,8 @@ function submitFlexFundRequest(form) {
       totalCost: result.totalCost,
       isOverBudget: result.isOverBudget,
       remainingAfter: result.remainingAfter,
+      managerPending: result.managerPending || false,
+      managerEmail: result.managerEmail || '',
       balance: computeBalance_(email)  // refreshed balance incl. this request
     };
   } catch (err) {
